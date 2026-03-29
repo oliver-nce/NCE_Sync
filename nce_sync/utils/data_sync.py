@@ -595,6 +595,8 @@ def _sync_ts_compare(conn, wp_table_doc, wp_conn_doc, frappe_doctype, ts_field):
 		for i in range(0, len(rows), BATCH_SIZE):
 			batch = rows[i : i + BATCH_SIZE]
 			for row in batch:
+				row_hint = str(dict(list(row.items())[:4]))[:150]
+				frappe.db.savepoint("row_sync")
 				try:
 					converted_row = _convert_row(row, wp_tz, column_mapping)
 					was_new = _upsert_record(frappe_doctype, matching_keys, converted_row)
@@ -604,8 +606,11 @@ def _sync_ts_compare(conn, wp_table_doc, wp_conn_doc, frappe_doctype, ts_field):
 				except Exception as e:
 					rows_skipped += 1
 					if len(skip_errors) < 10:
-						skip_errors.append(str(e)[:200])
-					frappe.db.rollback()
+						skip_errors.append(f"{row_hint} — {str(e)[:180]}")
+					try:
+						frappe.db.rollback(save_point="row_sync")
+					except Exception:
+						pass
 				if (rows_upserted + rows_skipped) % 500 == 0:
 					_publish_sync_progress(
 						wp_table_doc.name,
