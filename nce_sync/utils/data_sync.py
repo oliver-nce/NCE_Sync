@@ -686,17 +686,30 @@ def _sync_truncate_replace(conn, wp_table_doc, wp_conn_doc, frappe_doctype):
 
 	# Step 3: Insert all rows in batches (with in_sync flag to prevent live push-back)
 	rows_inserted = 0
+	rows_skipped = 0
+	skip_errors = []
 	frappe.flags.in_sync = True
 	try:
 		for i in range(0, len(all_rows), BATCH_SIZE):
 			batch = all_rows[i : i + BATCH_SIZE]
 
 			for row in batch:
-				converted_row = _convert_row(row, wp_tz, column_mapping)
-				_insert_record(frappe_doctype, converted_row)
-				rows_inserted += 1
+				row_hint = str(dict(list(row.items())[:4]))[:150]
+				frappe.db.savepoint("row_sync")
+				try:
+					converted_row = _convert_row(row, wp_tz, column_mapping)
+					_insert_record(frappe_doctype, converted_row)
+					rows_inserted += 1
+				except Exception as e:
+					rows_skipped += 1
+					if len(skip_errors) < 10:
+						skip_errors.append(f"{row_hint} — {str(e)[:180]}")
+					try:
+						frappe.db.rollback(save_point="row_sync")
+					except Exception:
+						pass
 
-				if rows_inserted % 500 == 0:
+				if (rows_inserted + rows_skipped) % 500 == 0:
 					_publish_sync_progress(
 						wp_table_doc.name,
 						rows_inserted,
@@ -707,6 +720,12 @@ def _sync_truncate_replace(conn, wp_table_doc, wp_conn_doc, frappe_doctype):
 			frappe.db.commit()
 	finally:
 		frappe.flags.in_sync = False
+
+	if rows_skipped:
+		frappe.log_error(
+			title=f"Sync skipped rows: {wp_table_doc.table_name}",
+			message=f"Skipped {rows_skipped} rows.\n" + "\n".join(skip_errors),
+		)
 
 	# Final progress update (always fires)
 	_publish_sync_progress(
