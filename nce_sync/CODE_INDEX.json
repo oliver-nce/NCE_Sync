@@ -1,34 +1,49 @@
 {
   "_meta": {
     "description": "Machine-readable index of every module in the NCE Sync (Tables) Frappe app. Read this file FIRST before exploring the codebase — it tells you exactly where to look for any given concern.",
-    "generated": "2026-03-26",
+    "generated": "2026-04-02",
     "usage": "Find the module whose 'purpose' matches your task, then read only that file and its 'depends_on' entries."
   },
 
   "architecture": {
     "overview": "NCE Sync (app_title: Tables) synchronises WordPress database tables to Frappe custom doctypes. It mirrors WordPress table schemas as Frappe doctypes, then syncs data bidirectionally. Also provides a Table Links page for managing cross-table relationships. Used as a dependency by NCE Events.",
-    "data_flow": "WordPress MySQL → schema_mirror.py (introspect + create/update Frappe doctype) → data_sync.py (pull WP rows → upsert Frappe records) | Frappe doc events → live_sync.py / reverse_sync.py → push back to WordPress MySQL",
+    "data_flow": "WordPress MySQL → schema_mirror.py (introspect + create/update Frappe doctype) → data_sync.py (pull WP rows → upsert Frappe records) | Frappe doc events → live_sync.py → write_back_dispatch.run_write_back_for_doc (SQL Direct only) → push_record_to_wp → WordPress; reverse_sync.py for bulk Frappe→WP",
     "key_patterns": [
-      "WP_Tables doctype is the central config record per synced table (connection, column mapping, matching keys, field overrides)",
+      "WP_Tables doctype is the central config record per synced table (connection, column mapping, matching keys, field overrides, write_back_mode, listen_for_changes)",
       "schema_mirror.py introspects WP table schema and creates/updates Frappe custom doctype",
-      "data_sync.py does incremental sync using modified timestamp cutoff",
-      "live_sync.py hooks into Frappe doc events to push changes back to WP in real time",
+      "data_sync.py does incremental sync using modified timestamp cutoff; per-row DB savepoints so one bad row does not abort the whole batch; row_hint in skip_errors for debugging",
+      "live_sync.py hooks into Frappe doc events; enqueues run_write_back_for_doc on the default queue; uses frappe.flags.in_sync during WP→Frappe saves to avoid feedback loops",
+      "write_back_dispatch.run_write_back_for_doc runs SQL Direct write-back only (lazy import of push_record_to_wp); custom API flows use Client Script on the target DocType",
       "reverse_sync.py handles full Frappe-to-WP push with temp name management",
-      "API Connector stores credentials (base_url, auth_pattern, credential_config JSON)"
+      "API Connector stores credentials (base_url, auth_pattern, credential_config JSON)",
+      "Job queuing: scheduled sync, manual sync (WP Tables / Sync Manager), Excel export API, and live write-back all use frappe.enqueue(..., queue=\"default\") so a single worker processes jobs in order"
     ]
   },
 
   "backend": {
     "nce_sync/hooks.py": {
       "purpose": "App config: metadata, CSS/JS includes, apps screen registration (title: Tables, route: /app/tables)",
-      "exports": ["app_name", "add_to_apps_screen", "app_include_css", "app_include_js"],
+      "exports": [
+        "app_name",
+        "add_to_apps_screen",
+        "app_include_css",
+        "app_include_js"
+      ],
       "depends_on": [],
       "sections": ["App Metadata", "Global CSS/JS", "Apps Screen"]
     },
     "nce_sync/api.py": {
       "purpose": "Whitelisted page-level endpoints: toggle auto-sync, get table links grid, apply table link changes, export doctype to Excel",
-      "exports": ["toggle_auto_sync", "get_table_links_grid_data", "apply_table_link_changes", "export_all_to_excel"],
-      "depends_on": ["nce_sync/nce_sync/doctype/wp_tables/", "nce_sync/utils/data_sync.py"],
+      "exports": [
+        "toggle_auto_sync",
+        "get_table_links_grid_data",
+        "apply_table_link_changes",
+        "export_all_to_excel"
+      ],
+      "depends_on": [
+        "nce_sync/nce_sync/doctype/wp_tables/",
+        "nce_sync/utils/data_sync.py"
+      ],
       "sections": ["Auto-sync toggle", "Table links grid", "Excel export"]
     },
     "nce_sync/overrides.py": {
@@ -39,30 +54,129 @@
     },
     "nce_sync/utils/schema_mirror.py": {
       "purpose": "WordPress schema introspection and Frappe doctype mirroring: connect to WP MySQL, discover tables/views, map MariaDB types to Frappe types, create or update Frappe custom doctype with matching field configuration",
-      "exports": ["sanitize_fieldname", "resolve_fieldname", "get_matching_fields_list", "build_frappe_field", "get_wp_connection", "discover_tables_and_views", "detect_timestamp_fields", "get_table_schema", "map_mariadb_to_frappe_type", "preview_table_schema", "mirror_table_schema", "create_custom_doctype", "update_existing_doctype"],
-      "depends_on": ["nce_sync/nce_sync/doctype/wordpress_connection/", "nce_sync/nce_sync/doctype/wp_tables/"],
-      "sections": ["Field name helpers", "WP connection", "Schema discovery", "Type mapping", "Preview", "DocType creation/update"]
+      "exports": [
+        "sanitize_fieldname",
+        "resolve_fieldname",
+        "get_matching_fields_list",
+        "build_frappe_field",
+        "get_wp_connection",
+        "discover_tables_and_views",
+        "detect_timestamp_fields",
+        "get_table_schema",
+        "map_mariadb_to_frappe_type",
+        "preview_table_schema",
+        "mirror_table_schema",
+        "create_custom_doctype",
+        "update_existing_doctype"
+      ],
+      "depends_on": [
+        "nce_sync/nce_sync/doctype/wordpress_connection/",
+        "nce_sync/nce_sync/doctype/wp_tables/"
+      ],
+      "sections": [
+        "Field name helpers",
+        "WP connection",
+        "Schema discovery",
+        "Type mapping",
+        "Preview",
+        "DocType creation/update"
+      ]
     },
     "nce_sync/utils/data_sync.py": {
-      "purpose": "WP-to-Frappe incremental data sync: fetch changed rows since last sync timestamp, upsert Frappe records, publish progress events",
-      "exports": ["sync_table", "get_frappe_fieldname", "build_reverse_mapping"],
-      "private_helpers": ["_get_cutoff_timestamp", "_fetch_changed_rows", "_fetch_rows_by_keys", "_upsert_record", "_sync_ts_compare", "_sync_truncate_replace", "_convert_row", "_publish_sync_progress"],
-      "depends_on": ["nce_sync/nce_sync/doctype/wp_tables/", "nce_sync/nce_sync/doctype/wordpress_connection/"],
-      "sections": ["Timestamp cutoff logic", "Row fetch", "Row conversion", "Upsert", "Progress publishing", "Sync strategies (timestamp / truncate-replace)"]
+      "purpose": "WP-to-Frappe incremental data sync: fetch changed rows since last sync timestamp, upsert Frappe records, publish progress events. Uses per-row savepoints in batch upsert and truncate-replace so validation/DB errors on one row roll back only that row; remaining rows commit. Sets frappe.flags.in_sync while saving mirrored docs so live_sync does not enqueue write-back during inbound sync.",
+      "exports": [
+        "sync_table",
+        "get_frappe_fieldname",
+        "build_reverse_mapping"
+      ],
+      "private_helpers": [
+        "_get_cutoff_timestamp",
+        "_fetch_changed_rows",
+        "_fetch_rows_by_keys",
+        "_upsert_record",
+        "_sync_ts_compare",
+        "_sync_truncate_replace",
+        "_convert_row",
+        "_publish_sync_progress",
+        "row-level savepoint/rollback pattern (row_sync) with row_hint in skip_errors"
+      ],
+      "depends_on": [
+        "nce_sync/nce_sync/doctype/wp_tables/",
+        "nce_sync/nce_sync/doctype/wordpress_connection/"
+      ],
+      "sections": [
+        "Timestamp cutoff logic",
+        "Row fetch",
+        "Row conversion",
+        "Upsert",
+        "Progress publishing",
+        "Sync strategies (timestamp / truncate-replace)",
+        "Per-row failure isolation (savepoints)"
+      ]
     },
     "nce_sync/utils/live_sync.py": {
-      "purpose": "Real-time Frappe-to-WP sync triggered by doc events: on_record_change hook pushes modified Frappe records back to WordPress immediately",
-      "exports": ["on_record_change", "push_record_to_wp", "clear_sql_direct_cache"],
-      "private_helpers": ["_get_listen_map", "_get_auto_generated_columns", "_build_wp_row"],
-      "depends_on": ["nce_sync/nce_sync/doctype/wp_tables/", "nce_sync/utils/schema_mirror.py"],
-      "sections": ["Listen map (which doctypes to watch)", "Doc change handler", "WP row builder", "Push record"]
+      "purpose": "Real-time Frappe→WordPress write-back entry point: wildcard on_update/after_insert handler. If frappe.flags.in_sync, returns (WP→Frappe sync in progress). Else if DocType is in listen map, enqueues run_write_back_for_doc on queue default. Implements push_record_to_wp for SQL Direct path (used via lazy import from write_back_dispatch).",
+      "exports": [
+        "on_record_change",
+        "push_record_to_wp",
+        "clear_sql_direct_cache"
+      ],
+      "private_helpers": [
+        "_get_listen_map",
+        "_get_auto_generated_columns",
+        "_build_wp_row"
+      ],
+      "depends_on": [
+        "nce_sync/nce_sync/doctype/wp_tables/",
+        "nce_sync/utils/schema_mirror.py",
+        "nce_sync/utils/write_back_dispatch.py"
+      ],
+      "sections": [
+        "Listen map (which doctypes to watch)",
+        "Doc change handler (enqueue write-back)",
+        "WP row builder",
+        "push_record_to_wp (SQL Direct implementation)",
+        "Default queue coordination with data_sync jobs"
+      ]
+    },
+    "nce_sync/utils/write_back_dispatch.py": {
+      "purpose": "Background job target: if WP Tables has listen_for_changes and write_back_mode SQL Direct, lazy-imports push_record_to_wp from live_sync (avoids circular import).",
+      "exports": [
+        "run_write_back_for_doc"
+      ],
+      "private_helpers": [],
+      "depends_on": [
+        "nce_sync/nce_sync/doctype/wp_tables/",
+        "nce_sync/utils/live_sync.py (lazy)"
+      ],
+      "sections": [
+        "SQL Direct write-back only"
+      ]
     },
     "nce_sync/utils/reverse_sync.py": {
       "purpose": "Full Frappe-to-WP bulk sync: inserts new records and updates existing ones in WP, handles temp name assignment for new Frappe records before WP ID is known",
-      "exports": ["sync_frappe_to_wp", "assign_temp_name", "insert_record_to_wp", "update_record_in_wp"],
-      "private_helpers": ["_next_temp_name", "_is_mirrored_doctype", "_looks_like_temp_or_hash", "_get_column_mapping", "_build_wp_row"],
-      "depends_on": ["nce_sync/nce_sync/doctype/wp_tables/", "nce_sync/utils/schema_mirror.py"],
-      "sections": ["Temp name management", "Insert/update to WP", "Full sync loop"]
+      "exports": [
+        "sync_frappe_to_wp",
+        "assign_temp_name",
+        "insert_record_to_wp",
+        "update_record_in_wp"
+      ],
+      "private_helpers": [
+        "_next_temp_name",
+        "_is_mirrored_doctype",
+        "_looks_like_temp_or_hash",
+        "_get_column_mapping",
+        "_build_wp_row"
+      ],
+      "depends_on": [
+        "nce_sync/nce_sync/doctype/wp_tables/",
+        "nce_sync/utils/schema_mirror.py"
+      ],
+      "sections": [
+        "Temp name management",
+        "Insert/update to WP",
+        "Full sync loop"
+      ]
     },
     "nce_sync/utils/workspace_utils.py": {
       "purpose": "Frappe Workspace creation/management utilities for NCE Sync",
@@ -74,9 +188,23 @@
 
   "doctypes": {
     "nce_sync/nce_sync/doctype/wp_tables/": {
-      "purpose": "Central config per synced WordPress table: WP connection, table name, Frappe doctype name, column mapping, matching keys, field overrides, timestamp fields, auto-sync flag",
-      "key_fields": ["wp_connection", "table_name", "frappe_doctype", "column_mapping", "matching_keys", "modified_ts_field", "created_ts_field", "auto_sync"],
-      "client_js": ["wp_tables.js (form actions)", "wp_tables_list.js (list view actions)"],
+      "purpose": "Central config per synced WordPress table: WP connection, table name, Frappe doctype name, column mapping, matching keys, field overrides, timestamp fields, auto-sync, listen_for_changes, write_back_mode. sync_now enqueues run_sync_for_table on queue default.",
+      "key_fields": [
+        "wp_connection",
+        "table_name",
+        "frappe_doctype",
+        "column_mapping",
+        "matching_keys",
+        "modified_ts_field",
+        "created_ts_field",
+        "auto_sync",
+        "listen_for_changes",
+        "write_back_mode"
+      ],
+      "client_js": [
+        "wp_tables.js (form actions)",
+        "wp_tables_list.js (list view actions)"
+      ],
       "depends_on": ["wordpress_connection"]
     },
     "nce_sync/nce_sync/doctype/wordpress_connection/": {
@@ -87,7 +215,12 @@
     },
     "nce_sync/nce_sync/doctype/api_connector/": {
       "purpose": "External API connector config: base_url, auth_pattern, credential_config (JSON). Used by NCE Events for credentials.py lookup.",
-      "key_fields": ["connector_name", "base_url", "auth_pattern", "credential_config"],
+      "key_fields": [
+        "connector_name",
+        "base_url",
+        "auth_pattern",
+        "credential_config"
+      ],
       "client_js": ["api_connector.js", "api_connector_list.js"],
       "depends_on": []
     },
@@ -97,7 +230,7 @@
       "depends_on": ["api_connector"]
     },
     "nce_sync/nce_sync/doctype/sync_manager/": {
-      "purpose": "Batch sync manager — trigger and monitor sync across multiple WP Tables",
+      "purpose": "Batch sync manager — trigger and monitor sync across multiple WP Tables; enqueues one run_sync_for_table job per table on queue default",
       "key_fields": [],
       "client_js": ["sync_manager.js"],
       "depends_on": ["wp_tables"]

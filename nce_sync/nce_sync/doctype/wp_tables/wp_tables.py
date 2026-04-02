@@ -147,6 +147,10 @@ class WPTables(Document):
 
 	def validate(self):
 		"""Validate and enforce source-of-truth hierarchy."""
+		# Legacy option removed from form — treat as Never (use Client Script for API push).
+		if self.write_back_mode == "API Required":
+			self.write_back_mode = "Never"
+
 		if self.doctype_source == "Native":
 			# Native entries only need a valid existing DocType — no WP table required
 			if not self.frappe_doctype:

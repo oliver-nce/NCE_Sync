@@ -148,11 +148,11 @@
     },
     {
       "default": "Never",
-      "description": "Never: read-only from WP. SQL Direct: auto-push changes to WP via SQL. API Required: local edits allowed, WP push handled externally.",
+      "description": "Never: read-only from WP. SQL Direct: enqueue SQL push on save when Listen For Changes is on. One-off API flows: use Client Script on that DocType.",
       "fieldname": "write_back_mode",
       "fieldtype": "Select",
       "label": "Write Back Mode",
-      "options": "Never\nSQL Direct\nAPI Required"
+      "options": "Never\nSQL Direct"
     },
     {
       "default": "0",

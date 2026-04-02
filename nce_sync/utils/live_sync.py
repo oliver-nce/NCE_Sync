@@ -5,8 +5,8 @@
 Live write-back from Frappe to WordPress.
 
 Handles the on_update / after_insert wildcard hook for all DocTypes.
-Only acts on DocTypes whose WP Tables record has listen_for_changes = 1
-and mirror_status = "Mirrored".
+Only acts on DocTypes whose WP Tables record has listen_for_changes = 1,
+write_back_mode = SQL Direct, and mirror_status = Mirrored.
 
 New records (identified by a negative temp name assigned by reverse_sync) are
 INSERTed into WordPress; the Frappe doc is then renamed to the real WP auto-
@@ -62,7 +62,7 @@ SKIP_FIELDS = frozenset(
 def _get_listen_map():
 	"""
 	Return a dict of {frappe_doctype: wp_table_name} for all WP Tables
-	with listen_for_changes = 1 and mirror_status = "Mirrored".
+	with listen_for_changes = 1, write_back_mode = SQL Direct, and mirror_status = Mirrored.
 
 	Result is cached in Redis; invalidated (via clear_sql_direct_cache) whenever
 	a WP Tables record is saved or trashed.
@@ -74,7 +74,11 @@ def _get_listen_map():
 	try:
 		rows = frappe.get_all(
 			"WP Tables",
-			filters={"mirror_status": "Mirrored", "listen_for_changes": 1},
+			filters={
+				"mirror_status": "Mirrored",
+				"listen_for_changes": 1,
+				"write_back_mode": "SQL Direct",
+			},
 			fields=["name", "frappe_doctype"],
 		)
 	except Exception:
