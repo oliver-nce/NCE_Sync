@@ -158,31 +158,41 @@ def sync_table(wp_table_doc):
 	# Get effective timestamp field
 	ts_field = _get_effective_ts_field(wp_table_doc)
 
-	# Connect to WordPress
-	conn = get_wp_connection(wp_conn_doc)
+	frappe_doctype = wp_table_doc.frappe_doctype
+
+	from nce_sync.utils.live_sync import clear_deferred_wp_push, flush_deferred_wp_pushes
+
+	# Drop stale deferred entries from a crashed prior sync
+	clear_deferred_wp_push(frappe_doctype)
+	frappe.cache().set_value(f"nce_sync:sync_in_progress:{frappe_doctype}", 1, 7200)
 
 	try:
-		if sync_method == "Truncate & Replace":
-			result = _sync_truncate_replace(conn, wp_table_doc, wp_conn_doc, wp_table_doc.frappe_doctype)
-		else:
-			# Default to TS Compare
-			result = _sync_ts_compare(conn, wp_table_doc, wp_conn_doc, wp_table_doc.frappe_doctype, ts_field)
+		conn = get_wp_connection(wp_conn_doc)
+		try:
+			if sync_method == "Truncate & Replace":
+				result = _sync_truncate_replace(conn, wp_table_doc, wp_conn_doc, frappe_doctype)
+			else:
+				# Default to TS Compare
+				result = _sync_ts_compare(conn, wp_table_doc, wp_conn_doc, frappe_doctype, ts_field)
+		finally:
+			conn.close()
 
+		# Reverse sync: push Frappe-created records back to WordPress
+		# Only runs when direction is explicitly "Both" and the WP PK maps to Frappe name
+		sync_direction = getattr(wp_table_doc, "sync_direction", "WP to Frappe") or "WP to Frappe"
+		if sync_direction != "WP to Frappe" and getattr(wp_table_doc, "name_field_column", None):
+			from nce_sync.utils.reverse_sync import sync_frappe_to_wp
+
+			reverse_result = sync_frappe_to_wp(wp_table_doc)
+			result["reverse_inserted"] = reverse_result.get("inserted", 0)
+			result["reverse_updated"] = reverse_result.get("updated", 0)
+			result["reverse_errors"] = reverse_result.get("errors", 0)
+
+		return result
 	finally:
-		conn.close()
-
-	# Reverse sync: push Frappe-created records back to WordPress
-	# Only runs when direction is explicitly "Both" and the WP PK maps to Frappe name
-	sync_direction = getattr(wp_table_doc, "sync_direction", "WP to Frappe") or "WP to Frappe"
-	if sync_direction != "WP to Frappe" and getattr(wp_table_doc, "name_field_column", None):
-		from nce_sync.utils.reverse_sync import sync_frappe_to_wp
-
-		reverse_result = sync_frappe_to_wp(wp_table_doc)
-		result["reverse_inserted"] = reverse_result.get("inserted", 0)
-		result["reverse_updated"] = reverse_result.get("updated", 0)
-		result["reverse_errors"] = reverse_result.get("errors", 0)
-
-	return result
+		# Clear flag before flush so async write-back jobs never see sync still running
+		frappe.cache().delete_value(f"nce_sync:sync_in_progress:{frappe_doctype}")
+		flush_deferred_wp_pushes(frappe_doctype)
 
 
 def _get_effective_ts_field(wp_table_doc):
