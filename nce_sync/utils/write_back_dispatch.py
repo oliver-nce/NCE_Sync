@@ -12,12 +12,13 @@ specific DocType — not configured here.
 import frappe
 
 
-def run_write_back_for_doc(wp_table_name, doctype, docname, method):
+def run_write_back_for_doc(wp_table_name, doctype, docname):
 	"""
 	Enqueue target (see live_sync.on_record_change).
 
-	Ignores method: INSERT and UPDATE both use the same SQL push logic
-	(push_record_to_wp handles new vs existing by doc name).
+	Do not pass Frappe doc hook name as a kwarg named ``method`` into
+	``frappe.enqueue`` — that collides with enqueue's own ``method`` parameter.
+	INSERT and UPDATE both use the same SQL path (push_record_to_wp).
 	"""
 	try:
 		frappe.get_doc(doctype, docname)

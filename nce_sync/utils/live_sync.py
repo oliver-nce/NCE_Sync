@@ -120,7 +120,6 @@ def on_record_change(doc, method):
 		wp_table_name=wp_table_name,
 		doctype=doc.doctype,
 		docname=doc.name,
-		method=method,
 		queue="default",
 		is_async=True,
 	)
