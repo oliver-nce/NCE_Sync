@@ -615,7 +615,7 @@ class WPTables(Document):
 
 		frappe.enqueue(
 			"nce_sync.utils.data_sync.run_sync_for_table",
-			queue="long",
+			queue="default",
 			timeout=3600,
 			wp_table_name=self.name,
 			user=frappe.session.user,

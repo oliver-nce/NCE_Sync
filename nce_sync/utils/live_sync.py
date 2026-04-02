@@ -13,8 +13,16 @@ INSERTed into WordPress; the Frappe doc is then renamed to the real WP auto-
 increment ID.  Existing records are UPDATEd.
 
 Auto-generated WP columns (e.g. computed/virtual columns) are never written.
-The sync guard flag (frappe.flags.in_sync) prevents feedback loops when an
-inbound scheduled sync triggers this hook.
+
+Decision logic (two rules only):
+  A. If frappe.flags.in_sync is set, the change was caused by a WP→Frappe sync
+     task — ignore it to prevent feedback loops.
+  B. If the DocType is in the listen map (listen_for_changes = 1), queue the
+     write-back job on the "default" queue.
+
+All sync and write-back jobs share the default queue. A single worker executes
+them in order, so write-backs naturally run after any in-flight sync job
+finishes — no deferred queue or sync_in_progress flags needed.
 """
 
 import json
@@ -27,10 +35,6 @@ from nce_sync.utils.schema_mirror import get_wp_connection
 from nce_sync.utils.write_back_dispatch import run_write_back_for_doc
 
 CACHE_KEY = "nce_sync:listen_for_changes_tables"
-
-# Deferred write-back cache keys
-DEFERRED_PUSH_PREFIX = "nce_sync:deferred_wp_push:"
-DEFERRED_PUSH_TTL = 7200  # 2 hours, aligned with typical sync window
 
 # Frappe system fields that should never be pushed back to WP
 SKIP_FIELDS = frozenset(
@@ -87,94 +91,6 @@ def clear_sql_direct_cache():
 
 
 # ---------------------------------------------------------------------------
-# Deferred write-back queue (Redis / frappe.cache)
-# ---------------------------------------------------------------------------
-
-
-def _get_deferred_key(doctype):
-	"""
-	Return cache key for deferred pushes of a specific doctype.
-	"""
-	return f"{DEFERRED_PUSH_PREFIX}{doctype}"
-
-
-def _encode_deferred_member(docname, method):
-	"""Serialize docname + Frappe hook method for the Redis set (JSON array)."""
-	return json.dumps([docname, method or "on_update"])
-
-
-def _decode_deferred_member(raw):
-	"""
-	Return (docname, method). Legacy entries were bare docnames → default method on_update.
-	"""
-	if isinstance(raw, bytes):
-		raw = raw.decode("utf-8")
-	try:
-		data = json.loads(raw)
-		if isinstance(data, list) and len(data) == 2:
-			return str(data[0]), str(data[1])
-	except (json.JSONDecodeError, TypeError, ValueError):
-		pass
-	return raw, "on_update"
-
-
-def defer_wp_push(frappe_doctype, docname, method="on_update"):
-	"""
-	Add a document to the deferred write-back queue for the given doctype.
-
-	Stores docname + hook method (after_insert / on_update) so flush can run
-	steps with the correct Insert vs Update semantics.
-
-	The queue is flushed after sync completes in data_sync.sync_table.
-	"""
-	cache_key = _get_deferred_key(frappe_doctype)
-	frappe.cache().sadd(cache_key, _encode_deferred_member(docname, method))
-	frappe.cache().expire(cache_key, DEFERRED_PUSH_TTL)
-
-
-def clear_deferred_wp_push(frappe_doctype):
-	"""
-	Remove any deferred push entries for a doctype (e.g., at start of sync).
-	"""
-	cache_key = _get_deferred_key(frappe_doctype)
-	frappe.cache().delete_value(cache_key)
-
-
-def flush_deferred_wp_pushes(frappe_doctype):
-	"""
-	Flush all deferred write-back entries for a doctype.
-
-	Loads the set, deletes the key, and enqueues run_write_back_for_doc
-	for each remaining docname.
-	"""
-	cache_key = _get_deferred_key(frappe_doctype)
-	docnames = frappe.cache().smembers(cache_key)
-
-	if not docnames:
-		return
-
-	# Delete the key first so new changes during enqueue aren't lost
-	frappe.cache().delete_value(cache_key)
-
-	for raw in docnames:
-		docname, hook_method = _decode_deferred_member(raw)
-		if frappe.db.exists(frappe_doctype, docname):
-			# Look up wp_table_name from listen_map
-			listen_map = _get_listen_map()
-			wp_table_name = listen_map.get(frappe_doctype)
-			if wp_table_name:
-				frappe.enqueue(
-					run_write_back_for_doc,
-					wp_table_name=wp_table_name,
-					doctype=frappe_doctype,
-					docname=docname,
-					method=hook_method,
-					queue="short",
-					is_async=True,
-				)
-
-
-# ---------------------------------------------------------------------------
 # Hook handler
 # ---------------------------------------------------------------------------
 
@@ -183,12 +99,8 @@ def on_record_change(doc, method):
 	"""
 	Wildcard doc_events handler (on_update / after_insert).
 
-	Bails early for:
-	- Records being saved by the inbound scheduled sync (frappe.flags.in_sync)
-	- DocTypes that do not have listen_for_changes enabled
-
-	When is_doctype_sync_in_progress is True, records are deferred and flushed
-	after sync completes (see flush_deferred_wp_pushes in data_sync.py).
+	Rule A: if frappe.flags.in_sync → ignore (change came from WP→Frappe sync).
+	Rule B: if DocType is in listen map → queue write-back job on default queue.
 	"""
 	if getattr(frappe.flags, "in_sync", False):
 		return
@@ -199,20 +111,13 @@ def on_record_change(doc, method):
 
 	wp_table_name = listen_map[doc.doctype]
 
-	# Check if a sync is in progress for this doctype
-	is_sync_in_progress = frappe.cache().get_value(f"nce_sync:sync_in_progress:{doc.doctype}")
-	if is_sync_in_progress:
-		# Defer write-back until sync completes
-		defer_wp_push(doc.doctype, doc.name, method)
-		return
-
 	frappe.enqueue(
 		run_write_back_for_doc,
 		wp_table_name=wp_table_name,
 		doctype=doc.doctype,
 		docname=doc.name,
 		method=method,
-		queue="short",
+		queue="default",
 		is_async=True,
 	)
 
