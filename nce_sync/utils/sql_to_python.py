@@ -9,6 +9,15 @@ Frappe evaluates the ``options`` string of an ``is_virtual=1`` DocField using
 ``frappe.utils.safe_eval`` with ``doc`` in scope, so the output must be a
 valid Python expression that references columns as ``doc.fieldname``.
 
+IMPORTANT: Frappe's safe_eval sandbox (WHITELISTED_SAFE_EVAL_GLOBALS) restricts
+available names to: ``int``, ``float``, ``round``, attribute access (``doc.x``),
+subscript access (``x[0]``), Python keywords (``None``, ``True``, ``False``),
+operators (``or``, ``and``, ``not``, ``if``/``else``, ``+``, ``-``, ``*``, ``/``),
+string/object methods (``.upper()``, ``.join()``), and list literals (``[a, b]``).
+Functions like ``str()``, ``cstr()``, ``getattr()``, ``dict()``, ``list()``,
+``len()``, ``abs()`` are NOT available.
+Use ``(x or '')`` for None-safe string coercion and ``.attr`` access directly.
+
 The translator handles the most common SQL patterns found in WordPress schemas.
 Unsupported expressions fall back to an empty string (the field will exist but
 show blank until a custom expression is provided).
@@ -19,26 +28,33 @@ import re
 from nce_sync.utils.schema_mirror import resolve_fieldname
 
 
+# Helper: wrap an expression so it's safe for string operations (None → '')
+def _safe_str(expr):
+	"""Wrap expr so None becomes '' — safe for concatenation and string methods."""
+	if _is_string_literal(expr):
+		return expr
+	return f"({expr} or '')"
+
+
 # ---------------------------------------------------------------------------
 # SQL function → Python expression mapping
 # ---------------------------------------------------------------------------
 
 def _translate_concat(args_str, _resolve):
-	"""CONCAT(a, b, ...) → cstr(doc.a) + cstr(doc.b) + ..."""
+	"""CONCAT(a, b, ...) → (doc.a or '') + ' ' + (doc.b or '') + ..."""
 	parts = _split_args(args_str)
 	py_parts = [_translate_expr(p.strip(), _resolve) for p in parts]
-	# Wrap each part in cstr() so non-string columns don't break concatenation
-	return " + ".join(f"cstr({p})" if not _is_string_literal(p) else p for p in py_parts)
+	return " + ".join(_safe_str(p) for p in py_parts)
 
 
 def _translate_concat_ws(args_str, _resolve):
-	"""CONCAT_WS(sep, a, b, ...) → sep.join([cstr(doc.a), cstr(doc.b), ...])"""
+	"""CONCAT_WS(sep, a, b, ...) → sep.join([(doc.a or ''), ...])"""
 	parts = _split_args(args_str)
 	if len(parts) < 2:
 		return "''"
 	sep = parts[0].strip()
 	py_parts = [_translate_expr(p.strip(), _resolve) for p in parts[1:]]
-	items = ", ".join(f"cstr({p})" for p in py_parts)
+	items = ", ".join(_safe_str(p) for p in py_parts)
 	return f"{sep}.join([{items}])"
 
 
@@ -53,57 +69,57 @@ def _translate_ifnull(args_str, _resolve):
 
 
 def _translate_upper(args_str, _resolve):
-	"""UPPER(a) → cstr(doc.a).upper()"""
+	"""UPPER(a) → (doc.a or '').upper()"""
 	inner = _translate_expr(args_str.strip(), _resolve)
-	return f"cstr({inner}).upper()"
+	return f"{_safe_str(inner)}.upper()"
 
 
 def _translate_lower(args_str, _resolve):
-	"""LOWER(a) → cstr(doc.a).lower()"""
+	"""LOWER(a) → (doc.a or '').lower()"""
 	inner = _translate_expr(args_str.strip(), _resolve)
-	return f"cstr({inner}).lower()"
+	return f"{_safe_str(inner)}.lower()"
 
 
 def _translate_trim(args_str, _resolve):
-	"""TRIM(a) → cstr(doc.a).strip()"""
+	"""TRIM(a) → (doc.a or '').strip()"""
 	inner = _translate_expr(args_str.strip(), _resolve)
-	return f"cstr({inner}).strip()"
+	return f"{_safe_str(inner)}.strip()"
 
 
 def _translate_left(args_str, _resolve):
-	"""LEFT(a, n) → cstr(doc.a)[:n]"""
+	"""LEFT(a, n) → (doc.a or '')[:n]"""
 	parts = _split_args(args_str)
 	if len(parts) < 2:
 		return "''"
 	a = _translate_expr(parts[0].strip(), _resolve)
 	n = parts[1].strip()
-	return f"cstr({a})[:{n}]"
+	return f"{_safe_str(a)}[:{n}]"
 
 
 def _translate_right(args_str, _resolve):
-	"""RIGHT(a, n) → cstr(doc.a)[-n:]"""
+	"""RIGHT(a, n) → (doc.a or '')[-n:]"""
 	parts = _split_args(args_str)
 	if len(parts) < 2:
 		return "''"
 	a = _translate_expr(parts[0].strip(), _resolve)
 	n = parts[1].strip()
-	return f"cstr({a})[-{n}:]"
+	return f"{_safe_str(a)}[-{n}:]"
 
 
 def _translate_year(args_str, _resolve):
-	"""YEAR(a) → getattr(doc.a, 'year', None)"""
+	"""YEAR(a) → (doc.a.year if doc.a else None)"""
 	inner = _translate_expr(args_str.strip(), _resolve)
-	return f"getattr({inner}, 'year', None)"
+	return f"({inner}.year if {inner} else None)"
 
 
 def _translate_month(args_str, _resolve):
-	"""MONTH(a) → getattr(doc.a, 'month', None)"""
+	"""MONTH(a) → (doc.a.month if doc.a else None)"""
 	inner = _translate_expr(args_str.strip(), _resolve)
-	return f"getattr({inner}, 'month', None)"
+	return f"({inner}.month if {inner} else None)"
 
 
 def _translate_round(args_str, _resolve):
-	"""ROUND(a, n) → round(doc.a, n)"""
+	"""ROUND(a, n) → round(doc.a or 0, n)"""
 	parts = _split_args(args_str)
 	a = _translate_expr(parts[0].strip(), _resolve)
 	if len(parts) >= 2:
@@ -272,7 +288,7 @@ def sql_generation_to_python(generation_expression, label_overrides=None):
 
 	Examples:
 		>>> sql_generation_to_python("concat(`first_name`,' ',`last_name`)")
-		"cstr(doc.first_name) + ' ' + cstr(doc.last_name)"
+		"(doc.first_name or '') + ' ' + (doc.last_name or '')"
 
 		>>> sql_generation_to_python("ifnull(`nickname`,`first_name`)")
 		"(doc.nickname if doc.nickname is not None else doc.first_name)"
