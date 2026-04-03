@@ -16,57 +16,19 @@ import pytz
 from frappe import _
 from frappe.utils import now_datetime
 
-from nce_sync.utils.schema_mirror import get_wp_connection
-
-# Batch size for upserts to avoid long DB locks
-BATCH_SIZE = 500
-
-
-# =============================================================================
-# Helper Functions
-# =============================================================================
-
-
-def get_frappe_fieldname(wp_col, column_mapping):
-	"""
-	Get the Frappe fieldname for a WordPress column using the column mapping.
-
-	Handles both old format (string) and new format (dict with fieldname key).
-	Falls back to lowercase WP column name if not in mapping.
-
-	Args:
-		wp_col: WordPress column name
-		column_mapping: Dict mapping WP column names to Frappe fieldnames
-
-	Returns:
-		Frappe fieldname (string)
-	"""
-	if column_mapping and wp_col in column_mapping:
-		mapping_info = column_mapping[wp_col]
-		if isinstance(mapping_info, dict):
-			return mapping_info["fieldname"]
-		else:
-			return mapping_info
-	return wp_col.lower()
-
-
-def build_reverse_mapping(column_mapping):
-	"""
-	Build a reverse mapping from Frappe fieldnames to WP column names.
-
-	Args:
-		column_mapping: Dict mapping WP column names to Frappe fieldnames
-
-	Returns:
-		Dict mapping Frappe fieldnames to WP column names
-	"""
-	reverse = {}
-	for wp_col, mapping_info in (column_mapping or {}).items():
-		if isinstance(mapping_info, dict):
-			reverse[mapping_info["fieldname"]] = wp_col
-		else:
-			reverse[mapping_info] = wp_col
-	return reverse
+from nce_sync.utils.column_mapper import (
+	build_reverse_mapping,
+	get_frappe_fieldname,
+	load_column_mapping,
+)
+from nce_sync.utils.connections import get_wp_connection, wp_connection
+from nce_sync.utils.constants import (
+	KEEP_SYNC_LOG_COUNT,
+	MAX_ROW_ERROR_MESSAGES,
+	SYNC_FREQUENCY_MAP,
+	UPSERT_BATCH_SIZE,
+	WHERE_IN_BATCH_SIZE,
+)
 
 
 def _normalize_key_value(value):
@@ -160,15 +122,12 @@ def sync_table(wp_table_doc):
 
 	frappe_doctype = wp_table_doc.frappe_doctype
 
-	conn = get_wp_connection(wp_conn_doc)
-	try:
+	with wp_connection(wp_conn_doc) as conn:
 		if sync_method == "Truncate & Replace":
 			result = _sync_truncate_replace(conn, wp_table_doc, wp_conn_doc, frappe_doctype)
 		else:
 			# Default to TS Compare
 			result = _sync_ts_compare(conn, wp_table_doc, wp_conn_doc, frappe_doctype, ts_field)
-	finally:
-		conn.close()
 
 	# Reverse sync: push Frappe-created records back to WordPress
 	# Only runs when direction is explicitly "Both" and the WP PK maps to Frappe name
@@ -268,9 +227,7 @@ def _get_matching_keys(wp_table_doc):
 	wp_columns = [f.strip() for f in wp_table_doc.matching_fields.split(",") if f.strip()]
 
 	# Convert to Frappe fieldnames using column_mapping
-	column_mapping = {}
-	if wp_table_doc.column_mapping:
-		column_mapping = json.loads(wp_table_doc.column_mapping)
+	column_mapping = load_column_mapping(wp_table_doc)
 
 	return [get_frappe_fieldname(wp_col, column_mapping) for wp_col in wp_columns]
 
@@ -485,8 +442,8 @@ def _fetch_rows_by_keys(conn, table_name, matching_keys, reverse_mapping, column
 			return []
 		rows = []
 		cursor = conn.cursor()
-		for i in range(0, len(values), 1000):
-			batch = values[i : i + 1000]
+		for i in range(0, len(values), WHERE_IN_BATCH_SIZE):
+			batch = values[i : i + WHERE_IN_BATCH_SIZE]
 			placeholders = ",".join(["%s"] * len(batch))
 			cursor.execute(
 				f"SELECT * FROM `{table_name}` WHERE `{wp_col}` IN ({placeholders})",
@@ -536,9 +493,7 @@ def _sync_ts_compare(conn, wp_table_doc, wp_conn_doc, frappe_doctype, ts_field):
 	sync_user = getattr(wp_table_doc, "_sync_user", None)
 
 	# Load column mapping (WP column name -> {fieldname, is_virtual})
-	column_mapping = None
-	if wp_table_doc.column_mapping:
-		column_mapping = json.loads(wp_table_doc.column_mapping)
+	column_mapping = load_column_mapping(wp_table_doc)
 
 	# Build reverse mapping for looking up WP column names from Frappe fieldnames
 	reverse_mapping = build_reverse_mapping(column_mapping)
@@ -591,8 +546,8 @@ def _sync_ts_compare(conn, wp_table_doc, wp_conn_doc, frappe_doctype, ts_field):
 
 	def _upsert_batch(rows):
 		nonlocal rows_upserted, rows_inserted, rows_skipped, skip_errors
-		for i in range(0, len(rows), BATCH_SIZE):
-			batch = rows[i : i + BATCH_SIZE]
+		for i in range(0, len(rows), UPSERT_BATCH_SIZE):
+			batch = rows[i : i + UPSERT_BATCH_SIZE]
 			for row in batch:
 				row_hint = str(dict(list(row.items())[:4]))[:150]
 				frappe.db.savepoint("row_sync")
@@ -604,13 +559,13 @@ def _sync_ts_compare(conn, wp_table_doc, wp_conn_doc, frappe_doctype, ts_field):
 						rows_inserted += 1
 				except Exception as e:
 					rows_skipped += 1
-					if len(skip_errors) < 10:
+					if len(skip_errors) < MAX_ROW_ERROR_MESSAGES:
 						skip_errors.append(f"{row_hint} — {str(e)[:180]}")
 					try:
 						frappe.db.rollback(save_point="row_sync")
 					except Exception:
 						pass
-				if (rows_upserted + rows_skipped) % 500 == 0:
+				if (rows_upserted + rows_skipped) % UPSERT_BATCH_SIZE == 0:
 					_publish_sync_progress(
 						wp_table_doc.name,
 						rows_upserted,
@@ -667,9 +622,7 @@ def _sync_truncate_replace(conn, wp_table_doc, wp_conn_doc, frappe_doctype):
 	wp_tz = wp_conn_doc.wp_timezone
 
 	# Load column mapping (WP column name -> {fieldname, is_virtual})
-	column_mapping = None
-	if wp_table_doc.column_mapping:
-		column_mapping = json.loads(wp_table_doc.column_mapping)
+	column_mapping = load_column_mapping(wp_table_doc)
 
 	# Step 1: Delete all existing Frappe records
 	frappe.db.delete(frappe_doctype)
@@ -689,8 +642,8 @@ def _sync_truncate_replace(conn, wp_table_doc, wp_conn_doc, frappe_doctype):
 	skip_errors = []
 	frappe.flags.in_sync = True
 	try:
-		for i in range(0, len(all_rows), BATCH_SIZE):
-			batch = all_rows[i : i + BATCH_SIZE]
+		for i in range(0, len(all_rows), UPSERT_BATCH_SIZE):
+			batch = all_rows[i : i + UPSERT_BATCH_SIZE]
 
 			for row in batch:
 				row_hint = str(dict(list(row.items())[:4]))[:150]
@@ -701,14 +654,14 @@ def _sync_truncate_replace(conn, wp_table_doc, wp_conn_doc, frappe_doctype):
 					rows_inserted += 1
 				except Exception as e:
 					rows_skipped += 1
-					if len(skip_errors) < 10:
+					if len(skip_errors) < MAX_ROW_ERROR_MESSAGES:
 						skip_errors.append(f"{row_hint} — {str(e)[:180]}")
 					try:
 						frappe.db.rollback(save_point="row_sync")
 					except Exception:
 						pass
 
-				if (rows_inserted + rows_skipped) % 500 == 0:
+				if (rows_inserted + rows_skipped) % UPSERT_BATCH_SIZE == 0:
 					_publish_sync_progress(
 						wp_table_doc.name,
 						rows_inserted,
@@ -906,19 +859,9 @@ def _get_sync_frequency_minutes():
 	Returns:
 		int: Frequency in minutes (default 60)
 	"""
-	frequency_map = {
-		"Every 5 Minutes": 5,
-		"Every 15 Minutes": 15,
-		"Every 30 Minutes": 30,
-		"Hourly": 60,
-		"Every 6 Hours": 360,
-		"Daily": 1440,
-		"Weekly": 10080,
-	}
-
 	try:
 		sync_manager = frappe.get_single("Sync Manager")
-		return frequency_map.get(sync_manager.sync_frequency, 60)
+		return SYNC_FREQUENCY_MAP.get(sync_manager.sync_frequency, 60)
 	except Exception:
 		return 60  # Default to hourly
 
@@ -987,8 +930,8 @@ def run_scheduled_syncs():
 	# Update Sync Manager status
 	_update_sync_manager_status(sync_manager, sync_frequency, tables_synced, tables_failed, log_messages)
 
-	# Cleanup old Sync Log records (keep only 20 most recent)
-	_cleanup_old_sync_logs(keep_count=20)
+	# Cleanup old Sync Log records
+	_cleanup_old_sync_logs(keep_count=KEEP_SYNC_LOG_COUNT)
 
 
 def _update_sync_manager_status(sync_manager, sync_frequency, tables_synced, tables_failed, log_messages):

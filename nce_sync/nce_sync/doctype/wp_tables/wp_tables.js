@@ -391,10 +391,16 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				read_only_columns.push($(this).data("column"));
 			});
 
-			// Collect Pick List columns (UI renders now, backend wired in Commit 4)
+			// Collect Pick List columns
 			let pick_list_columns = [];
 			d.$wrapper.find(".pick-list-checkbox:checked").each(function () {
 				pick_list_columns.push($(this).data("column"));
+			});
+
+			// Collect Bold columns
+			let bold_columns = [];
+			d.$wrapper.find(".bold-checkbox:checked").each(function () {
+				bold_columns.push($(this).data("column"));
 			});
 
 			// Validate: Title cannot be the same column as Frappe ID
@@ -463,6 +469,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				created_ts_field: created_ts_field || undefined,
 				read_only_columns: read_only_columns.join(",") || undefined,
 				pick_list_columns: pick_list_columns.join(",") || undefined,
+				bold_columns: bold_columns.join(",") || undefined,
 			};
 			if (mode === "remap" && new_table_name && new_table_name !== frm.doc.table_name) {
 				call_args.new_table_name = new_table_name;
@@ -520,6 +527,10 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 		<span class="text-muted"><strong>${__("Pick List:")}</strong> ${__(
 			"Convert field to a Select dropdown populated from distinct source values.",
 		)}</span>
+		<br>
+		<span class="text-muted"><strong>${__("Bold:")}</strong> ${__(
+			"Display the field value in bold on the form — same as bold in Customize Form.",
+		)}</span>
 		</div>
 		<div class="schema-grid-scroll" style="overflow: auto;">
 			<table class="table table-bordered table-sm" style="font-size: 13px;">
@@ -539,6 +550,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 						<th style="width: 14%;">${__("Label")}</th>
 						<th style="width: 5%;" title="${__("Read-only on Frappe form")}">${__("Read Only")}</th>
 						<th style="width: 5%;" title="${__("Populate Select from distinct source values")}">${__("Pick List")}</th>
+						<th style="width: 4%;" title="${__("Display field value in bold on form")}">${__("Bold")}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -551,6 +563,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 	// Track previous read-only / pick-list columns (for remap — wired in later commits)
 	let previous_read_only = preview_data.previous_read_only_columns || [];
 	let previous_pick_list = preview_data.previous_pick_list_columns || [];
+	let previous_bold = preview_data.previous_bold_columns || [];
 
 	fields.forEach(function (f) {
 		// Build keys badges
@@ -649,8 +662,11 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 		if (previous_read_only.includes(f.column_name.toLowerCase())) ro_auto = true;
 		let ro_checked = ro_auto ? "checked" : "";
 
-		// Pick List checkbox — restore from previous (UI-only, backend wiring in Commit 4)
+		// Pick List checkbox — restore from previous
 		let pl_checked = previous_pick_list.includes(f.column_name.toLowerCase()) ? "checked" : "";
+
+		// Bold checkbox — restore from previous
+		let bold_checked = previous_bold.includes(f.column_name.toLowerCase()) ? "checked" : "";
 
 		let is_reserved_col = RESERVED_FIELDNAMES.includes(f.column_name.toLowerCase());
 		let reserved_cls = is_reserved_col ? " reserved-source-col" : "";
@@ -720,6 +736,10 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			<td style="text-align: center;">
 				<input type="checkbox" class="pick-list-checkbox"
 					data-column="${f.column_name}" ${pl_checked}>
+			</td>
+			<td style="text-align: center;">
+				<input type="checkbox" class="bold-checkbox"
+					data-column="${f.column_name}" ${bold_checked}>
 			</td>
 			</tr>
 		`;

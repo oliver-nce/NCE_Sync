@@ -13,7 +13,7 @@ class WordPressConnection(Document):
 	def test_connection(self):
 		"""Test the WordPress database connection and detect timezone."""
 		try:
-			from nce_sync.utils.schema_mirror import get_wp_connection
+			from nce_sync.utils.connections import get_wp_connection
 
 			# Attempt connection
 			conn = get_wp_connection(self)
@@ -54,7 +54,8 @@ class WordPressConnection(Document):
 	def discover_tables(self):
 		"""Discover all tables and views from WordPress database."""
 		try:
-			from nce_sync.utils.schema_mirror import discover_tables_and_views, get_wp_connection
+			from nce_sync.utils.connections import get_wp_connection
+			from nce_sync.utils.schema_mirror import discover_tables_and_views
 
 			conn = get_wp_connection(self)
 			if not conn:

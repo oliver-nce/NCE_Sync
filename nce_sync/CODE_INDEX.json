@@ -1,7 +1,7 @@
 {
   "_meta": {
     "description": "Machine-readable index of every module in the NCE Sync (Tables) Frappe app. Read this file FIRST before exploring the codebase — it tells you exactly where to look for any given concern.",
-    "generated": "2026-04-02",
+    "generated": "2026-04-03",
     "usage": "Find the module whose 'purpose' matches your task, then read only that file and its 'depends_on' entries."
   },
 
@@ -53,7 +53,7 @@
       "sections": ["DocType override hooks"]
     },
     "nce_sync/utils/schema_mirror.py": {
-      "purpose": "WordPress schema introspection and Frappe doctype mirroring: connect to WP MySQL, discover tables/views, map MariaDB types to Frappe types, create or update Frappe custom doctype with matching field configuration. Supports read_only fields and virtual/generated column translation via sql_to_python.",
+      "purpose": "WordPress schema introspection and Frappe doctype mirroring: connect to WP MySQL, discover tables/views, map MariaDB types to Frappe types, create or update Frappe custom doctype with matching field configuration. Supports read_only fields, bold fields, pick_list fields (Select fieldtype with DISTINCT values from WP), and virtual/generated column translation via sql_to_python.",
       "exports": [
         "sanitize_fieldname",
         "resolve_fieldname",
@@ -81,11 +81,12 @@
         "Type mapping",
         "Preview",
         "DocType creation/update",
-        "Virtual field handling"
+        "Virtual field handling",
+        "Pick list (Select with DISTINCT values)"
       ]
     },
     "nce_sync/utils/sql_to_python.py": {
-      "purpose": "Translate MySQL/MariaDB GENERATION_EXPRESSION SQL into Python expressions for Frappe virtual DocField options. Handles CONCAT, IFNULL/COALESCE, UPPER/LOWER, TRIM, LEFT/RIGHT, YEAR/MONTH, ROUND, and arithmetic.",
+      "purpose": "Translate MySQL/MariaDB GENERATION_EXPRESSION SQL into Python expressions for Frappe virtual DocField options. Output must use ONLY Frappe safe_eval allowed names (int, float, round, attribute access, operators, string methods, None/True/False). Handles CONCAT, CONCAT_WS, IFNULL/COALESCE, UPPER/LOWER, TRIM, LEFT/RIGHT, YEAR/MONTH, ROUND, and arithmetic. Uses (x or '') for None-safe string coercion — str()/cstr()/getattr() are NOT available in the sandbox.",
       "exports": [
         "sql_generation_to_python"
       ],
@@ -99,7 +100,7 @@
       ]
     },
     "nce_sync/utils/data_sync.py": {
-      "purpose": "WP-to-Frappe incremental data sync: fetch changed rows since last sync timestamp, upsert Frappe records, publish progress events. Uses per-row savepoints in batch upsert and truncate-replace so validation/DB errors on one row roll back only that row; remaining rows commit. Sets frappe.flags.in_sync while saving mirrored docs so live_sync does not enqueue write-back during inbound sync.",
+      "purpose": "WP-to-Frappe incremental data sync: fetch changed rows since last sync timestamp, upsert Frappe records, publish progress events. Uses per-row savepoints in batch upsert and truncate-replace so validation/DB errors on one row roll back only that row; remaining rows commit. Sets frappe.flags.in_sync while saving mirrored docs so live_sync does not enqueue write-back during inbound sync. _convert_row skips virtual/generated columns (no Frappe DB column).",
       "exports": [
         "sync_table",
         "get_frappe_fieldname",
@@ -204,7 +205,7 @@
 
   "doctypes": {
     "nce_sync/nce_sync/doctype/wp_tables/": {
-      "purpose": "Central config per synced WordPress table: WP connection, table name, Frappe doctype name, column mapping, matching keys, field overrides, timestamp fields, auto-sync, listen_for_changes, write_back_mode. sync_now enqueues run_sync_for_table on queue default.",
+      "purpose": "Central config per synced WordPress table: WP connection, table name, Frappe doctype name, column mapping, matching keys, field overrides, timestamp fields, auto-sync, listen_for_changes, write_back_mode. Schema preview dialog supports title field, read_only, bold, virtual, and pick_list column selection. sync_now enqueues run_sync_for_table on queue default.",
       "key_fields": [
         "wp_connection",
         "table_name",
@@ -218,7 +219,7 @@
         "write_back_mode"
       ],
       "client_js": [
-        "wp_tables.js (form actions)",
+        "wp_tables.js (form actions, schema preview dialog with title/read_only/bold/virtual/pick_list columns, resizable 95vw modal)",
         "wp_tables_list.js (list view actions)"
       ],
       "depends_on": ["wordpress_connection"]

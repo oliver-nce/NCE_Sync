@@ -283,6 +283,7 @@ class WPTables(Document):
 		created_ts_field=None,
 		read_only_columns=None,
 		pick_list_columns=None,
+		bold_columns=None,
 	):
 		"""Mirror this specific table's schema to a Frappe DocType."""
 		try:
@@ -320,6 +321,7 @@ class WPTables(Document):
 				created_ts_field=created_ts_field or None,
 				read_only_columns=read_only_columns or None,
 				pick_list_columns=pick_list_columns or None,
+				bold_columns=bold_columns or None,
 			)
 
 			frappe.msgprint(
@@ -403,7 +405,8 @@ class WPTables(Document):
 		"""
 		import json
 
-		from nce_sync.utils.schema_mirror import get_table_schema, get_wp_connection, resolve_fieldname
+		from nce_sync.utils.connections import get_wp_connection
+		from nce_sync.utils.schema_mirror import get_table_schema, resolve_fieldname
 
 		wp_conn = frappe.get_single("WordPress Connection")
 		if not wp_conn:
@@ -477,6 +480,7 @@ class WPTables(Document):
 		created_ts_field=None,
 		read_only_columns=None,
 		pick_list_columns=None,
+		bold_columns=None,
 	):
 		"""
 		Remap an existing mirrored DocType to a (possibly renamed) source table.
@@ -526,6 +530,7 @@ class WPTables(Document):
 			created_ts_field=created_ts_field or None,
 			read_only_columns=read_only_columns or None,
 			pick_list_columns=pick_list_columns or None,
+			bold_columns=bold_columns or None,
 		)
 
 		# Reset sync status
@@ -546,7 +551,7 @@ class WPTables(Document):
 		"""
 		Debug: Sync just the first row and show detailed info about what's happening.
 		"""
-		from nce_sync.utils.schema_mirror import get_wp_connection
+		from nce_sync.utils.connections import get_wp_connection
 
 		if not self.frappe_doctype:
 			frappe.throw(_("No Frappe DocType associated with this table"))

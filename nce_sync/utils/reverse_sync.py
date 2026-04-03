@@ -19,19 +19,13 @@ Responsibilities:
                             skip auto-generated columns.
 """
 
-import json
-
 import frappe
 import pymysql
 from frappe import _
 
-from nce_sync.utils.schema_mirror import get_wp_connection
-
-# ---------------------------------------------------------------------------
-# Temp-name counter key stored in Frappe's "Singles" / cache
-# ---------------------------------------------------------------------------
-_COUNTER_DOCTYPE = "NCE Sync Settings"
-_COUNTER_FIELD = "temp_name_counter"
+from nce_sync.utils.column_mapper import build_wp_row, get_name_wp_column, load_column_mapping
+from nce_sync.utils.connections import wp_connection
+from nce_sync.utils.constants import TEMP_NAME_COUNTER_DOCTYPE, TEMP_NAME_COUNTER_FIELD
 
 
 def _next_temp_name():
@@ -43,7 +37,7 @@ def _next_temp_name():
 	the singleton doesn't exist yet.
 	"""
 	try:
-		current = frappe.db.get_single_value(_COUNTER_DOCTYPE, _COUNTER_FIELD) or 0
+		current = frappe.db.get_single_value(TEMP_NAME_COUNTER_DOCTYPE, TEMP_NAME_COUNTER_FIELD) or 0
 		current = int(current)
 	except Exception:
 		# Singleton or field missing – derive from actual min name in use
@@ -55,7 +49,7 @@ def _next_temp_name():
 
 	new_val = current - 1
 	try:
-		frappe.db.set_single_value(_COUNTER_DOCTYPE, _COUNTER_FIELD, new_val)
+		frappe.db.set_single_value(TEMP_NAME_COUNTER_DOCTYPE, TEMP_NAME_COUNTER_FIELD, new_val)
 	except Exception:
 		pass  # non-critical – worst case we get a collision, handled below
 
@@ -135,65 +129,6 @@ def _looks_like_temp_or_hash(name):
 # ---------------------------------------------------------------------------
 
 
-def _get_column_mapping(wp_table_doc):
-	"""Parse and return column_mapping dict from wp_table_doc."""
-	raw = getattr(wp_table_doc, "column_mapping", None) or "{}"
-	if isinstance(raw, str):
-		return json.loads(raw)
-	return raw
-
-
-def _build_wp_row(frappe_doc, column_mapping, skip_auto_generated=True):
-	"""
-	Build a dict of {wp_column: value} from a Frappe document, using the
-	column_mapping to reverse the field-name translation.
-
-	Skips:
-	  • auto-generated columns  (is_auto_generated=True) when skip_auto_generated=True
-	  • virtual/computed columns (is_virtual=True) always
-	  • the name/PK column      (is_name=True) always – WP generates that
-	  • standard Frappe meta fields (owner, creation, modified, etc.)
-	"""
-	_FRAPPE_META = {
-		"name",
-		"owner",
-		"creation",
-		"modified",
-		"modified_by",
-		"docstatus",
-		"idx",
-		"doctype",
-		"_user_tags",
-		"_comments",
-		"_assign",
-		"_liked_by",
-	}
-
-	row = {}
-	for wp_col, info in column_mapping.items():
-		if not isinstance(info, dict):
-			continue
-		fieldname = info.get("fieldname")
-		if not fieldname or fieldname in _FRAPPE_META:
-			continue
-		if info.get("is_name"):
-			continue  # WP generates the PK
-		if info.get("is_virtual"):
-			continue
-		if skip_auto_generated and info.get("is_auto_generated"):
-			continue
-
-		val = frappe_doc.get(fieldname)
-		# Convert Python booleans/None to MySQL-friendly values
-		if val is True:
-			val = 1
-		elif val is False:
-			val = 0
-		row[wp_col] = val
-
-	return row
-
-
 def insert_record_to_wp(wp_conn_doc, wp_table_doc, frappe_doc):
 	"""
 	INSERT one Frappe document into WordPress and return the newly-assigned WP ID.
@@ -210,8 +145,8 @@ def insert_record_to_wp(wp_conn_doc, wp_table_doc, frappe_doc):
 	Raises:
 		Exception if INSERT fails.
 	"""
-	column_mapping = _get_column_mapping(wp_table_doc)
-	row = _build_wp_row(frappe_doc, column_mapping, skip_auto_generated=True)
+	column_mapping = load_column_mapping(wp_table_doc)
+	row = build_wp_row(frappe_doc, wp_table_doc, column_mapping)
 
 	if not row:
 		frappe.throw(_("No writable columns found for reverse sync INSERT"))
@@ -222,14 +157,11 @@ def insert_record_to_wp(wp_conn_doc, wp_table_doc, frappe_doc):
 	sql = f"INSERT INTO `{table_name}` ({cols}) VALUES ({placeholders})"
 	values = list(row.values())
 
-	conn = get_wp_connection(wp_conn_doc)
-	try:
+	with wp_connection(wp_conn_doc) as conn:
 		with conn.cursor() as cur:
 			cur.execute(sql, values)
 			new_id = cur.lastrowid
 		conn.commit()
-	finally:
-		conn.close()
 
 	if not new_id:
 		frappe.throw(_("WordPress did not return a new ID after INSERT"))
@@ -254,18 +186,14 @@ def update_record_in_wp(wp_conn_doc, wp_table_doc, frappe_doc):
 	Returns:
 		rows_affected (int)
 	"""
-	column_mapping = _get_column_mapping(wp_table_doc)
-	row = _build_wp_row(frappe_doc, column_mapping, skip_auto_generated=True)
+	column_mapping = load_column_mapping(wp_table_doc)
+	row = build_wp_row(frappe_doc, wp_table_doc, column_mapping)
 
 	if not row:
 		frappe.throw(_("No writable columns found for reverse sync UPDATE"))
 
-	# Find the WP primary key column (is_name=True)
-	name_wp_col = None
-	for wp_col, info in column_mapping.items():
-		if isinstance(info, dict) and info.get("is_name"):
-			name_wp_col = wp_col
-			break
+	# Find the WP primary key column
+	name_wp_col = get_name_wp_column(wp_table_doc, column_mapping)
 
 	if not name_wp_col:
 		frappe.throw(_("Cannot UPDATE: no name_field_column configured on this table"))
@@ -275,14 +203,11 @@ def update_record_in_wp(wp_conn_doc, wp_table_doc, frappe_doc):
 	sql = f"UPDATE `{table_name}` SET {set_clause} WHERE `{name_wp_col}` = %s"
 	values = list(row.values()) + [frappe_doc.name]
 
-	conn = get_wp_connection(wp_conn_doc)
-	try:
+	with wp_connection(wp_conn_doc) as conn:
 		with conn.cursor() as cur:
 			cur.execute(sql, values)
 			rows_affected = cur.rowcount
 		conn.commit()
-	finally:
-		conn.close()
 
 	return rows_affected
 

@@ -25,33 +25,13 @@ them in order, so write-backs naturally run after any in-flight sync job
 finishes — no deferred queue or sync_in_progress flags needed.
 """
 
-import json
-
 import frappe
 from frappe import _
 
-from nce_sync.utils.data_sync import build_reverse_mapping
-from nce_sync.utils.schema_mirror import get_wp_connection
+from nce_sync.utils.column_mapper import build_wp_row, load_column_mapping
+from nce_sync.utils.connections import wp_connection
+from nce_sync.utils.constants import CACHE_KEY_LISTEN_TABLES
 from nce_sync.utils.write_back_dispatch import run_write_back_for_doc
-
-CACHE_KEY = "nce_sync:listen_for_changes_tables"
-
-# Frappe system fields that should never be pushed back to WP
-SKIP_FIELDS = frozenset(
-	{
-		"name",
-		"owner",
-		"creation",
-		"modified",
-		"modified_by",
-		"docstatus",
-		"idx",
-		"_user_tags",
-		"_comments",
-		"_assign",
-		"_liked_by",
-	}
-)
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +47,7 @@ def _get_listen_map():
 	Result is cached in Redis; invalidated (via clear_sql_direct_cache) whenever
 	a WP Tables record is saved or trashed.
 	"""
-	cached = frappe.cache().get_value(CACHE_KEY)
+	cached = frappe.cache().get_value(CACHE_KEY_LISTEN_TABLES)
 	if cached is not None:
 		return cached
 
@@ -85,13 +65,13 @@ def _get_listen_map():
 		# Column may not exist yet during migration — treat as empty
 		return {}
 	mapping = {r.frappe_doctype: r.name for r in rows if r.frappe_doctype}
-	frappe.cache().set_value(CACHE_KEY, mapping)
+	frappe.cache().set_value(CACHE_KEY_LISTEN_TABLES, mapping)
 	return mapping
 
 
 def clear_sql_direct_cache():
 	"""Invalidate the listen-for-changes table map so it is rebuilt on next access."""
-	frappe.cache().delete_value(CACHE_KEY)
+	frappe.cache().delete_value(CACHE_KEY_LISTEN_TABLES)
 
 
 # ---------------------------------------------------------------------------
@@ -130,50 +110,6 @@ def on_record_change(doc, method):
 # ---------------------------------------------------------------------------
 
 
-def _get_auto_generated_columns(wp_table_doc):
-	"""
-	Return a set of WP column names that are auto-generated (e.g. AUTO_INCREMENT,
-	VIRTUAL/GENERATED computed columns).  These must never appear in INSERT or
-	UPDATE statements sent back to WordPress.
-	"""
-	auto_gen_cols = set()
-	if wp_table_doc.auto_generated_columns:
-		auto_gen_cols = {c.strip() for c in wp_table_doc.auto_generated_columns.split(",") if c.strip()}
-	return auto_gen_cols
-
-
-def _build_wp_row(frappe_doc, wp_table_doc, column_mapping):
-	"""
-	Build a dict of {wp_column: value} from a Frappe document, ready for SQL.
-
-	Skips:
-	- Frappe system fields (name, owner, creation, modified, etc.)
-	- WP auto-generated / computed columns (listed in auto_generated_columns)
-	- The WP primary-key column (name_field_column) — WP owns that value
-	"""
-	reverse_mapping = build_reverse_mapping(column_mapping)
-	auto_gen_cols = _get_auto_generated_columns(wp_table_doc)
-	name_wp_col = wp_table_doc.name_field_column
-
-	row = {}
-	for df in frappe.get_meta(frappe_doc.doctype).fields:
-		frappe_field = df.fieldname
-		if frappe_field in SKIP_FIELDS:
-			continue
-		wp_col = reverse_mapping.get(frappe_field)
-		if not wp_col:
-			continue
-		if wp_col in auto_gen_cols:
-			continue
-		if wp_col == name_wp_col:
-			continue
-
-		val = frappe_doc.get(frappe_field)
-		row[wp_col] = val
-
-	return row
-
-
 def push_record_to_wp(wp_table_name, doctype, docname):
 	"""
 	Background job: push one Frappe record to the matching WordPress table via SQL.
@@ -193,9 +129,7 @@ def push_record_to_wp(wp_table_name, doctype, docname):
 
 	wp_table_doc = frappe.get_doc("WP Tables", wp_table_name)
 
-	column_mapping = {}
-	if wp_table_doc.column_mapping:
-		column_mapping = json.loads(wp_table_doc.column_mapping)
+	column_mapping = load_column_mapping(wp_table_doc)
 
 	name_wp_col = wp_table_doc.name_field_column
 	if not name_wp_col:
@@ -215,7 +149,7 @@ def push_record_to_wp(wp_table_name, doctype, docname):
 		pass
 
 	# Build the row data
-	row = _build_wp_row(frappe_doc, wp_table_doc, column_mapping)
+	row = build_wp_row(frappe_doc, wp_table_doc, column_mapping)
 
 	if not row:
 		frappe.log_error(
@@ -225,43 +159,41 @@ def push_record_to_wp(wp_table_name, doctype, docname):
 		return
 
 	wp_conn_doc = frappe.get_single("WordPress Connection")
-	conn = get_wp_connection(wp_conn_doc)
-	try:
-		cursor = conn.cursor()
+	with wp_connection(wp_conn_doc) as conn:
+		try:
+			cursor = conn.cursor()
 
-		if is_new_record:
-			# INSERT new record, skip auto-generated and name columns
-			table_name = wp_table_doc.table_name
-			cols = ", ".join(f"`{c}`" for c in row.keys())
-			placeholders = ", ".join(["%s"] * len(row))
-			sql = f"INSERT INTO `{table_name}` ({cols}) VALUES ({placeholders})"
-			values = list(row.values())
+			if is_new_record:
+				# INSERT new record, skip auto-generated and name columns
+				table_name = wp_table_doc.table_name
+				cols = ", ".join(f"`{c}`" for c in row.keys())
+				placeholders = ", ".join(["%s"] * len(row))
+				sql = f"INSERT INTO `{table_name}` ({cols}) VALUES ({placeholders})"
+				values = list(row.values())
 
-			cursor.execute(sql, values)
-			new_id = cursor.lastrowid
+				cursor.execute(sql, values)
+				new_id = cursor.lastrowid
 
-			if new_id:
-				# Rename Frappe doc: temp negative name -> real WP ID
-				old_name = frappe_doc.name
-				frappe.rename_doc(doctype, old_name, str(new_id), merge=False, ignore_permissions=True)
-			conn.commit()
-		else:
-			# UPDATE existing record
-			table_name = wp_table_doc.table_name
-			set_clause = ", ".join(f"`{c}` = %s" for c in row.keys())
-			sql = f"UPDATE `{table_name}` SET {set_clause} WHERE `{name_wp_col}` = %s"
-			values = list(row.values()) + [record_id]
+				if new_id:
+					# Rename Frappe doc: temp negative name -> real WP ID
+					old_name = frappe_doc.name
+					frappe.rename_doc(doctype, old_name, str(new_id), merge=False, ignore_permissions=True)
+				conn.commit()
+			else:
+				# UPDATE existing record
+				table_name = wp_table_doc.table_name
+				set_clause = ", ".join(f"`{c}` = %s" for c in row.keys())
+				sql = f"UPDATE `{table_name}` SET {set_clause} WHERE `{name_wp_col}` = %s"
+				values = list(row.values()) + [record_id]
 
-			cursor.execute(sql, values)
-			conn.commit()
+				cursor.execute(sql, values)
+				conn.commit()
 
-		cursor.close()
-	except Exception as e:
-		conn.rollback()
-		frappe.log_error(
-			title=f"Live sync error: {doctype} {docname}",
-			message=str(e),
-		)
-		raise
-	finally:
-		conn.close()
+			cursor.close()
+		except Exception as e:
+			conn.rollback()
+			frappe.log_error(
+				title=f"Live sync error: {doctype} {docname}",
+				message=str(e),
+			)
+			raise
