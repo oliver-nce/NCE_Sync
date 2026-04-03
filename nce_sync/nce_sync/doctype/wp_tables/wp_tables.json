@@ -30,6 +30,7 @@
     "mirror_status",
     "column_mapping",
     "name_field_column",
+    "title_field_column",
     "auto_generated_columns",
     "external_config_section",
     "external_config_description",
@@ -211,6 +212,14 @@
       "read_only": 1,
       "hidden": 1,
       "description": "WP column that maps directly to Frappe name (e.g. id)"
+    },
+    {
+      "fieldname": "title_field_column",
+      "fieldtype": "Data",
+      "label": "Title Field Column",
+      "read_only": 1,
+      "hidden": 1,
+      "description": "WP column used as the Frappe DocType title_field (display name in list views and link fields)"
     },
     {
       "fieldname": "auto_generated_columns",

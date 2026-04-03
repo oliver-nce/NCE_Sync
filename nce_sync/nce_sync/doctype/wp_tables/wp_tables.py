@@ -277,9 +277,12 @@ class WPTables(Document):
 		label_overrides=None,
 		matching_fields=None,
 		name_field_column=None,
+		title_field_column=None,
 		auto_generated_columns=None,
 		modified_ts_field=None,
 		created_ts_field=None,
+		read_only_columns=None,
+		pick_list_columns=None,
 	):
 		"""Mirror this specific table's schema to a Frappe DocType."""
 		try:
@@ -311,6 +314,7 @@ class WPTables(Document):
 				field_overrides=field_overrides,
 				label_overrides=label_overrides,
 				name_field_column=name_field_column or None,
+				title_field_column=title_field_column or None,
 				auto_generated_columns=auto_generated_columns or None,
 				modified_ts_field=modified_ts_field or None,
 				created_ts_field=created_ts_field or None,
@@ -465,9 +469,12 @@ class WPTables(Document):
 		label_overrides=None,
 		matching_fields=None,
 		name_field_column=None,
+		title_field_column=None,
 		auto_generated_columns=None,
 		modified_ts_field=None,
 		created_ts_field=None,
+		read_only_columns=None,
+		pick_list_columns=None,
 	):
 		"""
 		Remap an existing mirrored DocType to a (possibly renamed) source table.
@@ -511,6 +518,7 @@ class WPTables(Document):
 			field_overrides=field_overrides,
 			label_overrides=label_overrides,
 			name_field_column=name_field_column or None,
+			title_field_column=title_field_column or None,
 			auto_generated_columns=auto_generated_columns or None,
 			modified_ts_field=modified_ts_field or None,
 			created_ts_field=created_ts_field or None,

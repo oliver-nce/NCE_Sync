@@ -563,13 +563,14 @@ def preview_table_schema(wp_conn_doc, wp_table_doc):
 		"doctype_name": wp_table_doc.nce_name or table_name,
 		"previous_matching_fields": previous_matching,
 		"previous_name_field_column": previous_name_column,
+		"previous_title_field_column": getattr(wp_table_doc, "title_field_column", None) or None,
 		"previous_auto_generated_columns": previous_auto_gen,
 		"previous_modified_ts": getattr(wp_table_doc, "modified_timestamp_field", None) or "",
 		"previous_created_ts": getattr(wp_table_doc, "created_timestamp_field", None) or "",
 	}
 
 
-def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_overrides=None, name_field_column=None, auto_generated_columns=None, modified_ts_field=None, created_ts_field=None):
+def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_overrides=None, name_field_column=None, title_field_column=None, auto_generated_columns=None, modified_ts_field=None, created_ts_field=None):
 	"""
 	Mirror a WordPress table schema to a Frappe Custom DocType.
 
@@ -579,6 +580,7 @@ def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_o
 		field_overrides: Optional dict of {column_name: fieldtype} from user review
 		label_overrides: Optional dict of {column_name: label} from user review
 		name_field_column: Optional WP column name that maps directly to Frappe name (skips field creation)
+		title_field_column: Optional WP column name to use as DocType title_field (display name)
 	"""
 	try:
 		# Connect to WordPress DB
@@ -602,6 +604,11 @@ def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_o
 		# Determine DocType name
 		doctype_name = wp_table_doc.nce_name or table_name
 
+		# Resolve title_field_column to Frappe fieldname (if provided)
+		title_fieldname = None
+		if title_field_column:
+			title_fieldname = resolve_fieldname(title_field_column, label_overrides)
+
 		# Check if DocType already exists
 		if frappe.db.exists("DocType", doctype_name):
 			# Update existing DocType
@@ -611,7 +618,8 @@ def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_o
 			)
 			try:
 				update_existing_doctype(
-					doctype_name, schema, wp_table_doc, field_overrides, label_overrides, name_field_column
+					doctype_name, schema, wp_table_doc, field_overrides, label_overrides, name_field_column,
+					title_fieldname=title_fieldname,
 				)
 			except Exception as update_error:
 				# If update fails (e.g., duplicate field error), try deleting and recreating
@@ -631,14 +639,16 @@ def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_o
 					frappe.db.commit()
 					# Recreate it
 					create_custom_doctype(
-						doctype_name, schema, wp_table_doc, field_overrides, label_overrides, name_field_column
+						doctype_name, schema, wp_table_doc, field_overrides, label_overrides, name_field_column,
+						title_fieldname=title_fieldname,
 					)
 				else:
 					raise  # Re-raise if it's a different error
 		else:
 			# Create new Custom DocType
 			create_custom_doctype(
-				doctype_name, schema, wp_table_doc, field_overrides, label_overrides, name_field_column
+				doctype_name, schema, wp_table_doc, field_overrides, label_overrides, name_field_column,
+				title_fieldname=title_fieldname,
 			)
 
 		# Build column mapping: WP column name -> mapping info
@@ -685,6 +695,7 @@ def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_o
 		wp_table_doc.error_log = None
 		wp_table_doc.column_mapping = json.dumps(column_mapping)
 		wp_table_doc.name_field_column = name_field_column or None
+		wp_table_doc.title_field_column = title_field_column or None
 		wp_table_doc.auto_generated_columns = stored_auto_gen or None
 		# Timestamp fields: user selection from the mirror dialog takes precedence
 		if modified_ts_field:
@@ -707,7 +718,8 @@ def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_o
 
 
 def create_custom_doctype(
-	doctype_name, schema, wp_table_doc, field_overrides=None, label_overrides=None, name_field_column=None
+	doctype_name, schema, wp_table_doc, field_overrides=None, label_overrides=None, name_field_column=None,
+	title_fieldname=None,
 ):
 	"""
 	Create a new Custom DocType programmatically.
@@ -719,6 +731,7 @@ def create_custom_doctype(
 		field_overrides: Optional dict of {column_name: fieldtype} from user review
 		label_overrides: Optional dict of {column_name: label} from user review
 		name_field_column: Optional WP column that maps directly to Frappe name (skips field creation)
+		title_fieldname: Optional Frappe fieldname to use as title_field (display name in list/link views)
 	"""
 	# Determine naming rule
 	# When name_field_column is set: use "prompt" (allows direct name assignment during insert)
@@ -744,37 +757,45 @@ def create_custom_doctype(
 		fields.append(field)
 		idx += 1
 
+	# Build DocType definition
+	doctype_dict = {
+		"doctype": "DocType",
+		"name": doctype_name,
+		"module": "NCE Sync",
+		"custom": 1,
+		"autoname": autoname,
+		"fields": fields,
+		"permissions": [
+			{
+				"role": "System Manager",
+				"read": 1,
+				"write": 1,
+				"create": 1,
+				"delete": 1,
+				"submit": 0,
+				"cancel": 0,
+				"amend": 0,
+			}
+		],
+		"track_changes": 1,
+	}
+
+	# Set title field — controls display name in list views and link fields
+	if title_fieldname:
+		doctype_dict["title_field"] = title_fieldname
+		doctype_dict["show_title_field_in_link"] = 1
+		doctype_dict["search_fields"] = title_fieldname
+
 	# Create DocType document
-	doctype_doc = frappe.get_doc(
-		{
-			"doctype": "DocType",
-			"name": doctype_name,
-			"module": "NCE Sync",
-			"custom": 1,
-			"autoname": autoname,
-			"fields": fields,
-			"permissions": [
-				{
-					"role": "System Manager",
-					"read": 1,
-					"write": 1,
-					"create": 1,
-					"delete": 1,
-					"submit": 0,
-					"cancel": 0,
-					"amend": 0,
-				}
-			],
-			"track_changes": 1,
-		}
-	)
+	doctype_doc = frappe.get_doc(doctype_dict)
 
 	doctype_doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 
 
 def update_existing_doctype(
-	doctype_name, schema, wp_table_doc, field_overrides=None, label_overrides=None, name_field_column=None
+	doctype_name, schema, wp_table_doc, field_overrides=None, label_overrides=None, name_field_column=None,
+	title_fieldname=None,
 ):
 	"""
 	Update an existing DocType with new fields from schema.
@@ -791,8 +812,15 @@ def update_existing_doctype(
 		field_overrides: Optional dict of {column_name: fieldtype} from user review
 		label_overrides: Optional dict of {column_name: label} from user review
 		name_field_column: Optional WP column that maps directly to Frappe name (skips field creation)
+		title_fieldname: Optional Frappe fieldname to use as title_field (display name in list/link views)
 	"""
 	doctype_doc = frappe.get_doc("DocType", doctype_name)
+
+	# Update title field
+	if title_fieldname:
+		doctype_doc.title_field = title_fieldname
+		doctype_doc.show_title_field_in_link = 1
+		doctype_doc.search_fields = title_fieldname
 
 	# Update autoname
 	if name_field_column:
