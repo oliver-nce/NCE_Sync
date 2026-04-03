@@ -468,14 +468,80 @@ def _fetch_rows_by_keys(conn, table_name, matching_keys, reverse_mapping, column
 	return result
 
 
+def _batch_process_rows(rows, row_processor, wp_table_doc, total_to_sync):
+	"""
+	Process WordPress rows in batches with savepoints, error collection,
+	and progress reporting.
+
+	This is the shared inner loop used by both TS Compare and Truncate & Replace.
+
+	Args:
+		rows: List of raw WordPress row dicts to process.
+		row_processor: Callable(row) that processes a single row.  Should
+		               return True if the row was newly inserted, False if updated.
+		wp_table_doc: WP Tables document (for progress reporting).
+		total_to_sync: Total expected row count (for progress denominator).
+
+	Returns:
+		dict with rows_processed, rows_inserted, rows_skipped, skip_errors.
+	"""
+	rows_processed = 0
+	rows_inserted = 0
+	rows_skipped = 0
+	skip_errors = []
+	sync_user = getattr(wp_table_doc, "_sync_user", None)
+
+	for i in range(0, len(rows), UPSERT_BATCH_SIZE):
+		batch = rows[i : i + UPSERT_BATCH_SIZE]
+		for row in batch:
+			row_hint = str(dict(list(row.items())[:4]))[:150]
+			frappe.db.savepoint("row_sync")
+			try:
+				was_new = row_processor(row)
+				rows_processed += 1
+				if was_new:
+					rows_inserted += 1
+			except Exception as e:
+				rows_skipped += 1
+				if len(skip_errors) < MAX_ROW_ERROR_MESSAGES:
+					skip_errors.append(f"{row_hint} — {str(e)[:180]}")
+				try:
+					frappe.db.rollback(save_point="row_sync")
+				except Exception:
+					pass
+			if (rows_processed + rows_skipped) % UPSERT_BATCH_SIZE == 0:
+				_publish_sync_progress(
+					wp_table_doc.name, rows_processed, total_to_sync, user=sync_user,
+				)
+		frappe.db.commit()
+
+	if rows_skipped:
+		frappe.log_error(
+			title=f"Sync skipped rows: {wp_table_doc.table_name}",
+			message=f"Skipped {rows_skipped} rows.\n" + "\n".join(skip_errors),
+		)
+
+	# Final progress update (always fires so small tables get at least one toast)
+	_publish_sync_progress(
+		wp_table_doc.name, rows_processed, total_to_sync, user=sync_user,
+	)
+
+	return {
+		"rows_processed": rows_processed,
+		"rows_inserted": rows_inserted,
+		"rows_skipped": rows_skipped,
+		"skip_errors": skip_errors,
+	}
+
+
 def _sync_ts_compare(conn, wp_table_doc, wp_conn_doc, frappe_doctype, ts_field):
 	"""
 	Sync using timestamp comparison method.
 
 	Steps:
-	1. Pull matching keys from WP, diff against Frappe, delete orphans
-	2. Pull changed rows (ts_field > last_synced), convert TZ
-	3. Upsert into Frappe DocType by matching key
+	1. Pull matching keys from WP, diff against Frappe, delete orphans.
+	2. Pull changed rows (ts_field > last_synced) + rows missing from Frappe.
+	3. Upsert into Frappe DocType by matching key.
 
 	Args:
 		conn: PyMySQL connection
@@ -490,29 +556,70 @@ def _sync_ts_compare(conn, wp_table_doc, wp_conn_doc, frappe_doctype, ts_field):
 	table_name = wp_table_doc.table_name
 	matching_keys = _get_matching_keys(wp_table_doc)
 	wp_tz = wp_conn_doc.wp_timezone
-	sync_user = getattr(wp_table_doc, "_sync_user", None)
-
-	# Load column mapping (WP column name -> {fieldname, is_virtual})
 	column_mapping = load_column_mapping(wp_table_doc)
-
-	# Build reverse mapping for looking up WP column names from Frappe fieldnames
 	reverse_mapping = build_reverse_mapping(column_mapping)
 
-	# Step 1: Delete detection — get all matching keys from WP and delete orphans.
-	# Also returns the set of keys currently in Frappe (after deletes).
+	# Step 1: Delete orphans and get key sets
 	wp_key_set = _get_wp_key_set(conn, table_name, matching_keys, reverse_mapping, column_mapping)
 	rows_deleted, frappe_key_set = _delete_orphans(frappe_doctype, matching_keys, wp_key_set)
 
-	# Step 2a: Identify WP rows that are completely missing from Frappe
-	missing_keys = wp_key_set - frappe_key_set
+	# Step 2: Collect changed + missing rows
+	changed_rows, missing_rows = _collect_rows_to_sync(
+		conn, wp_table_doc, wp_conn_doc, frappe_doctype,
+		ts_field, column_mapping, matching_keys, reverse_mapping,
+		wp_key_set, frappe_key_set,
+	)
 
-	# Step 2b: Get rows changed since last sync (timestamp-based)
+	# Step 3: Upsert via shared batch processor
+	total_to_sync = len(changed_rows) + len(missing_rows)
+
+	def upsert_one(row):
+		converted = _convert_row(row, wp_tz, column_mapping)
+		return _upsert_record(frappe_doctype, matching_keys, converted)
+
+	result_changed = _batch_process_rows(changed_rows, upsert_one, wp_table_doc, total_to_sync)
+	result_missing = _batch_process_rows(missing_rows, upsert_one, wp_table_doc, total_to_sync) if missing_rows else {
+		"rows_processed": 0, "rows_inserted": 0, "rows_skipped": 0,
+	}
+
+	rows_upserted = result_changed["rows_processed"] + result_missing["rows_processed"]
+	rows_inserted = result_changed["rows_inserted"] + result_missing["rows_inserted"]
+
+	return {
+		"method": "TS Compare",
+		"rows_upserted": rows_upserted,
+		"rows_inserted": rows_inserted,
+		"rows_deleted": rows_deleted,
+		"rows_skipped": result_changed["rows_skipped"] + result_missing["rows_skipped"],
+		"total_wp_rows": len(wp_key_set),
+		"missing_rows_found": len(missing_rows),
+	}
+
+
+def _collect_rows_to_sync(
+	conn, wp_table_doc, wp_conn_doc, frappe_doctype,
+	ts_field, column_mapping, matching_keys, reverse_mapping,
+	wp_key_set, frappe_key_set,
+):
+	"""
+	Identify WP rows that need syncing: timestamp-changed rows + rows
+	missing from Frappe (deduped).
+
+	Returns:
+		tuple: (changed_rows, missing_rows)
+	"""
+	wp_tz = wp_conn_doc.wp_timezone
+	table_name = wp_table_doc.table_name
+
+	# Get Frappe-side field names for timestamp columns
 	frappe_ts_field = get_frappe_fieldname(ts_field, column_mapping) if ts_field else None
 	frappe_create_ts_field = (
 		get_frappe_fieldname(wp_table_doc.created_timestamp_field, column_mapping)
 		if wp_table_doc.created_timestamp_field
 		else None
 	)
+
+	# Cutoff: latest effective timestamp already stored in Frappe
 	cutoff = _get_cutoff_timestamp(
 		frappe_doctype, frappe_ts_field, wp_tz, fallback_ts_field=frappe_create_ts_field
 	)
@@ -521,86 +628,21 @@ def _sync_ts_compare(conn, wp_table_doc, wp_conn_doc, frappe_doctype, ts_field):
 		conn, table_name, ts_field, wp_table_doc.created_timestamp_field, cutoff
 	)
 
-	# Build set of keys already covered by the TS-changed fetch so we
-	# don't double-count or double-process them in the missing pass.
+	# Build set of keys already covered by the TS-changed fetch to avoid double-processing
 	changed_keys = set()
 	for row in changed_rows:
 		converted = _convert_row(row, None, column_mapping)
 		key_tuple = tuple(_normalize_key_value(converted.get(k)) for k in matching_keys)
 		changed_keys.add(key_tuple)
 
-	# Step 2c: Fetch missing rows that were NOT already in the TS-changed set
-	# (these have old timestamps but were never synced into Frappe)
+	# Rows missing from Frappe that weren't in the TS-changed set
+	missing_keys = wp_key_set - frappe_key_set
 	missing_keys_only = missing_keys - changed_keys
 	missing_rows = _fetch_rows_by_keys(
 		conn, table_name, matching_keys, reverse_mapping, column_mapping, missing_keys_only
 	)
 
-	total_to_sync = len(changed_rows) + len(missing_rows)
-
-	# Step 3: Upsert — first the TS-changed rows, then the missing rows
-	rows_upserted = 0
-	rows_inserted = 0
-	rows_skipped = 0
-	skip_errors = []
-
-	def _upsert_batch(rows):
-		nonlocal rows_upserted, rows_inserted, rows_skipped, skip_errors
-		for i in range(0, len(rows), UPSERT_BATCH_SIZE):
-			batch = rows[i : i + UPSERT_BATCH_SIZE]
-			for row in batch:
-				row_hint = str(dict(list(row.items())[:4]))[:150]
-				frappe.db.savepoint("row_sync")
-				try:
-					converted_row = _convert_row(row, wp_tz, column_mapping)
-					was_new = _upsert_record(frappe_doctype, matching_keys, converted_row)
-					rows_upserted += 1
-					if was_new:
-						rows_inserted += 1
-				except Exception as e:
-					rows_skipped += 1
-					if len(skip_errors) < MAX_ROW_ERROR_MESSAGES:
-						skip_errors.append(f"{row_hint} — {str(e)[:180]}")
-					try:
-						frappe.db.rollback(save_point="row_sync")
-					except Exception:
-						pass
-				if (rows_upserted + rows_skipped) % UPSERT_BATCH_SIZE == 0:
-					_publish_sync_progress(
-						wp_table_doc.name,
-						rows_upserted,
-						total_to_sync,
-						user=sync_user,
-					)
-			frappe.db.commit()
-
-	_upsert_batch(changed_rows)
-	if missing_rows:
-		_upsert_batch(missing_rows)
-
-	if rows_skipped:
-		frappe.log_error(
-			title=f"Sync skipped rows: {wp_table_doc.table_name}",
-			message=f"Skipped {rows_skipped} rows.\n" + "\n".join(skip_errors),
-		)
-
-	# Final progress update (always fires so small tables get at least one toast)
-	_publish_sync_progress(
-		wp_table_doc.name,
-		rows_upserted,
-		total_to_sync,
-		user=sync_user,
-	)
-
-	return {
-		"method": "TS Compare",
-		"rows_upserted": rows_upserted,
-		"rows_inserted": rows_inserted,
-		"rows_deleted": rows_deleted,
-		"rows_skipped": rows_skipped,
-		"total_wp_rows": len(wp_key_set),
-		"missing_rows_found": len(missing_rows),
-	}
+	return changed_rows, missing_rows
 
 
 def _sync_truncate_replace(conn, wp_table_doc, wp_conn_doc, frappe_doctype):
@@ -620,76 +662,34 @@ def _sync_truncate_replace(conn, wp_table_doc, wp_conn_doc, frappe_doctype):
 	"""
 	table_name = wp_table_doc.table_name
 	wp_tz = wp_conn_doc.wp_timezone
-
-	# Load column mapping (WP column name -> {fieldname, is_virtual})
 	column_mapping = load_column_mapping(wp_table_doc)
 
 	# Step 1: Delete all existing Frappe records
 	frappe.db.delete(frappe_doctype)
 	frappe.db.commit()
 
-	# Step 2: Pre-count and get all rows from WordPress
-	total_to_sync = _count_rows_to_sync(conn, table_name, None, None, None)
-
+	# Step 2: Fetch all rows from WordPress
 	cursor = conn.cursor()
 	cursor.execute(f"SELECT * FROM `{table_name}`")
 	all_rows = cursor.fetchall()
 	cursor.close()
+	total_to_sync = len(all_rows)
 
-	# Step 3: Insert all rows in batches (with in_sync flag to prevent live push-back)
-	rows_inserted = 0
-	rows_skipped = 0
-	skip_errors = []
+	# Step 3: Insert all rows via shared batch processor (with in_sync flag)
+	def insert_one(row):
+		converted = _convert_row(row, wp_tz, column_mapping)
+		_insert_record(frappe_doctype, converted)
+		return True  # Always a new insert
+
 	frappe.flags.in_sync = True
 	try:
-		for i in range(0, len(all_rows), UPSERT_BATCH_SIZE):
-			batch = all_rows[i : i + UPSERT_BATCH_SIZE]
-
-			for row in batch:
-				row_hint = str(dict(list(row.items())[:4]))[:150]
-				frappe.db.savepoint("row_sync")
-				try:
-					converted_row = _convert_row(row, wp_tz, column_mapping)
-					_insert_record(frappe_doctype, converted_row)
-					rows_inserted += 1
-				except Exception as e:
-					rows_skipped += 1
-					if len(skip_errors) < MAX_ROW_ERROR_MESSAGES:
-						skip_errors.append(f"{row_hint} — {str(e)[:180]}")
-					try:
-						frappe.db.rollback(save_point="row_sync")
-					except Exception:
-						pass
-
-				if (rows_inserted + rows_skipped) % UPSERT_BATCH_SIZE == 0:
-					_publish_sync_progress(
-						wp_table_doc.name,
-						rows_inserted,
-						total_to_sync,
-						user=getattr(wp_table_doc, "_sync_user", None),
-					)
-
-			frappe.db.commit()
+		result = _batch_process_rows(all_rows, insert_one, wp_table_doc, total_to_sync)
 	finally:
 		frappe.flags.in_sync = False
 
-	if rows_skipped:
-		frappe.log_error(
-			title=f"Sync skipped rows: {wp_table_doc.table_name}",
-			message=f"Skipped {rows_skipped} rows.\n" + "\n".join(skip_errors),
-		)
-
-	# Final progress update (always fires)
-	_publish_sync_progress(
-		wp_table_doc.name,
-		rows_inserted,
-		total_to_sync,
-		user=getattr(wp_table_doc, "_sync_user", None),
-	)
-
 	return {
 		"method": "Truncate & Replace",
-		"rows_inserted": rows_inserted,
+		"rows_inserted": result["rows_processed"],
 		"rows_deleted": "all",
 	}
 
@@ -1035,6 +1035,65 @@ def run_sync_for_table(wp_table_name, user=None):
 		)
 
 
+def _build_sync_summary(result, frappe_count):
+	"""
+	Build a human-readable sync summary and extract record counts from a
+	sync result dict.
+
+	Args:
+		result: dict returned by sync_table() (contains method, rows_*, etc.)
+		frappe_count: Number of records currently in the Frappe DocType.
+
+	Returns:
+		dict with keys: log_message, records_synced, records_created,
+		records_updated, rows_deleted, has_changes.
+	"""
+	rows_upserted = result.get("rows_upserted", 0)
+	rows_inserted = result.get("rows_inserted", 0)
+	rows_deleted = result.get("rows_deleted", 0)
+	if rows_deleted == "all":
+		rows_deleted = 0
+	reverse_inserted = result.get("reverse_inserted", 0)
+	reverse_updated = result.get("reverse_updated", 0)
+
+	has_changes = (rows_upserted + rows_deleted + reverse_inserted + reverse_updated) > 0
+
+	if result.get("method") == "Truncate & Replace":
+		log_message = f"Truncate & Replace: {rows_inserted} rows inserted"
+		records_synced = rows_inserted
+		records_created = rows_inserted
+		records_updated = 0
+	else:
+		missing_found = result.get("missing_rows_found", 0)
+		ts_rows_inserted = result.get("rows_inserted", 0)
+		ts_rows_updated = rows_upserted - ts_rows_inserted
+
+		parts = [f"TS Compare: {rows_upserted} upserted"]
+		if ts_rows_inserted:
+			parts.append(f"{ts_rows_inserted} new")
+		if ts_rows_updated:
+			parts.append(f"{ts_rows_updated} updated")
+		if missing_found:
+			parts.append(f"{missing_found} missing rows recovered")
+		parts.append(f"{rows_deleted} deleted")
+		parts.append(f"{result.get('total_wp_rows', 0)} total WP rows")
+		parts.append(f"{frappe_count} in Frappe")
+
+		log_message = ", ".join(parts)
+		records_synced = rows_upserted
+		records_created = ts_rows_inserted
+		records_updated = ts_rows_updated
+
+	return {
+		"log_message": log_message,
+		"records_synced": records_synced,
+		"records_created": records_created,
+		"records_updated": records_updated,
+		"rows_deleted": rows_deleted,
+		"has_changes": has_changes,
+	}
+
+
 def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 	"""
 	Run sync and update status fields on the WP Tables document.
@@ -1042,6 +1101,7 @@ def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 
 	Args:
 		wp_table_doc: WP Tables document
+		suppress_notifications: If True, mutes emails and import notifications.
 	"""
 	import traceback
 
@@ -1073,72 +1133,29 @@ def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 				f"Check matching keys and column mapping."
 			)
 			wp_table_doc.save()
-
 			_create_sync_log(
-				wp_table_doc.name,
-				sync_method,
-				sync_started,
-				status="Partial",
-				error_message=wp_table_doc.last_sync_log,
+				wp_table_doc.name, sync_method, sync_started,
+				status="Partial", error_message=wp_table_doc.last_sync_log,
 			)
 			return
 
-		# Calculate record counts
-		rows_upserted = result.get("rows_upserted", 0)
-		rows_inserted = result.get("rows_inserted", 0)
-		rows_deleted = result.get("rows_deleted", 0)
-		if rows_deleted == "all":
-			rows_deleted = 0
-		reverse_inserted = result.get("reverse_inserted", 0)
-		reverse_updated = result.get("reverse_updated", 0)
+		# Build summary and update status
+		summary = _build_sync_summary(result, frappe_count)
 
-		has_changes = (rows_upserted + rows_deleted + reverse_inserted + reverse_updated) > 0
-
-		# Update status on success
 		wp_table_doc.last_synced = now_datetime()
 		wp_table_doc.last_sync_status = "Success"
-
-		# Build summary log
-		if result.get("method") == "Truncate & Replace":
-			wp_table_doc.last_sync_log = f"Truncate & Replace: {rows_inserted} rows inserted"
-			records_synced = rows_inserted
-			records_created = rows_inserted
-			records_updated = 0
-		else:
-			missing_found = result.get("missing_rows_found", 0)
-			ts_rows_inserted = result.get("rows_inserted", 0)
-			ts_rows_updated = rows_upserted - ts_rows_inserted
-
-			parts = [f"TS Compare: {rows_upserted} upserted"]
-			if ts_rows_inserted:
-				parts.append(f"{ts_rows_inserted} new")
-			if ts_rows_updated:
-				parts.append(f"{ts_rows_updated} updated")
-			if missing_found:
-				parts.append(f"{missing_found} missing rows recovered")
-			parts.append(f"{rows_deleted} deleted")
-			parts.append(f"{result.get('total_wp_rows', 0)} total WP rows")
-			parts.append(f"{frappe_count} in Frappe")
-
-			wp_table_doc.last_sync_log = ", ".join(parts)
-			records_synced = rows_upserted
-			records_created = ts_rows_inserted
-			records_updated = ts_rows_updated
-
+		wp_table_doc.last_sync_log = summary["log_message"]
 		wp_table_doc.save()
 		frappe.db.commit()
 
-		# Only create a Sync Log record when something actually changed
-		if has_changes:
+		if summary["has_changes"]:
 			_create_sync_log(
-				wp_table_doc.name,
-				sync_method,
-				sync_started,
+				wp_table_doc.name, sync_method, sync_started,
 				status="Success",
-				records_synced=records_synced,
-				records_created=records_created,
-				records_updated=records_updated,
-				records_deleted=rows_deleted if isinstance(rows_deleted, int) else 0,
+				records_synced=summary["records_synced"],
+				records_created=summary["records_created"],
+				records_updated=summary["records_updated"],
+				records_deleted=summary["rows_deleted"],
 			)
 
 	except Exception as e:
@@ -1147,11 +1164,8 @@ def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 		wp_table_doc.save()
 
 		_create_sync_log(
-			wp_table_doc.name,
-			sync_method,
-			sync_started,
-			status="Failed",
-			error_message=str(e)[:500],
+			wp_table_doc.name, sync_method, sync_started,
+			status="Failed", error_message=str(e)[:500],
 			error_traceback=traceback.format_exc(),
 		)
 
