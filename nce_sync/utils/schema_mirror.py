@@ -685,6 +685,10 @@ def _build_column_mapping(
 		is_pick_list = frappe_fieldname in pick_list_options if pick_list_options else False
 		is_bold = frappe_fieldname in bold_fieldnames if bold_fieldnames else False
 
+		# Determine the base Frappe fieldtype BEFORE any pick-list override
+		base_mapping = map_mariadb_to_frappe_type(col)
+		original_fieldtype = base_mapping["fieldtype"]
+
 		entry = {
 			"fieldname": frappe_fieldname,
 			"is_virtual": is_virtual,
@@ -692,6 +696,7 @@ def _build_column_mapping(
 			"is_read_only": is_read_only,
 			"is_pick_list": is_pick_list,
 			"is_bold": is_bold,
+			"original_fieldtype": original_fieldtype,
 		}
 
 		if name_field_column and wp_col_name == name_field_column:
@@ -987,8 +992,142 @@ def update_existing_doctype(
 			new_fields_added = True
 			idx += 1
 
-	if new_fields_added:
+	# Update existing field properties (read_only, bold, label, pick_list)
+	fields_updated = False
+	for field in doctype_doc.fields:
+		fn = field.fieldname
+
+		# Read Only
+		should_ro = 1 if (read_only_fieldnames and fn in read_only_fieldnames) else 0
+		if field.read_only != should_ro:
+			field.read_only = should_ro
+			fields_updated = True
+
+		# Bold
+		should_bold = 1 if (bold_fieldnames and fn in bold_fieldnames) else 0
+		if field.bold != should_bold:
+			field.bold = should_bold
+			fields_updated = True
+
+		# Pick List → Select with options
+		if pick_list_options and fn in pick_list_options:
+			if field.fieldtype != "Select" or field.options != pick_list_options[fn]:
+				field.fieldtype = "Select"
+				field.options = pick_list_options[fn]
+				fields_updated = True
+
+	if new_fields_added or fields_updated:
 		doctype_doc.save(ignore_permissions=True)
 		frappe.db.commit()
 	else:
-		frappe.msgprint(_("No new fields to add to {0}").format(doctype_name), indicator="blue")
+		frappe.msgprint(_("No changes to apply to {0}").format(doctype_name), indicator="blue")
+
+
+def apply_field_settings(
+	doctype_name,
+	title_fieldname=None,
+	label_map=None,
+	read_only_fieldnames=None,
+	bold_fieldnames=None,
+	pick_list_fieldnames=None,
+	pick_list_options=None,
+	column_mapping=None,
+):
+	"""
+	Lightweight update of display-only field properties on an existing DocType.
+	Does NOT re-introspect WordPress schema or touch structural mapping.
+
+	Used by the 'Frappe Field Settings' tab to apply label, read_only, bold,
+	pick_list, and title changes without requiring a full remap or re-sync.
+
+	Args:
+		doctype_name: Name of the existing Frappe DocType.
+		title_fieldname: Frappe fieldname to use as title_field (or None to clear).
+		label_map: Dict of {frappe_fieldname: new_label} (only changed labels).
+		read_only_fieldnames: Set of fieldnames that should be read-only.
+		bold_fieldnames: Set of fieldnames that should be bold.
+		pick_list_fieldnames: Set of fieldnames that should be Select (pick-list).
+		pick_list_options: Dict of {fieldname: "opt1\\nopt2\\n..."} for new/updated pick-lists.
+		column_mapping: Existing column_mapping dict (used for original_fieldtype lookup on pick-list revert).
+
+	Returns:
+		int: Number of fields that were modified.
+	"""
+	doctype_doc = frappe.get_doc("DocType", doctype_name)
+	read_only_fieldnames = read_only_fieldnames or set()
+	bold_fieldnames = bold_fieldnames or set()
+	pick_list_fieldnames = pick_list_fieldnames or set()
+	pick_list_options = pick_list_options or {}
+	label_map = label_map or {}
+	column_mapping = column_mapping or {}
+
+	# Build a reverse lookup: frappe_fieldname → original_fieldtype from column_mapping
+	original_types = {}
+	for wp_col, entry in column_mapping.items():
+		fn = entry.get("fieldname")
+		if fn and entry.get("original_fieldtype"):
+			original_types[fn] = entry["original_fieldtype"]
+
+	changes = 0
+	for field in doctype_doc.fields:
+		fn = field.fieldname
+		changed = False
+
+		# Label
+		if fn in label_map and field.label != label_map[fn]:
+			field.label = label_map[fn]
+			changed = True
+
+		# Read Only
+		should_ro = 1 if fn in read_only_fieldnames else 0
+		if field.read_only != should_ro:
+			field.read_only = should_ro
+			changed = True
+
+		# Bold
+		should_bold = 1 if fn in bold_fieldnames else 0
+		if field.bold != should_bold:
+			field.bold = should_bold
+			changed = True
+
+		# Pick List ON → set fieldtype to Select with options
+		if fn in pick_list_fieldnames:
+			if fn in pick_list_options:
+				if field.fieldtype != "Select" or field.options != pick_list_options[fn]:
+					field.fieldtype = "Select"
+					field.options = pick_list_options[fn]
+					changed = True
+		else:
+			# Pick List OFF → revert to original type if currently a pick-list Select
+			# Check column_mapping to see if this was a pick-list (not a native ENUM Select)
+			was_pick_list = any(
+				e.get("fieldname") == fn and e.get("is_pick_list")
+				for e in column_mapping.values()
+			)
+			if was_pick_list and field.fieldtype == "Select":
+				revert_type = original_types.get(fn, "Data")
+				field.fieldtype = revert_type
+				field.options = None
+				changed = True
+
+		if changed:
+			changes += 1
+
+	# Update title field
+	old_title = doctype_doc.title_field
+	if title_fieldname and title_fieldname != old_title:
+		doctype_doc.title_field = title_fieldname
+		doctype_doc.show_title_field_in_link = 1
+		doctype_doc.search_fields = title_fieldname
+		changes += 1
+	elif not title_fieldname and old_title:
+		doctype_doc.title_field = None
+		doctype_doc.show_title_field_in_link = 0
+		doctype_doc.search_fields = None
+		changes += 1
+
+	if changes:
+		doctype_doc.save(ignore_permissions=True)
+		frappe.db.commit()
+
+	return changes

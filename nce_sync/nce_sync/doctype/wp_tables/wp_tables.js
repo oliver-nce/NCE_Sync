@@ -342,76 +342,41 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 		],
 		primary_action_label: action_label,
 		primary_action: function () {
-			// Collect field type overrides
-			let field_overrides = {};
-			d.$wrapper.find(".field-type-select").each(function () {
-				let col_name = $(this).data("column");
-				let selected = $(this).val();
-				// Always send all field types (user may have confirmed defaults)
-				field_overrides[col_name] = selected;
-			});
+			// ─── Collect values from BOTH tabs (shared collectors) ───
 
-			// Collect label overrides
+			// Tab 2: Collect label overrides
 			let label_overrides = {};
 			d.$wrapper.find(".field-label-input").each(function () {
 				let col_name = $(this).data("column");
 				let label = $(this).val().trim();
 				let original = $(this).data("original");
-				// Only send if changed from default
 				if (label && label !== original) {
 					label_overrides[col_name] = label;
 				}
 			});
 
-			// Collect "Use as Name" selection (mutually exclusive radio)
-			let name_field_column = d.$wrapper.find(".name-field-radio:checked").val() || "";
-
-			// Collect matching fields (up to 3 selected checkboxes)
-			let matching_fields = [];
-			d.$wrapper.find(".matching-field-checkbox:checked").each(function () {
-				matching_fields.push($(this).data("column"));
-			});
-
-			// Collect auto-generated columns
-			let auto_generated_columns = [];
-			d.$wrapper.find(".auto-generated-checkbox:checked").each(function () {
-				auto_generated_columns.push($(this).data("column"));
-			});
-
-			// Collect timestamp field selections
-			let modified_ts_field = d.$wrapper.find(".mod-ts-radio:checked").val() || "";
-			let created_ts_field = d.$wrapper.find(".crt-ts-radio:checked").val() || "";
-
-			// Collect Title field selection (optional)
+			// Tab 2: Collect Title field selection (optional)
 			let title_field_column = d.$wrapper.find(".title-field-radio:checked").val() || "";
 
-			// Collect Read Only columns (UI renders now, backend wired in Commit 2)
+			// Tab 2: Collect Read Only columns
 			let read_only_columns = [];
 			d.$wrapper.find(".read-only-checkbox:checked").each(function () {
 				read_only_columns.push($(this).data("column"));
 			});
 
-			// Collect Pick List columns
+			// Tab 2: Collect Pick List columns
 			let pick_list_columns = [];
 			d.$wrapper.find(".pick-list-checkbox:checked").each(function () {
 				pick_list_columns.push($(this).data("column"));
 			});
 
-			// Collect Bold columns
+			// Tab 2: Collect Bold columns
 			let bold_columns = [];
 			d.$wrapper.find(".bold-checkbox:checked").each(function () {
 				bold_columns.push($(this).data("column"));
 			});
 
-			// Validate: Title cannot be the same column as Frappe ID
-			if (title_field_column && title_field_column === name_field_column) {
-				frappe.msgprint(
-					__("Title field cannot be the same as Frappe ID — the ID column does not create a DocType field."),
-				);
-				return;
-			}
-
-			// Validate reserved column labels
+			// Validate reserved column labels (Tab 2)
 			let reserved_errors = [];
 			d.$wrapper.find(".field-label-input.reserved-source-col").each(function () {
 				let col_name = $(this).data("column");
@@ -428,6 +393,79 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 						"Reserved column(s) need a unique label: <strong>{0}</strong>.<br>Choose a label that doesn't resolve to a reserved name (e.g. 'Event Name' instead of 'Name').",
 						[reserved_errors.join(", ")],
 					),
+				);
+				return;
+			}
+
+			// ─── Determine which path to take based on dirty tabs ───
+			let mapping_dirty = d.$wrapper.find("#tab-mapping").data("dirty");
+			let settings_dirty = d.$wrapper.find("#tab-settings").data("dirty");
+
+			if (!mapping_dirty && !settings_dirty) {
+				frappe.show_alert({ message: __("No changes to apply."), indicator: "blue" });
+				return;
+			}
+
+			// ─── LIGHTWEIGHT PATH: Only Tab 2 changed ───
+			if (!mapping_dirty && settings_dirty) {
+				d.get_primary_btn().prop("disabled", true).text(__("Applying…"));
+
+				frappe.call({
+					method: "update_field_settings",
+					doc: frm.doc,
+					args: {
+						title_field_column: title_field_column || undefined,
+						label_overrides: JSON.stringify(label_overrides),
+						read_only_columns: read_only_columns.join(",") || undefined,
+						pick_list_columns: pick_list_columns.join(",") || undefined,
+						bold_columns: bold_columns.join(",") || undefined,
+					},
+					freeze: true,
+					freeze_message: __("Applying field settings..."),
+					callback: function (r) {
+						d.hide();
+						frm.reload_doc();
+					},
+					error: function (r) {
+						d.get_primary_btn().prop("disabled", false).text(__("Apply Settings"));
+					},
+				});
+				return;
+			}
+
+			// ─── FULL PATH: Tab 1 changed (with or without Tab 2) ───
+
+			// Tab 1: Collect field type overrides
+			let field_overrides = {};
+			d.$wrapper.find(".field-type-select").each(function () {
+				let col_name = $(this).data("column");
+				let selected = $(this).val();
+				field_overrides[col_name] = selected;
+			});
+
+			// Tab 1: Collect "Use as Name" selection
+			let name_field_column = d.$wrapper.find(".name-field-radio:checked").val() || "";
+
+			// Tab 1: Collect matching fields
+			let matching_fields = [];
+			d.$wrapper.find(".matching-field-checkbox:checked").each(function () {
+				matching_fields.push($(this).data("column"));
+			});
+
+			// Tab 1: Collect auto-generated columns
+			let auto_generated_columns = [];
+			d.$wrapper.find(".auto-generated-checkbox:checked").each(function () {
+				auto_generated_columns.push($(this).data("column"));
+			});
+
+			// Tab 1: Collect timestamp field selections
+			let modified_ts_field = d.$wrapper.find(".mod-ts-radio:checked").val() || "";
+			let created_ts_field = d.$wrapper.find(".crt-ts-radio:checked").val() || "";
+
+			// Validate: Title cannot be the same column as Frappe ID
+			if (title_field_column && title_field_column === name_field_column) {
+				frappe.msgprint(
+					__("Title field cannot be the same as Frappe ID — the ID column does not create a DocType field."),
 				);
 				return;
 			}
@@ -486,16 +524,27 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 					frm.reload_doc();
 				},
 				error: function (r) {
-					// Re-enable button so the user can retry after fixing the issue
-					d.get_primary_btn().prop("disabled", false).text(__("Confirm & Create"));
+					d.get_primary_btn().prop("disabled", false).text(action_label);
 				},
 			});
 		},
 	});
 
-	// Build the preview table
+	// Build the two-tab preview
 	let html = `
-		<div style="margin-bottom: 10px;">
+		<ul class="nav nav-tabs schema-tabs" role="tablist" style="margin-bottom: 0;">
+			<li class="nav-item">
+				<a class="nav-link active" data-toggle="tab" href="#tab-mapping" role="tab">${__("Data Mapping")}</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link" data-toggle="tab" href="#tab-settings" role="tab">${__("Frappe Field Settings")}</a>
+			</li>
+		</ul>
+		<div class="tab-content" style="border: 1px solid var(--border-color, #d1d8dd); border-top: none; border-radius: 0 0 var(--border-radius, 6px) var(--border-radius, 6px);">
+
+		<!-- ═══ TAB 1: Data Mapping ═══ -->
+		<div class="tab-pane active" id="tab-mapping" data-dirty="false" role="tabpanel">
+		<div style="padding: 10px 10px 0;">
 			<span class="text-muted">${__(
 				"Review the proposed field types below. Adjust any that look incorrect before creating the DocType.",
 			)}</span>
@@ -508,10 +557,6 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			"Select one column to use as Frappe's record ID (skips field creation, enables fast direct lookup).",
 		)}</span>
 		<br>
-		<span class="text-muted"><strong>${__("Title:")}</strong> ${__(
-			"Select one column to use as the display title in list views and link fields.",
-		)}</span>
-		<br>
 		<span class="text-muted"><strong>${__("Auto:")}</strong> ${__(
 			"Mark columns that are auto-generated by the source (e.g. auto_increment). These will be skipped when writing records back to the source.",
 		)}</span>
@@ -519,38 +564,21 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 		<span class="text-muted"><strong>${__("Mod TS / Created TS:")}</strong> ${__(
 			"Pick the modified-timestamp field (required) and optionally the created-timestamp field. Only datetime/timestamp columns are selectable.",
 		)}</span>
-		<br>
-		<span class="text-muted"><strong>${__("Read Only:")}</strong> ${__(
-			"Mark fields as read-only on the Frappe form. Auto-checked for ID, virtual, matching, and timestamp fields.",
-		)}</span>
-		<br>
-		<span class="text-muted"><strong>${__("Pick List:")}</strong> ${__(
-			"Convert field to a Select dropdown populated from distinct source values.",
-		)}</span>
-		<br>
-		<span class="text-muted"><strong>${__("Bold:")}</strong> ${__(
-			"Display the field value in bold on the form — same as bold in Customize Form.",
-		)}</span>
 		</div>
 		<div class="schema-grid-scroll" style="overflow: auto;">
 			<table class="table table-bordered table-sm" style="font-size: 13px;">
 				<thead style="position: sticky; top: 0; background: var(--fg-color, #fff); z-index: 1;">
 					<tr>
-						<th style="width: 3%;">${__("Match")}</th>
-						<th style="width: 3%;" title="${__("Map this column directly to Frappe\'s record ID (name field)")}">${__("Frappe ID")}</th>
-						<th style="width: 3%;" title="${__("Display title in list views and link fields")}">${__("Title")}</th>
-						<th style="width: 3%;">${__("Auto")}</th>
-						<th style="width: 4%;" title="${__("Modified timestamp — required")}"><span style="color:#d44;">${__("Mod TS")}</span></th>
-						<th style="width: 4%;" title="${__("Created timestamp — optional")}">${__("Crt TS")}</th>
-						<th style="width: 11%;">${__("Column")}</th>
-						<th style="width: 9%;">${__("DB Type")}</th>
-						<th style="width: 11%;">${__("Frappe Type")}</th>
-						<th style="width: 5%;">${__("Nullable")}</th>
-						<th style="width: 9%;">${__("Keys")}</th>
-						<th style="width: 14%;">${__("Label")}</th>
-						<th style="width: 5%;" title="${__("Read-only on Frappe form")}">${__("Read Only")}</th>
-						<th style="width: 5%;" title="${__("Populate Select from distinct source values")}">${__("Pick List")}</th>
-						<th style="width: 4%;" title="${__("Display field value in bold on form")}">${__("Bold")}</th>
+						<th style="width: 5%;">${__("Match")}</th>
+						<th style="width: 5%;" title="${__("Map this column directly to Frappe\'s record ID (name field)")}">${__("Frappe ID")}</th>
+						<th style="width: 5%;">${__("Auto")}</th>
+						<th style="width: 6%;" title="${__("Modified timestamp — required")}"><span style="color:#d44;">${__("Mod TS")}</span></th>
+						<th style="width: 6%;" title="${__("Created timestamp — optional")}">${__("Crt TS")}</th>
+						<th style="width: 16%;">${__("Column")}</th>
+						<th style="width: 12%;">${__("DB Type")}</th>
+						<th style="width: 16%;">${__("Frappe Type")}</th>
+						<th style="width: 7%;">${__("Nullable")}</th>
+						<th style="width: 12%;">${__("Keys")}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -564,6 +592,9 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 	let previous_read_only = preview_data.previous_read_only_columns || [];
 	let previous_pick_list = preview_data.previous_pick_list_columns || [];
 	let previous_bold = preview_data.previous_bold_columns || [];
+
+	// Accumulate Tab 2 (Frappe Field Settings) rows separately
+	let settings_html = "";
 
 	fields.forEach(function (f) {
 		// Build keys badges
@@ -657,7 +688,6 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 		}
 
 		// Read Only checkbox — auto-check for virtual, matching, TS fields
-		// (UI-only for now — backend wiring in Commit 2)
 		let ro_auto = f.is_virtual || !!name_checked || !!checked || !!mod_ts_cell.includes("checked") || !!crt_ts_cell.includes("checked");
 		if (previous_read_only.includes(f.column_name.toLowerCase())) ro_auto = true;
 		let ro_checked = ro_auto ? "checked" : "";
@@ -691,6 +721,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 		}
 		let label_style_attr = label_styles ? ` style="${label_styles}"` : "";
 
+		// ═══ Tab 1 row: Data Mapping ═══
 		html += `
 			<tr ${row_class}>
 				<td style="text-align: center;">
@@ -700,10 +731,6 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				<td style="text-align: center;">
 					<input type="radio" name="name_field_radio" class="name-field-radio"
 						value="${f.column_name}" data-column="${f.column_name}" ${name_checked}>
-				</td>
-				<td style="text-align: center;">
-					<input type="radio" name="title_field_radio" class="title-field-radio"
-						value="${f.column_name}" data-column="${f.column_name}" ${title_checked}>
 				</td>
 				<td style="text-align: center;">
 					<input type="checkbox" class="auto-generated-checkbox"
@@ -722,36 +749,118 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				</td>
 				<td>${f.is_nullable === "YES" ? "Yes" : "<strong>No</strong>"}</td>
 				<td>${keys_html}</td>
-			<td>
-				<input type="text" class="form-control form-control-sm field-label-input${reserved_cls}"
-					data-column="${f.column_name}"
-					data-original="${f.label}"
-					value="${f.label}"${label_style_attr}${label_readonly}>
-				${reserved_hint}
-			</td>
-			<td style="text-align: center;">
-				<input type="checkbox" class="read-only-checkbox"
-					data-column="${f.column_name}" data-virtual="${f.is_virtual ? 1 : 0}" ${ro_checked}>
-			</td>
-			<td style="text-align: center;">
-				<input type="checkbox" class="pick-list-checkbox"
-					data-column="${f.column_name}" ${pl_checked}>
-			</td>
-			<td style="text-align: center;">
-				<input type="checkbox" class="bold-checkbox"
-					data-column="${f.column_name}" ${bold_checked}>
-			</td>
+			</tr>
+		`;
+
+		// ═══ Tab 2 row: Frappe Field Settings ═══
+		settings_html += `
+			<tr>
+				<td style="color: var(--text-muted); font-size: 12px;">${f.column_name}</td>
+				<td style="text-align: center;">
+					<input type="radio" name="title_field_radio" class="title-field-radio"
+						value="${f.column_name}" data-column="${f.column_name}" ${title_checked}>
+				</td>
+				<td>
+					<input type="text" class="form-control form-control-sm field-label-input${reserved_cls}"
+						data-column="${f.column_name}"
+						data-original="${f.label}"
+						value="${f.label}"${label_style_attr}${label_readonly}>
+					${reserved_hint}
+				</td>
+				<td style="text-align: center;">
+					<input type="checkbox" class="read-only-checkbox"
+						data-column="${f.column_name}" data-virtual="${f.is_virtual ? 1 : 0}" ${ro_checked}>
+				</td>
+				<td style="text-align: center;">
+					<input type="checkbox" class="pick-list-checkbox"
+						data-column="${f.column_name}" ${pl_checked}>
+				</td>
+				<td style="text-align: center;">
+					<input type="checkbox" class="bold-checkbox"
+						data-column="${f.column_name}" ${bold_checked}>
+				</td>
 			</tr>
 		`;
 	});
 
+	// Close Tab 1 table + pane
 	html += `
 				</tbody>
 			</table>
 		</div>
+		</div><!-- /tab-mapping -->
+
+		<!-- ═══ TAB 2: Frappe Field Settings ═══ -->
+		<div class="tab-pane" id="tab-settings" data-dirty="false" role="tabpanel">
+		<div style="padding: 10px 10px 0;">
+			<span class="text-muted"><strong>${__("Title:")}</strong> ${__(
+				"Select one column to use as the display title in list views and link fields.",
+			)}</span>
+			<br>
+			<span class="text-muted"><strong>${__("Read Only:")}</strong> ${__(
+				"Mark fields as read-only on the Frappe form. Auto-checked for ID, virtual, matching, and timestamp fields.",
+			)}</span>
+			<br>
+			<span class="text-muted"><strong>${__("Pick List:")}</strong> ${__(
+				"Convert field to a Select dropdown populated from distinct source values.",
+			)}</span>
+			<br>
+			<span class="text-muted"><strong>${__("Bold:")}</strong> ${__(
+				"Display the field value in bold on the form — same as bold in Customize Form.",
+			)}</span>
+		</div>
+		<div class="schema-grid-scroll" style="overflow: auto;">
+			<table class="table table-bordered table-sm" style="font-size: 13px;">
+				<thead style="position: sticky; top: 0; background: var(--fg-color, #fff); z-index: 1;">
+					<tr>
+						<th style="width: 16%;">${__("Column")}</th>
+						<th style="width: 5%;" title="${__("Display title in list views and link fields")}">${__("Title")}</th>
+						<th style="width: 30%;">${__("Label")}</th>
+						<th style="width: 8%;" title="${__("Read-only on Frappe form")}">${__("Read Only")}</th>
+						<th style="width: 8%;" title="${__("Populate Select from distinct source values")}">${__("Pick List")}</th>
+						<th style="width: 8%;" title="${__("Display field value in bold on form")}">${__("Bold")}</th>
+					</tr>
+				</thead>
+				<tbody>
+					${settings_html}
+				</tbody>
+			</table>
+		</div>
+		</div><!-- /tab-settings -->
+
+		</div><!-- /tab-content -->
 	`;
 
 	d.fields_dict.field_preview.$wrapper.html(html);
+
+	// ═══ Dirty tracking per tab ═══
+	// Mark Tab 1 (Data Mapping) dirty on any change inside it
+	d.$wrapper.on(
+		"change",
+		"#tab-mapping input, #tab-mapping select",
+		function () {
+			d.$wrapper.find("#tab-mapping").data("dirty", true);
+			_update_primary_button_label();
+		},
+	);
+	// Mark Tab 2 (Frappe Field Settings) dirty on any change inside it
+	d.$wrapper.on(
+		"change input",
+		"#tab-settings input, #tab-settings select",
+		function () {
+			d.$wrapper.find("#tab-settings").data("dirty", true);
+			_update_primary_button_label();
+		},
+	);
+
+	function _update_primary_button_label() {
+		let mapping_dirty = d.$wrapper.find("#tab-mapping").data("dirty");
+		if (mapping_dirty) {
+			d.get_primary_btn().text(action_label);
+		} else {
+			d.get_primary_btn().text(__("Apply Settings"));
+		}
+	}
 
 	// When "Frappe ID" radio is selected:
 	//  • Grey out the Frappe Type dropdown for that row (type is irrelevant — no field created)
@@ -769,12 +878,15 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			$cb.prop("disabled", false);
 		});
 
-		// Title radio — disable for the Frappe ID column (no DocType field = can't be title)
+		// Title radio (in Tab 2) — disable for the Frappe ID column (no DocType field = can't be title)
 		d.$wrapper.find(".title-field-radio").each(function () {
 			let col = $(this).data("column");
 			if (id_col && col === id_col) {
 				if ($(this).prop("checked")) {
 					$(this).prop("checked", false);
+					// Cross-tab side-effect: mark Tab 2 dirty since we changed a Title radio
+					d.$wrapper.find("#tab-settings").data("dirty", true);
+					_update_primary_button_label();
 					frappe.show_alert({
 						message: __("Title cleared — the Frappe ID column does not create a field"),
 						indicator: "orange",

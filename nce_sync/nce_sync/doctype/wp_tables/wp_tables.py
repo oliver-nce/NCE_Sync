@@ -547,6 +547,126 @@ class WPTables(Document):
 		)
 
 	@frappe.whitelist()
+	def update_field_settings(
+		self,
+		title_field_column=None,
+		label_overrides=None,
+		read_only_columns=None,
+		pick_list_columns=None,
+		bold_columns=None,
+	):
+		"""
+		Lightweight update of display-only field properties (label, read_only, bold,
+		pick_list, title) on the mirrored DocType.  Does NOT re-introspect the WP
+		schema, does NOT require a re-sync.
+
+		Only opens a WP connection when pick-list columns are newly toggled ON
+		(to fetch DISTINCT values).
+		"""
+		from nce_sync.utils.schema_mirror import (
+			_fetch_pick_list_options,
+			_parse_comma_columns,
+			apply_field_settings,
+			resolve_fieldname,
+		)
+
+		if not self.frappe_doctype:
+			frappe.throw(_("No mirrored DocType to update"))
+
+		# Parse inputs
+		if label_overrides and isinstance(label_overrides, str):
+			label_overrides = json.loads(label_overrides)
+		label_overrides = label_overrides or {}
+
+		existing_mapping = json.loads(self.column_mapping) if self.column_mapping else {}
+
+		# Resolve fieldnames for the comma-separated column lists
+		read_only_fieldnames = _parse_comma_columns(read_only_columns, label_overrides)
+		bold_fieldnames = _parse_comma_columns(bold_columns, label_overrides)
+		pick_list_fieldnames = _parse_comma_columns(pick_list_columns, label_overrides)
+
+		# Resolve title fieldname
+		title_fieldname = resolve_fieldname(title_field_column, label_overrides) if title_field_column else None
+
+		# Build label_map: {frappe_fieldname: new_label}
+		label_map = {}
+		for wp_col, new_label in label_overrides.items():
+			fn = resolve_fieldname(wp_col, label_overrides)
+			label_map[fn] = new_label
+
+		# Determine which pick-list columns are NEWLY toggled on
+		# (only these need a WP query for DISTINCT values)
+		previously_pick_list = set()
+		for wp_col, entry in existing_mapping.items():
+			if entry.get("is_pick_list"):
+				previously_pick_list.add(entry.get("fieldname"))
+
+		new_pick_list_cols = pick_list_fieldnames - previously_pick_list
+		# Map new pick-list fieldnames back to WP column names for the query
+		fieldname_to_wp_col = {
+			entry.get("fieldname"): wp_col
+			for wp_col, entry in existing_mapping.items()
+		}
+		new_pick_list_wp_cols = [
+			fieldname_to_wp_col[fn]
+			for fn in new_pick_list_cols
+			if fn in fieldname_to_wp_col
+		]
+
+		# Fetch DISTINCT values for newly toggled pick-list columns only
+		pick_list_options = {}
+		if new_pick_list_wp_cols:
+			from nce_sync.utils.connections import wp_connection
+
+			wp_conn = frappe.get_single("WordPress Connection")
+			with wp_connection(wp_conn) as conn:
+				pick_list_options = _fetch_pick_list_options(
+					conn, self.table_name, new_pick_list_wp_cols, label_overrides
+				)
+
+		# Preserve existing pick-list options for columns that are still toggled on
+		doctype_doc = frappe.get_doc("DocType", self.frappe_doctype)
+		for field in doctype_doc.fields:
+			if (
+				field.fieldname in pick_list_fieldnames
+				and field.fieldname not in pick_list_options
+				and field.fieldtype == "Select"
+				and field.fieldname in previously_pick_list
+			):
+				# Keep current options
+				pick_list_options[field.fieldname] = field.options or ""
+
+		# Apply changes to the DocType
+		changes = apply_field_settings(
+			self.frappe_doctype,
+			title_fieldname=title_fieldname,
+			label_map=label_map,
+			read_only_fieldnames=read_only_fieldnames,
+			bold_fieldnames=bold_fieldnames,
+			pick_list_fieldnames=pick_list_fieldnames,
+			pick_list_options=pick_list_options,
+			column_mapping=existing_mapping,
+		)
+
+		# Patch column_mapping JSON with updated flags
+		for wp_col, entry in existing_mapping.items():
+			fn = entry.get("fieldname")
+			if fn:
+				entry["is_read_only"] = fn in read_only_fieldnames
+				entry["is_pick_list"] = fn in pick_list_fieldnames
+				entry["is_bold"] = fn in bold_fieldnames
+
+		self.column_mapping = json.dumps(existing_mapping)
+		if title_field_column is not None:
+			self.title_field_column = title_field_column or None
+		self.save()
+
+		frappe.msgprint(
+			_("Field settings updated — {0} field(s) changed").format(changes),
+			indicator="green",
+		)
+
+	@frappe.whitelist()
 	def debug_sync_one_row(self):
 		"""
 		Debug: Sync just the first row and show detailed info about what's happening.
