@@ -759,6 +759,12 @@ def _convert_row(row, wp_tz, column_mapping=None):
 	"""
 	converted = {}
 	for wp_key, value in row.items():
+		# Skip virtual/generated columns — they have no Frappe DB column
+		if column_mapping and wp_key in column_mapping:
+			mapping_info = column_mapping[wp_key]
+			if isinstance(mapping_info, dict) and mapping_info.get("is_virtual"):
+				continue
+
 		frappe_key = get_frappe_fieldname(wp_key, column_mapping)
 
 		if isinstance(value, datetime):

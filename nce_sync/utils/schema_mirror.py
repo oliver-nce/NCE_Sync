@@ -136,6 +136,19 @@ def build_frappe_field(col, schema, wp_table_doc, field_overrides=None, label_ov
 	if read_only_fieldnames and safe_fieldname in read_only_fieldnames:
 		field["read_only"] = 1
 
+	# Virtual/generated columns → Frappe virtual field with Python expression
+	extra = col.get("EXTRA", "") or ""
+	is_virtual_col = "VIRTUAL" in extra.upper() or "GENERATED" in extra.upper()
+	if is_virtual_col:
+		from nce_sync.utils.sql_to_python import sql_generation_to_python
+
+		gen_expr = col.get("GENERATION_EXPRESSION", "") or ""
+		python_expr = sql_generation_to_python(gen_expr, label_overrides)
+		field["is_virtual"] = 1
+		field["reqd"] = 0  # virtual fields can't be required
+		if python_expr:
+			field["options"] = python_expr
+
 	return field
 
 

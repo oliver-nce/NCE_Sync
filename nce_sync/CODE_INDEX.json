@@ -53,7 +53,7 @@
       "sections": ["DocType override hooks"]
     },
     "nce_sync/utils/schema_mirror.py": {
-      "purpose": "WordPress schema introspection and Frappe doctype mirroring: connect to WP MySQL, discover tables/views, map MariaDB types to Frappe types, create or update Frappe custom doctype with matching field configuration",
+      "purpose": "WordPress schema introspection and Frappe doctype mirroring: connect to WP MySQL, discover tables/views, map MariaDB types to Frappe types, create or update Frappe custom doctype with matching field configuration. Supports read_only fields and virtual/generated column translation via sql_to_python.",
       "exports": [
         "sanitize_fieldname",
         "resolve_fieldname",
@@ -71,7 +71,8 @@
       ],
       "depends_on": [
         "nce_sync/nce_sync/doctype/wordpress_connection/",
-        "nce_sync/nce_sync/doctype/wp_tables/"
+        "nce_sync/nce_sync/doctype/wp_tables/",
+        "nce_sync/utils/sql_to_python.py"
       ],
       "sections": [
         "Field name helpers",
@@ -79,7 +80,22 @@
         "Schema discovery",
         "Type mapping",
         "Preview",
-        "DocType creation/update"
+        "DocType creation/update",
+        "Virtual field handling"
+      ]
+    },
+    "nce_sync/utils/sql_to_python.py": {
+      "purpose": "Translate MySQL/MariaDB GENERATION_EXPRESSION SQL into Python expressions for Frappe virtual DocField options. Handles CONCAT, IFNULL/COALESCE, UPPER/LOWER, TRIM, LEFT/RIGHT, YEAR/MONTH, ROUND, and arithmetic.",
+      "exports": [
+        "sql_generation_to_python"
+      ],
+      "depends_on": [
+        "nce_sync/utils/schema_mirror.py"
+      ],
+      "sections": [
+        "SQL function translators",
+        "Expression parser",
+        "Public API"
       ]
     },
     "nce_sync/utils/data_sync.py": {
