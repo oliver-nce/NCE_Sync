@@ -65,6 +65,7 @@ PLAN_APP_FINALIZATION.md
 QUICKSTART.md
 V15_COMPATIBILITY_FIX.md
 WORKSPACE_CLEANUP_FIX.md
+write-back-deferred-dispatch-plan.md
 
 # Cursor AI rules (symlinked from shared config)
 .cursor/
