@@ -345,12 +345,16 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			// ─── Collect values from BOTH tabs (shared collectors) ───
 
 			// Tab 2: Collect label overrides
+			// For reserved columns (e.g. "name"), ALWAYS include the label even if
+			// unchanged — the fieldname is derived from the label, so resolve_fieldname
+			// needs it to avoid falling back to the "_field" suffix.
 			let label_overrides = {};
 			d.$wrapper.find(".field-label-input").each(function () {
 				let col_name = $(this).data("column");
 				let label = $(this).val().trim();
 				let original = $(this).data("original");
-				if (label && label !== original) {
+				let is_reserved = RESERVED_FIELDNAMES.includes(col_name.toLowerCase());
+				if (label && (label !== original || is_reserved)) {
 					label_overrides[col_name] = label;
 				}
 			});
@@ -753,12 +757,29 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 		`;
 
 		// ═══ Tab 2 row: Frappe Field Settings ═══
+		// Virtual fields cannot be title — Frappe resolves title via SQL (no DB column)
+		let title_disabled = f.is_virtual ? 'disabled style="opacity: 0.3;"' : "";
+		if (f.is_virtual && title_checked) title_checked = "";  // clear if previously set on a virtual
+
+		// Resolve Frappe fieldname for display in Tab 2
+		let display_fieldname = f.column_name.toLowerCase();
+		if (RESERVED_FIELDNAMES.includes(display_fieldname)) {
+			let lbl = f.label || "";
+			let scrubbed = _scrub_fieldname(lbl);
+			if (scrubbed && !RESERVED_FIELDNAMES.includes(scrubbed)) {
+				display_fieldname = scrubbed;
+			} else {
+				display_fieldname = display_fieldname + "_field";
+			}
+		}
+
 		settings_html += `
 			<tr>
-				<td style="color: var(--text-muted); font-size: 12px;">${f.column_name}</td>
+				<td style="font-size: 12px; color: var(--text-muted);">${f.column_name}</td>
+				<td style="font-size: 12px;"><code>${display_fieldname}</code></td>
 				<td style="text-align: center;">
 					<input type="radio" name="title_field_radio" class="title-field-radio"
-						value="${f.column_name}" data-column="${f.column_name}" ${title_checked}>
+						value="${f.column_name}" data-column="${f.column_name}" ${title_checked} ${title_disabled}>
 				</td>
 				<td>
 					<input type="text" class="form-control form-control-sm field-label-input${reserved_cls}"
@@ -813,12 +834,13 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			<table class="table table-bordered table-sm" style="font-size: 13px;">
 				<thead style="position: sticky; top: 0; background: var(--fg-color, #fff); z-index: 1;">
 					<tr>
-						<th style="width: 16%;">${__("Column")}</th>
+						<th style="width: 13%;">${__("WP Column")}</th>
+						<th style="width: 13%;">${__("Frappe Field")}</th>
 						<th style="width: 5%;" title="${__("Display title in list views and link fields")}">${__("Title")}</th>
-						<th style="width: 30%;">${__("Label")}</th>
-						<th style="width: 8%;" title="${__("Read-only on Frappe form")}">${__("Read Only")}</th>
-						<th style="width: 8%;" title="${__("Populate Select from distinct source values")}">${__("Pick List")}</th>
-						<th style="width: 8%;" title="${__("Display field value in bold on form")}">${__("Bold")}</th>
+						<th style="width: 26%;">${__("Label")}</th>
+						<th style="width: 7%;" title="${__("Read-only on Frappe form")}">${__("Read Only")}</th>
+						<th style="width: 7%;" title="${__("Populate Select from distinct source values")}">${__("Pick List")}</th>
+						<th style="width: 7%;" title="${__("Display field value in bold on form")}">${__("Bold")}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -977,9 +999,23 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 
 	d.$wrapper.on("change", ".name-field-radio", _refresh_frappe_id_state);
 	d.$wrapper.on("change", ".title-field-radio", function () {
-		// No special logic needed — Title is independent. Just validate against Frappe ID.
+		let col = $(this).val();
+
+		// Block virtual columns — Frappe resolves title_field via direct SQL,
+		// which cannot see virtual (computed) fields
+		let field_data = fields.find((f) => f.column_name === col);
+		if (field_data && field_data.is_virtual) {
+			$(this).prop("checked", false);
+			frappe.show_alert({
+				message: __("Virtual fields cannot be used as Title — Frappe resolves titles via SQL, which skips computed fields"),
+				indicator: "orange",
+			});
+			return;
+		}
+
+		// Validate against Frappe ID
 		let id_col = d.$wrapper.find(".name-field-radio:checked").val() || null;
-		if (id_col && $(this).val() === id_col) {
+		if (id_col && col === id_col) {
 			$(this).prop("checked", false);
 			frappe.show_alert({
 				message: __("Title field cannot be the same as Frappe ID"),
