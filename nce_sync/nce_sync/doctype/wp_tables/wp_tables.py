@@ -319,6 +319,7 @@ class WPTables(Document):
 				modified_ts_field=modified_ts_field or None,
 				created_ts_field=created_ts_field or None,
 				read_only_columns=read_only_columns or None,
+				pick_list_columns=pick_list_columns or None,
 			)
 
 			frappe.msgprint(
@@ -524,6 +525,7 @@ class WPTables(Document):
 			modified_ts_field=modified_ts_field or None,
 			created_ts_field=created_ts_field or None,
 			read_only_columns=read_only_columns or None,
+			pick_list_columns=pick_list_columns or None,
 		)
 
 		# Reset sync status

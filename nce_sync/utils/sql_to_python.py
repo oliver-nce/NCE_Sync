@@ -24,21 +24,21 @@ from nce_sync.utils.schema_mirror import resolve_fieldname
 # ---------------------------------------------------------------------------
 
 def _translate_concat(args_str, _resolve):
-	"""CONCAT(a, b, ...) → str(doc.a) + str(doc.b) + ..."""
+	"""CONCAT(a, b, ...) → cstr(doc.a) + cstr(doc.b) + ..."""
 	parts = _split_args(args_str)
 	py_parts = [_translate_expr(p.strip(), _resolve) for p in parts]
-	# Wrap each part in str() so non-string columns don't break concatenation
-	return " + ".join(f"str({p})" if not _is_string_literal(p) else p for p in py_parts)
+	# Wrap each part in cstr() so non-string columns don't break concatenation
+	return " + ".join(f"cstr({p})" if not _is_string_literal(p) else p for p in py_parts)
 
 
 def _translate_concat_ws(args_str, _resolve):
-	"""CONCAT_WS(sep, a, b, ...) → sep.join([str(doc.a), str(doc.b), ...])"""
+	"""CONCAT_WS(sep, a, b, ...) → sep.join([cstr(doc.a), cstr(doc.b), ...])"""
 	parts = _split_args(args_str)
 	if len(parts) < 2:
 		return "''"
 	sep = parts[0].strip()
 	py_parts = [_translate_expr(p.strip(), _resolve) for p in parts[1:]]
-	items = ", ".join(f"str({p})" for p in py_parts)
+	items = ", ".join(f"cstr({p})" for p in py_parts)
 	return f"{sep}.join([{items}])"
 
 
@@ -53,41 +53,41 @@ def _translate_ifnull(args_str, _resolve):
 
 
 def _translate_upper(args_str, _resolve):
-	"""UPPER(a) → str(doc.a).upper()"""
+	"""UPPER(a) → cstr(doc.a).upper()"""
 	inner = _translate_expr(args_str.strip(), _resolve)
-	return f"str({inner}).upper()"
+	return f"cstr({inner}).upper()"
 
 
 def _translate_lower(args_str, _resolve):
-	"""LOWER(a) → str(doc.a).lower()"""
+	"""LOWER(a) → cstr(doc.a).lower()"""
 	inner = _translate_expr(args_str.strip(), _resolve)
-	return f"str({inner}).lower()"
+	return f"cstr({inner}).lower()"
 
 
 def _translate_trim(args_str, _resolve):
-	"""TRIM(a) → str(doc.a).strip()"""
+	"""TRIM(a) → cstr(doc.a).strip()"""
 	inner = _translate_expr(args_str.strip(), _resolve)
-	return f"str({inner}).strip()"
+	return f"cstr({inner}).strip()"
 
 
 def _translate_left(args_str, _resolve):
-	"""LEFT(a, n) → str(doc.a)[:n]"""
+	"""LEFT(a, n) → cstr(doc.a)[:n]"""
 	parts = _split_args(args_str)
 	if len(parts) < 2:
 		return "''"
 	a = _translate_expr(parts[0].strip(), _resolve)
 	n = parts[1].strip()
-	return f"str({a})[:{n}]"
+	return f"cstr({a})[:{n}]"
 
 
 def _translate_right(args_str, _resolve):
-	"""RIGHT(a, n) → str(doc.a)[-n:]"""
+	"""RIGHT(a, n) → cstr(doc.a)[-n:]"""
 	parts = _split_args(args_str)
 	if len(parts) < 2:
 		return "''"
 	a = _translate_expr(parts[0].strip(), _resolve)
 	n = parts[1].strip()
-	return f"str({a})[-{n}:]"
+	return f"cstr({a})[-{n}:]"
 
 
 def _translate_year(args_str, _resolve):
@@ -272,7 +272,7 @@ def sql_generation_to_python(generation_expression, label_overrides=None):
 
 	Examples:
 		>>> sql_generation_to_python("concat(`first_name`,' ',`last_name`)")
-		"str(doc.first_name) + ' ' + str(doc.last_name)"
+		"cstr(doc.first_name) + ' ' + cstr(doc.last_name)"
 
 		>>> sql_generation_to_python("ifnull(`nickname`,`first_name`)")
 		"(doc.nickname if doc.nickname is not None else doc.first_name)"

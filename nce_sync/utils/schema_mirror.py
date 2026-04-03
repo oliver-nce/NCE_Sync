@@ -75,7 +75,7 @@ def get_matching_fields_list(wp_table_doc):
 	return [f.strip() for f in wp_table_doc.matching_fields.split(",") if f.strip()]
 
 
-def build_frappe_field(col, schema, wp_table_doc, field_overrides=None, label_overrides=None, idx=1, read_only_fieldnames=None):
+def build_frappe_field(col, schema, wp_table_doc, field_overrides=None, label_overrides=None, idx=1, read_only_fieldnames=None, pick_list_options=None):
 	"""
 	Build a Frappe field dict from a WordPress column definition.
 
@@ -131,6 +131,11 @@ def build_frappe_field(col, schema, wp_table_doc, field_overrides=None, label_ov
 
 	if is_indexed or is_matching or is_timestamp:
 		field["search_index"] = 1
+
+	# Pick List: override fieldtype to Select with DISTINCT source values as options
+	if pick_list_options and safe_fieldname in pick_list_options:
+		field["fieldtype"] = "Select"
+		field["options"] = pick_list_options[safe_fieldname]
 
 	# Mark field as read-only if user selected it in the preview dialog
 	if read_only_fieldnames and safe_fieldname in read_only_fieldnames:
@@ -520,19 +525,23 @@ def preview_table_schema(wp_conn_doc, wp_table_doc):
 	if auto_gen_raw:
 		previous_auto_gen = [c.strip().lower() for c in auto_gen_raw.split(",") if c.strip()]
 
-	# Build lookup of existing Frappe field labels and read-only state (for remap)
+	# Build lookup of existing Frappe field labels, read-only and pick-list state (for remap)
 	existing_field_labels = {}
 	existing_columns = set()
 	previous_read_only = []
+	previous_pick_list = []
 	if wp_table_doc.frappe_doctype and frappe.db.exists("DocType", wp_table_doc.frappe_doctype):
 		col_map_raw = getattr(wp_table_doc, "column_mapping", None)
 		if col_map_raw:
 			col_map = json.loads(col_map_raw)
 			existing_columns = set(col_map.keys())
-			# Extract previously saved read-only columns (WP column names, lowercased for JS comparison)
+			# Extract previously saved read-only and pick-list columns (WP column names, lowercased for JS)
 			for wp_col, info in col_map.items():
-				if isinstance(info, dict) and info.get("is_read_only"):
-					previous_read_only.append(wp_col.lower())
+				if isinstance(info, dict):
+					if info.get("is_read_only"):
+						previous_read_only.append(wp_col.lower())
+					if info.get("is_pick_list"):
+						previous_pick_list.append(wp_col.lower())
 
 		meta = frappe.get_meta(wp_table_doc.frappe_doctype)
 		fieldname_to_label = {df.fieldname: df.label for df in meta.fields}
@@ -590,10 +599,11 @@ def preview_table_schema(wp_conn_doc, wp_table_doc):
 		"previous_modified_ts": getattr(wp_table_doc, "modified_timestamp_field", None) or "",
 		"previous_created_ts": getattr(wp_table_doc, "created_timestamp_field", None) or "",
 		"previous_read_only_columns": previous_read_only,
+		"previous_pick_list_columns": previous_pick_list,
 	}
 
 
-def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_overrides=None, name_field_column=None, title_field_column=None, auto_generated_columns=None, modified_ts_field=None, created_ts_field=None, read_only_columns=None):
+def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_overrides=None, name_field_column=None, title_field_column=None, auto_generated_columns=None, modified_ts_field=None, created_ts_field=None, read_only_columns=None, pick_list_columns=None):
 	"""
 	Mirror a WordPress table schema to a Frappe Custom DocType.
 
@@ -621,6 +631,31 @@ def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_o
 				wp_table_doc.created_timestamp_field = timestamps["created"]
 			if not wp_table_doc.modified_timestamp_field and timestamps["modified"]:
 				wp_table_doc.modified_timestamp_field = timestamps["modified"]
+
+		# Query DISTINCT values for pick-list columns before closing the connection
+		pick_list_options = {}  # {frappe_fieldname: "opt1\nopt2\n..."}
+		if pick_list_columns:
+			if isinstance(pick_list_columns, str):
+				pl_cols = [c.strip() for c in pick_list_columns.split(",") if c.strip()]
+			else:
+				pl_cols = list(pick_list_columns)
+			cursor = conn.cursor()
+			for col_name in pl_cols:
+				try:
+					# Limit to 500 distinct values to avoid absurdly long option lists
+					cursor.execute(
+						f"SELECT DISTINCT `{col_name}` FROM `{table_name}` "
+						f"WHERE `{col_name}` IS NOT NULL AND `{col_name}` != '' "
+						f"ORDER BY `{col_name}` LIMIT 500"
+					)
+					values = [str(row[col_name]) for row in cursor.fetchall() if row[col_name] is not None]
+					if values:
+						fieldname = resolve_fieldname(col_name, label_overrides)
+						pick_list_options[fieldname] = "\n".join(values)
+				except Exception:
+					# If the query fails (e.g. column doesn't exist), skip silently
+					pass
+			cursor.close()
 
 		conn.close()
 
@@ -654,6 +689,7 @@ def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_o
 					doctype_name, schema, wp_table_doc, field_overrides, label_overrides, name_field_column,
 					title_fieldname=title_fieldname,
 					read_only_fieldnames=read_only_fieldnames,
+					pick_list_options=pick_list_options,
 				)
 			except Exception as update_error:
 				# If update fails (e.g., duplicate field error), try deleting and recreating
@@ -676,6 +712,7 @@ def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_o
 						doctype_name, schema, wp_table_doc, field_overrides, label_overrides, name_field_column,
 						title_fieldname=title_fieldname,
 						read_only_fieldnames=read_only_fieldnames,
+						pick_list_options=pick_list_options,
 					)
 				else:
 					raise  # Re-raise if it's a different error
@@ -685,6 +722,7 @@ def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_o
 				doctype_name, schema, wp_table_doc, field_overrides, label_overrides, name_field_column,
 				title_fieldname=title_fieldname,
 				read_only_fieldnames=read_only_fieldnames,
+				pick_list_options=pick_list_options,
 			)
 
 		# Build column mapping: WP column name -> mapping info
@@ -707,12 +745,14 @@ def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_o
 			is_auto_generated = wp_col_name.lower() in auto_gen_set or is_auto_increment
 			frappe_fieldname = resolve_fieldname(wp_col_name, label_overrides)
 			is_read_only = frappe_fieldname in read_only_fieldnames if read_only_fieldnames else False
+			is_pick_list = frappe_fieldname in pick_list_options if pick_list_options else False
 			if name_field_column and wp_col_name == name_field_column:
 				column_mapping[wp_col_name] = {
 					"fieldname": "name",
 					"is_virtual": is_virtual,
 					"is_auto_generated": is_auto_generated,
 					"is_read_only": is_read_only,
+					"is_pick_list": is_pick_list,
 					"is_name": True,
 				}
 			else:
@@ -721,6 +761,7 @@ def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_o
 					"is_virtual": is_virtual,
 					"is_auto_generated": is_auto_generated,
 					"is_read_only": is_read_only,
+					"is_pick_list": is_pick_list,
 				}
 
 		# Derive auto_generated_columns string from mapping for storage
@@ -758,7 +799,7 @@ def mirror_table_schema(wp_conn_doc, wp_table_doc, field_overrides=None, label_o
 
 def create_custom_doctype(
 	doctype_name, schema, wp_table_doc, field_overrides=None, label_overrides=None, name_field_column=None,
-	title_fieldname=None, read_only_fieldnames=None,
+	title_fieldname=None, read_only_fieldnames=None, pick_list_options=None,
 ):
 	"""
 	Create a new Custom DocType programmatically.
@@ -792,7 +833,7 @@ def create_custom_doctype(
 		col_name = col["COLUMN_NAME"]
 		if name_field_column and col_name == name_field_column:
 			continue  # Skip - value goes directly into Frappe name
-		field = build_frappe_field(col, schema, wp_table_doc, field_overrides, label_overrides, idx, read_only_fieldnames=read_only_fieldnames)
+		field = build_frappe_field(col, schema, wp_table_doc, field_overrides, label_overrides, idx, read_only_fieldnames=read_only_fieldnames, pick_list_options=pick_list_options)
 		fields.append(field)
 		idx += 1
 
@@ -834,7 +875,7 @@ def create_custom_doctype(
 
 def update_existing_doctype(
 	doctype_name, schema, wp_table_doc, field_overrides=None, label_overrides=None, name_field_column=None,
-	title_fieldname=None, read_only_fieldnames=None,
+	title_fieldname=None, read_only_fieldnames=None, pick_list_options=None,
 ):
 	"""
 	Update an existing DocType with new fields from schema.
@@ -893,7 +934,7 @@ def update_existing_doctype(
 		safe_fieldname = resolve_fieldname(col_name, label_overrides)
 
 		if safe_fieldname not in existing_fields:
-			field = build_frappe_field(col, schema, wp_table_doc, field_overrides, label_overrides, idx, read_only_fieldnames=read_only_fieldnames)
+			field = build_frappe_field(col, schema, wp_table_doc, field_overrides, label_overrides, idx, read_only_fieldnames=read_only_fieldnames, pick_list_options=pick_list_options)
 			doctype_doc.append("fields", field)
 			new_fields_added = True
 			idx += 1
