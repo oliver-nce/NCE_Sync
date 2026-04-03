@@ -513,7 +513,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			"Pick the modified-timestamp field (required) and optionally the created-timestamp field. Only datetime/timestamp columns are selectable.",
 		)}</span>
 		<br>
-		<span class="text-muted"><strong>${__("RO:")}</strong> ${__(
+		<span class="text-muted"><strong>${__("Read Only:")}</strong> ${__(
 			"Mark fields as read-only on the Frappe form. Auto-checked for ID, virtual, matching, and timestamp fields.",
 		)}</span>
 		<br>
@@ -521,7 +521,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			"Convert field to a Select dropdown populated from distinct source values.",
 		)}</span>
 		</div>
-		<div style="max-height: 500px; overflow-y: auto;">
+		<div class="schema-grid-scroll" style="overflow: auto;">
 			<table class="table table-bordered table-sm" style="font-size: 13px;">
 				<thead style="position: sticky; top: 0; background: var(--fg-color, #fff); z-index: 1;">
 					<tr>
@@ -531,14 +531,14 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 						<th style="width: 3%;">${__("Auto")}</th>
 						<th style="width: 4%;" title="${__("Modified timestamp — required")}"><span style="color:#d44;">${__("Mod TS")}</span></th>
 						<th style="width: 4%;" title="${__("Created timestamp — optional")}">${__("Crt TS")}</th>
-						<th style="width: 12%;">${__("Column")}</th>
-						<th style="width: 10%;">${__("DB Type")}</th>
-						<th style="width: 12%;">${__("Frappe Type")}</th>
+						<th style="width: 11%;">${__("Column")}</th>
+						<th style="width: 9%;">${__("DB Type")}</th>
+						<th style="width: 11%;">${__("Frappe Type")}</th>
 						<th style="width: 5%;">${__("Nullable")}</th>
-						<th style="width: 10%;">${__("Keys")}</th>
-						<th style="width: 16%;">${__("Label")}</th>
-						<th style="width: 3%;" title="${__("Read-only on Frappe form")}">${__("RO")}</th>
-						<th style="width: 3%;" title="${__("Populate Select from distinct source values")}">${__("Pick List")}</th>
+						<th style="width: 9%;">${__("Keys")}</th>
+						<th style="width: 14%;">${__("Label")}</th>
+						<th style="width: 5%;" title="${__("Read-only on Frappe form")}">${__("Read Only")}</th>
+						<th style="width: 5%;" title="${__("Populate Select from distinct source values")}">${__("Pick List")}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -924,6 +924,29 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 	});
 
 	d.show();
+
+	// Make the dialog resizable from the bottom-right corner
+	let $modal_dialog = d.$wrapper.find(".modal-dialog");
+	let $modal_content = d.$wrapper.find(".modal-content");
+	let $modal_body = d.$wrapper.find(".modal-body");
+
+	// Expand to near-full width and set a tall initial height
+	$modal_dialog.css({
+		"max-width": "95vw",
+		"width": "95vw",
+	});
+	$modal_content.css({
+		"resize": "both",
+		"overflow": "hidden",
+		"min-width": "600px",
+		"min-height": "400px",
+		"max-width": "98vw",
+		"max-height": "90vh",
+	});
+	$modal_body.css({
+		"overflow": "auto",
+		"max-height": "calc(90vh - 120px)",
+	});
 }
 
 function show_sync_progress_dialog(frm) {
