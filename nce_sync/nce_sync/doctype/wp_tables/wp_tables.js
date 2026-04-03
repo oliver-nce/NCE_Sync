@@ -401,13 +401,13 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			let mapping_dirty = d.$wrapper.find("#tab-mapping").data("dirty");
 			let settings_dirty = d.$wrapper.find("#tab-settings").data("dirty");
 
-			if (!mapping_dirty && !settings_dirty) {
+			if (!mapping_dirty && !settings_dirty && mode === "remap") {
 				frappe.show_alert({ message: __("No changes to apply."), indicator: "blue" });
 				return;
 			}
 
-			// ─── LIGHTWEIGHT PATH: Only Tab 2 changed ───
-			if (!mapping_dirty && settings_dirty) {
+			// ─── LIGHTWEIGHT PATH: Only Tab 2 changed (remap only — DocType must exist) ───
+			if (mode === "remap" && !mapping_dirty && settings_dirty) {
 				d.get_primary_btn().prop("disabled", true).text(__("Applying…"));
 
 				frappe.call({
@@ -867,7 +867,8 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 
 	function _update_primary_button_label() {
 		let mapping_dirty = d.$wrapper.find("#tab-mapping").data("dirty");
-		if (mapping_dirty) {
+		if (mode === "mirror" || mapping_dirty) {
+			// Initial create or mapping changes → always full path
 			d.get_primary_btn().text(action_label);
 		} else {
 			d.get_primary_btn().text(__("Apply Settings"));
