@@ -534,10 +534,10 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 	let html = `
 		<ul class="nav nav-tabs schema-tabs" role="tablist" style="margin-bottom: 0;">
 			<li class="nav-item">
-				<a class="nav-link active" data-toggle="tab" href="#tab-mapping" role="tab">${__("Data Mapping")}</a>
+				<a class="nav-link active schema-tab-link" data-tab-target="tab-mapping" href="javascript:void(0)" role="tab">${__("Data Mapping")}</a>
 			</li>
 			<li class="nav-item">
-				<a class="nav-link" data-toggle="tab" href="#tab-settings" role="tab">${__("Frappe Field Settings")}</a>
+				<a class="nav-link schema-tab-link" data-tab-target="tab-settings" href="javascript:void(0)" role="tab">${__("Frappe Field Settings")}</a>
 			</li>
 		</ul>
 		<div class="tab-content" style="border: 1px solid var(--border-color, #d1d8dd); border-top: none; border-radius: 0 0 var(--border-radius, 6px) var(--border-radius, 6px);">
@@ -832,6 +832,18 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 	`;
 
 	d.fields_dict.field_preview.$wrapper.html(html);
+
+	// ═══ Manual tab switching (avoids Frappe router intercepting # anchors) ═══
+	d.$wrapper.on("click", ".schema-tab-link", function (e) {
+		e.preventDefault();
+		let target = $(this).data("tab-target");
+		// Deactivate all tabs and panes
+		d.$wrapper.find(".schema-tab-link").removeClass("active");
+		d.$wrapper.find(".tab-pane").removeClass("active show");
+		// Activate clicked tab and matching pane
+		$(this).addClass("active");
+		d.$wrapper.find("#" + target).addClass("active show");
+	});
 
 	// ═══ Dirty tracking per tab ═══
 	// Mark Tab 1 (Data Mapping) dirty on any change inside it
