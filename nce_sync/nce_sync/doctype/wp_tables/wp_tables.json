@@ -211,7 +211,7 @@
       "fieldtype": "JSON",
       "label": "Saved DocType Layout",
       "read_only": 1,
-      "hidden": 1,
+      "hidden": 0,
       "description": "JSON array of {fieldname, idx, fieldtype} snapshots — replayed after reconfigure to restore field order, sections, tabs, columns"
     },
     {
