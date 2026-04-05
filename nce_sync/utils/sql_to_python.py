@@ -319,6 +319,16 @@ def sql_generation_to_python(generation_expression, label_overrides=None):
 		return resolve_fieldname(col_name, label_overrides)
 
 	try:
-		return _translate_expr(expr, _resolve)
+		python_expr = _translate_expr(expr, _resolve)
 	except Exception:
 		return ""
+
+	# Validate the generated expression won't cause a runtime TypeError.
+	# When the SQL contains tokens the translator can't handle (INTERVAL, CASE
+	# WHEN, DAY, _utf8mb4, etc.) those fall back to '', producing expressions
+	# like  '' - ''  which crash at safe_eval time.  Reject if an empty string
+	# literal appears as an operand of any arithmetic operator.
+	if re.search(r"''\s*[-+*/]\s*''", python_expr):
+		return ""
+
+	return python_expr
