@@ -357,19 +357,39 @@ class WPTables(Document):
 	def delete_mirror(self):
 		"""
 		Delete the generated DocType and remove from workspace.
-		Saves the current field layout first so Mirror Schema can offer to restore it.
+		Saves field layout and field attribute settings before deletion
+		so the preview dialog can restore Tab 2 on the next mirror.
 		Resets this WP Tables entry back to Pending so it can be re-mirrored.
 		"""
 		doctype_name = self.frappe_doctype
 		if not doctype_name:
 			frappe.throw(_("No mirrored DocType to delete"))
 
-		# Snapshot layout before deletion so Mirror Schema can restore it later
+		# Snapshot layout and field settings before deletion
 		from nce_sync.utils.schema_mirror import save_doctype_layout
 		saved = save_doctype_layout(doctype_name)
 		if saved:
 			self.saved_doctype_layout = json.dumps(saved)
-			self.save()
+
+		# Capture Tab 2 attributes directly from DocType fields
+		settings = {"read_only": [], "pick_list": [], "bold": [], "labels": {}}
+		if frappe.db.exists("DocType", doctype_name):
+			meta = frappe.get_meta(doctype_name)
+			for df in meta.fields:
+				if df.fieldtype in ("Section Break", "Column Break", "Tab Break"):
+					continue
+				if df.read_only:
+					settings["read_only"].append(df.fieldname.lower())
+				if df.bold:
+					settings["bold"].append(df.fieldname.lower())
+				if df.fieldtype == "Select" and df.options:
+					settings["pick_list"].append(df.fieldname.lower())
+				if df.label:
+					settings["labels"][df.fieldname.lower()] = df.label
+		if any(settings.values()):
+			self.saved_field_settings = json.dumps(settings)
+
+		self.save()
 
 		_delete_mirrored_doctype(doctype_name)
 

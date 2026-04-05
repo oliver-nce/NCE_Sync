@@ -517,19 +517,26 @@ def _restore_previous_selections(wp_table_doc):
 	previous_pick_list = []
 	previous_bold = []
 
-	# Read column_mapping unconditionally — it survives delete_mirror even when
-	# frappe_doctype is None, so Tab 2 settings restore after Reconfigure.
+	# Read saved_field_settings from delete_mirror snapshot (Tab 2 attributes)
+	saved_settings_raw = getattr(wp_table_doc, "saved_field_settings", None)
+	if saved_settings_raw:
+		saved = json.loads(saved_settings_raw)
+		previous_read_only.extend(saved.get("read_only", []))
+		previous_pick_list.extend(saved.get("pick_list", []))
+		previous_bold.extend(saved.get("bold", []))
+
+	# Also read column_mapping — older mirrors may have flags stored there
 	col_map_raw = getattr(wp_table_doc, "column_mapping", None)
 	if col_map_raw:
 		col_map = json.loads(col_map_raw)
 		existing_columns = set(col_map.keys())
 		for wp_col, info in col_map.items():
 			if isinstance(info, dict):
-				if info.get("is_read_only"):
+				if info.get("is_read_only") and wp_col.lower() not in previous_read_only:
 					previous_read_only.append(wp_col.lower())
-				if info.get("is_pick_list"):
+				if info.get("is_pick_list") and wp_col.lower() not in previous_pick_list:
 					previous_pick_list.append(wp_col.lower())
-				if info.get("is_bold"):
+				if info.get("is_bold") and wp_col.lower() not in previous_bold:
 					previous_bold.append(wp_col.lower())
 
 	# Label lookup requires the DocType to exist (deleted during Reconfigure)

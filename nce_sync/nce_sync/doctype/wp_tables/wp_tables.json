@@ -30,6 +30,7 @@
     "mirror_status",
     "column_mapping",
     "saved_doctype_layout",
+    "saved_field_settings",
     "name_field_column",
     "title_field_column",
     "auto_generated_columns",
@@ -213,6 +214,14 @@
       "read_only": 1,
       "hidden": 0,
       "description": "JSON array of {fieldname, idx, fieldtype} snapshots — replayed after reconfigure to restore field order, sections, tabs, columns"
+    },
+    {
+      "fieldname": "saved_field_settings",
+      "fieldtype": "JSON",
+      "label": "Saved Field Settings",
+      "read_only": 1,
+      "hidden": 1,
+      "description": "JSON object with read_only, pick_list, bold, labels keyed by WP column name — restored into Tab 2 of the preview dialog after Reconfigure"
     },
     {
       "fieldname": "name_field_column",
