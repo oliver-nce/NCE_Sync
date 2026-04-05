@@ -329,6 +329,8 @@ class WPTables(Document):
 				indicator="green",
 			)
 
+			return {"has_saved_layout": bool(self.saved_doctype_layout)}
+
 		except Exception as e:
 			import traceback
 
@@ -339,14 +341,35 @@ class WPTables(Document):
 			frappe.throw(_("Failed to mirror table: {0}").format(str(e)))
 
 	@frappe.whitelist()
+	def restore_saved_layout(self):
+		"""Restore a previously saved DocType layout onto the current mirrored DocType."""
+		if not self.frappe_doctype:
+			frappe.throw(_("No mirrored DocType to restore layout to"))
+		if not self.saved_doctype_layout:
+			frappe.msgprint(_("No saved layout found"), indicator="yellow")
+			return
+
+		from nce_sync.utils.schema_mirror import restore_doctype_layout
+		restore_doctype_layout(self.frappe_doctype, json.loads(self.saved_doctype_layout))
+		frappe.msgprint(_("Layout restored successfully"), indicator="green")
+
+	@frappe.whitelist()
 	def delete_mirror(self):
 		"""
 		Delete the generated DocType and remove from workspace.
+		Saves the current field layout first so Mirror Schema can offer to restore it.
 		Resets this WP Tables entry back to Pending so it can be re-mirrored.
 		"""
 		doctype_name = self.frappe_doctype
 		if not doctype_name:
 			frappe.throw(_("No mirrored DocType to delete"))
+
+		# Snapshot layout before deletion so Mirror Schema can restore it later
+		from nce_sync.utils.schema_mirror import save_doctype_layout
+		saved = save_doctype_layout(doctype_name)
+		if saved:
+			self.saved_doctype_layout = json.dumps(saved)
+			self.save()
 
 		_delete_mirrored_doctype(doctype_name)
 

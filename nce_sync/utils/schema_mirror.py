@@ -827,12 +827,6 @@ def mirror_table_schema(
 			pick_list_options, bold_fieldnames,
 		)
 
-		# --- Phase 3.5: Restore saved layout after reconfigure ---
-		if saved_layout:
-			restore_doctype_layout(doctype_name, saved_layout)
-			# Persist the layout back to WP Tables so it survives reconfigure
-			wp_table_doc.saved_doctype_layout = json.dumps(saved_layout)
-
 		# --- Phase 4: Build & save column mapping ---
 		column_mapping, stored_auto_gen = _build_column_mapping(
 			schema, label_overrides, name_field_column, auto_generated_columns,

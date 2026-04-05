@@ -525,7 +525,28 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				freeze_message: freeze_msg,
 				callback: function (r) {
 					d.hide();
-					frm.reload_doc();
+					if (r.message && r.message.has_saved_layout) {
+						frappe.confirm(
+							__("Restore previous form customization?"),
+							function () {
+								frappe.call({
+									method: "restore_saved_layout",
+									doc: frm.doc,
+									callback: function () {
+										frappe.ui.toolbar.clear_cache();
+										frm.reload_doc();
+									},
+								});
+							},
+							function () {
+								frappe.ui.toolbar.clear_cache();
+								frm.reload_doc();
+							},
+						);
+					} else {
+						frappe.ui.toolbar.clear_cache();
+						frm.reload_doc();
+					}
 				},
 				error: function (r) {
 					d.get_primary_btn().prop("disabled", false).text(action_label);
