@@ -815,12 +815,23 @@ def mirror_table_schema(
 		read_only_fieldnames = _parse_comma_columns(read_only_columns, label_overrides)
 		bold_fieldnames = _parse_comma_columns(bold_columns, label_overrides)
 
+		# --- Phase 2.5: Save existing layout before reconfigure ---
+		saved_layout = None
+		if frappe.db.exists("DocType", doctype_name):
+			saved_layout = save_doctype_layout(doctype_name)
+
 		# --- Phase 3: Create or update the DocType ---
 		_create_or_update_doctype(
 			doctype_name, schema, wp_table_doc, field_overrides, label_overrides,
 			name_field_column, title_fieldname, read_only_fieldnames,
 			pick_list_options, bold_fieldnames,
 		)
+
+		# --- Phase 3.5: Restore saved layout after reconfigure ---
+		if saved_layout:
+			restore_doctype_layout(doctype_name, saved_layout)
+			# Persist the layout back to WP Tables so it survives reconfigure
+			wp_table_doc.saved_doctype_layout = json.dumps(saved_layout)
 
 		# --- Phase 4: Build & save column mapping ---
 		column_mapping, stored_auto_gen = _build_column_mapping(
@@ -1134,3 +1145,113 @@ def apply_field_settings(
 		frappe.db.commit()
 
 	return changes
+
+
+# ---------------------------------------------------------------------------
+#  DocType layout save / restore — for reconfigure
+# ---------------------------------------------------------------------------
+
+BREAK_TYPES = ("Section Break", "Column Break", "Tab Break", "Fold")
+
+
+def save_doctype_layout(doctype_name):
+	"""Snapshot the current field layout of a DocType.
+
+	Returns a list of dicts: [{fieldname, idx, fieldtype, parentfield}, ...]
+	Includes Section/Column/Tab Break entries so their positions can be
+	replayed after a reconfigure.
+
+	Args:
+		doctype_name: Frappe DocType name
+
+	Returns:
+		list[dict] — ordered layout snapshot, or [] if DocType not found
+	"""
+	if not frappe.db.exists("DocType", doctype_name):
+		return []
+
+	doctype_doc = frappe.get_doc("DocType", doctype_name)
+	layout = []
+
+	for i, field in enumerate(doctype_doc.fields):
+		layout.append({
+			"fieldname": field.fieldname,
+			"idx": i + 1,  # 1-based position (same as idx column)
+			"fieldtype": field.fieldtype,
+			"parentfield": field.parentfield,  # "fields"
+		})
+
+	return layout
+
+
+def restore_doctype_layout(doctype_name, layout):
+	"""Restore a saved field layout onto a DocType after reconfigure.
+
+	For each entry in the layout:
+	- If the field exists in the DocType, set its idx
+	- If a break field (Section/Column/Tab Break) doesn't exist, insert it
+	  at the correct position
+
+	The layout is replayed by rebuilding the fields list in saved order.
+
+	Args:
+		doctype_name: Frappe DocType name
+		layout: list[dict] from save_doctype_layout()
+
+	Returns:
+		bool — True if layout was restored, False if nothing to do
+	"""
+	if not layout or not doctype_name:
+		return False
+
+	doctype_doc = frappe.get_doc("DocType", doctype_name)
+	if not doctype_doc.fields:
+		return False
+
+	# Build a lookup of current fields by fieldname
+	current_by_name = {f.fieldname: f for f in doctype_doc.fields}
+
+	# First pass: update idx on all matching fields
+	for entry in layout:
+		fn = entry["fieldname"]
+		if fn in current_by_name:
+			current_by_name[fn].idx = entry["idx"]
+
+	# Second pass: insert missing break fields at their saved positions
+	for entry in layout:
+		fn = entry["fieldname"]
+		if fn not in current_by_name and entry["fieldtype"] in BREAK_TYPES:
+			# Create the break field at the saved idx
+			break_field = {
+				"fieldname": fn,
+				"fieldtype": entry["fieldtype"],
+				"idx": entry["idx"],
+			}
+			# Extract label from fieldname for break fields
+			if entry["fieldtype"] != "Column Break":
+				label = fn.replace("_", " ").title()
+				# Strip common suffixes
+				for suffix in ("Section", "Column", "Tab", "Break"):
+					label = label.replace(suffix.strip(), "").strip()
+				if label:
+					break_field["label"] = label
+			doctype_doc.append("fields", break_field)
+
+	# Re-number all fields sequentially to avoid idx gaps/conflicts
+	doctype_doc.fields.sort(key=lambda f: _layout_sort_key(f, layout))
+	for i, field in enumerate(doctype_doc.fields):
+		field.idx = i + 1
+
+	doctype_doc.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	return True
+
+
+def _layout_sort_key(field, layout):
+	"""Return the saved layout position for a field, or a large number if not in layout."""
+	for entry in layout:
+		if entry["fieldname"] == field.fieldname:
+			return entry["idx"]
+	# New fields not in the saved layout go to the end
+	return 9999

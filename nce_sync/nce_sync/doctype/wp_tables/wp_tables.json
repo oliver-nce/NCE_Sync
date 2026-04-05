@@ -29,6 +29,7 @@
     "generated_doctype_section",
     "mirror_status",
     "column_mapping",
+    "saved_doctype_layout",
     "name_field_column",
     "title_field_column",
     "auto_generated_columns",
@@ -204,6 +205,14 @@
       "read_only": 1,
       "hidden": 1,
       "description": "JSON mapping of WP column names to Frappe fieldnames"
+    },
+    {
+      "fieldname": "saved_doctype_layout",
+      "fieldtype": "JSON",
+      "label": "Saved DocType Layout",
+      "read_only": 1,
+      "hidden": 1,
+      "description": "JSON array of {fieldname, idx, fieldtype} snapshots — replayed after reconfigure to restore field order, sections, tabs, columns"
     },
     {
       "fieldname": "name_field_column",
