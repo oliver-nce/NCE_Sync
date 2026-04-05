@@ -517,20 +517,23 @@ def _restore_previous_selections(wp_table_doc):
 	previous_pick_list = []
 	previous_bold = []
 
-	if wp_table_doc.frappe_doctype and frappe.db.exists("DocType", wp_table_doc.frappe_doctype):
-		col_map_raw = getattr(wp_table_doc, "column_mapping", None)
-		if col_map_raw:
-			col_map = json.loads(col_map_raw)
-			existing_columns = set(col_map.keys())
-			for wp_col, info in col_map.items():
-				if isinstance(info, dict):
-					if info.get("is_read_only"):
-						previous_read_only.append(wp_col.lower())
-					if info.get("is_pick_list"):
-						previous_pick_list.append(wp_col.lower())
-					if info.get("is_bold"):
-						previous_bold.append(wp_col.lower())
+	# Read column_mapping unconditionally — it survives delete_mirror even when
+	# frappe_doctype is None, so Tab 2 settings restore after Reconfigure.
+	col_map_raw = getattr(wp_table_doc, "column_mapping", None)
+	if col_map_raw:
+		col_map = json.loads(col_map_raw)
+		existing_columns = set(col_map.keys())
+		for wp_col, info in col_map.items():
+			if isinstance(info, dict):
+				if info.get("is_read_only"):
+					previous_read_only.append(wp_col.lower())
+				if info.get("is_pick_list"):
+					previous_pick_list.append(wp_col.lower())
+				if info.get("is_bold"):
+					previous_bold.append(wp_col.lower())
 
+	# Label lookup requires the DocType to exist (deleted during Reconfigure)
+	if wp_table_doc.frappe_doctype and frappe.db.exists("DocType", wp_table_doc.frappe_doctype):
 		meta = frappe.get_meta(wp_table_doc.frappe_doctype)
 		fieldname_to_label = {df.fieldname: df.label for df in meta.fields}
 
