@@ -147,23 +147,21 @@ def build_frappe_field(col, schema, wp_table_doc, field_overrides=None, label_ov
 	if bold_fieldnames and safe_fieldname in bold_fieldnames:
 		field["bold"] = 1
 
-	# Virtual/generated columns → Frappe virtual field with Python expression
-	# If the SQL can't be translated to valid Python, make it a normal
-	# read-only Data field instead (stores source value, no auto-computation).
-	extra = col.get("EXTRA", "") or ""
-	is_virtual_col = "VIRTUAL" in extra.upper() or "GENERATED" in extra.upper()
-	if is_virtual_col:
-		from nce_sync.utils.sql_to_python import sql_generation_to_python
-
-		gen_expr = col.get("GENERATION_EXPRESSION", "") or ""
-		python_expr = sql_generation_to_python(gen_expr, label_overrides)
-		if python_expr:
-			field["is_virtual"] = 1
-			field["options"] = python_expr
-		else:
-			# Translation failed — make it read-only so it won't be written back
-			field["read_only"] = 1
-		field["reqd"] = 0
+	# --- Virtual/generated columns (commented out — always treat as read-only Data) ---
+	# extra = col.get("EXTRA", "") or ""
+	# is_virtual_col = "VIRTUAL" in extra.upper() or "GENERATED" in extra.upper()
+	# if is_virtual_col:
+	# 	from nce_sync.utils.sql_to_python import sql_generation_to_python
+	#
+	# 	gen_expr = col.get("GENERATION_EXPRESSION", "") or ""
+	# 	python_expr = sql_generation_to_python(gen_expr, label_overrides)
+	# 	if python_expr:
+	# 		field["is_virtual"] = 1
+	# 		field["options"] = python_expr
+	# 	else:
+	# 		# Translation failed — make it read-only so it won't be written back
+	# 		field["read_only"] = 1
+	# 	field["reqd"] = 0
 
 	return field
 
