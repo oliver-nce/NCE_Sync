@@ -14,6 +14,22 @@ This module is the **single source of truth** for:
 
 Every module that needs to work with column mappings should import from
 here rather than re-implementing parsing or lookup logic.
+
+**Derived (generated) columns** — on schema mirror / “Regenerate column mapping”
+the app fills ``is_derived`` and ``sql_expression`` (Frappe fieldnames in SQL) from
+MariaDB ``INFORMATION_SCHEMA.COLUMNS.GENERATION_EXPRESSION``; a refresh overwrites
+those two keys; see ``_merge_column_mapping_for_mirror`` in
+``nce_sync.utils.schema_mirror``. Example fragment::
+
+	"sku": {
+		"fieldname": "sku",
+		"is_virtual": true,
+		"is_derived": true,
+		"sql_expression": "CONCAT(`prefix_text`, UPPER(`raw_sku`))",
+		"is_auto_generated": false
+	}
+
+Downstream: NCE_Events ``get_derived_sql_specs_api`` / ``evaluate_sql_expressions_api``.
 """
 
 import json

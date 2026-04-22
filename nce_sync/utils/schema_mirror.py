@@ -12,6 +12,7 @@ from frappe import _
 
 from nce_sync.utils.connections import get_wp_connection, wp_connection
 from nce_sync.utils.constants import PICK_LIST_DISTINCT_LIMIT
+from nce_sync.utils.derived_column_sql import sql_generation_to_frappe_bare_sql
 from nce_sync.utils.workspace_utils import add_to_workspace
 
 # Frappe reserved fieldnames - cannot be used as custom field names
@@ -601,6 +602,13 @@ def preview_table_schema(wp_conn_doc, wp_table_doc):
 		extra = col.get("EXTRA", "") or ""
 		is_virtual = "VIRTUAL" in extra.upper() or "GENERATED" in extra.upper()
 		is_auto_increment = "AUTO_INCREMENT" in extra.upper()
+		gen_src = (col.get("GENERATION_EXPRESSION") or "") or ""
+		expr_display = None
+		if is_virtual and str(gen_src).strip():
+			res = _make_wp_to_frappe_resolve(
+				schema, existing_field_labels or None, getattr(wp_table_doc, "name_field_column", None)
+			)
+			expr_display = sql_generation_to_frappe_bare_sql(gen_src, res) or None
 
 		label = existing_field_labels.get(col_name, col_name.replace("_", " ").title())
 
@@ -620,6 +628,8 @@ def preview_table_schema(wp_conn_doc, wp_table_doc):
 				"length": field_mapping.get("length", 0),
 				"precision": field_mapping.get("precision", 0),
 				"options": field_mapping.get("options", ""),
+				"generation_expression": gen_src or None,
+				"sql_expression_frappe": expr_display,
 			}
 		)
 
@@ -657,7 +667,7 @@ def _fetch_pick_list_options(conn, table_name, pick_list_columns, label_override
 		try:
 			cursor.execute(
 				f"SELECT DISTINCT `{col_name}` FROM `{table_name}` "
-				f"WHERE `{col_name}` IS NOT NULL AND `{col_name}` != '' "
+				f"WHERE `{col_name}` IS NOT NULL "
 				f"ORDER BY `{col_name}` LIMIT {PICK_LIST_DISTINCT_LIMIT}"
 			)
 			values = [str(row[col_name]) for row in cursor.fetchall() if row[col_name] is not None]
@@ -670,6 +680,54 @@ def _fetch_pick_list_options(conn, table_name, pick_list_columns, label_override
 	return pick_list_options
 
 
+def _make_wp_to_frappe_resolve(schema, label_overrides, name_field_column):
+	"""
+	Build a resolver from source column name → Frappe fieldname for this table
+	(used to rewrite ``GENERATION_EXPRESSION`` to Frappe identifier SQL).
+	"""
+	lookup = {}
+	for col in schema["columns"]:
+		wp = col["COLUMN_NAME"]
+		fn = resolve_fieldname(wp, label_overrides)
+		if name_field_column and wp == name_field_column:
+			fn = "name"
+		lookup[wp] = fn
+		lookup[wp.lower()] = fn
+
+	def resolve(name: str) -> str:
+		if name in lookup:
+			return lookup[name]
+		nl = name.lower()
+		if nl in lookup:
+			return lookup[nl]
+		return resolve_fieldname(name, label_overrides)
+
+	return resolve
+
+
+def _merge_column_mapping_for_mirror(fresh, previous):
+	"""
+	Merge a freshly built column_mapping with the previous doc JSON on re-mirror.
+
+	* Source columns that disappeared are dropped (only keys in ``fresh`` are kept).
+	* For each column, ``{**old_entry, **new_entry}`` so Desk-only custom keys
+	  survive while introspection-owned fields (``fieldname``, ``is_derived``,
+	  ``sql_expression``, flags) are updated from the current source schema.
+
+	See also ``column_mapper`` module docstring for a ``column_mapping`` example.
+	"""
+	if not previous:
+		return fresh
+	out = {}
+	for wp_key, new_val in fresh.items():
+		old_val = previous.get(wp_key)
+		if isinstance(old_val, dict) and isinstance(new_val, dict):
+			out[wp_key] = {**old_val, **new_val}
+		else:
+			out[wp_key] = new_val
+	return out
+
+
 def _build_column_mapping(
 	schema, label_overrides, name_field_column, auto_generated_columns,
 	read_only_fieldnames, pick_list_options, bold_fieldnames,
@@ -678,6 +736,8 @@ def _build_column_mapping(
 	Build the column_mapping JSON dict from a WordPress schema.
 
 	Each entry maps ``wp_column_name`` → ``{fieldname, is_virtual, is_auto_generated, ...}``.
+	For MariaDB generated / VIRTUAL columns, also ``is_derived`` and
+	``sql_expression`` (Frappe fieldname SQL; see :func:`sql_generation_to_frappe_bare_sql`).
 
 	Returns:
 		tuple: (column_mapping dict, stored_auto_gen comma-separated string)
@@ -686,10 +746,12 @@ def _build_column_mapping(
 	if auto_generated_columns:
 		auto_gen_set = {c.strip().lower() for c in auto_generated_columns if c.strip()}
 
+	resolve_expr = _make_wp_to_frappe_resolve(schema, label_overrides, name_field_column)
 	column_mapping = {}
 	for col in schema["columns"]:
 		wp_col_name = col["COLUMN_NAME"]
 		extra = col.get("EXTRA", "") or ""
+		gen_raw = (col.get("GENERATION_EXPRESSION") or "") or ""
 		is_virtual = "VIRTUAL" in extra.upper() or "GENERATED" in extra.upper()
 		is_auto_increment = "AUTO_INCREMENT" in extra.upper()
 		is_auto_generated = wp_col_name.lower() in auto_gen_set or is_auto_increment
@@ -715,6 +777,14 @@ def _build_column_mapping(
 		if name_field_column and wp_col_name == name_field_column:
 			entry["fieldname"] = "name"
 			entry["is_name"] = True
+
+		if is_virtual:
+			# I_S: GENERATION_EXPRESSION is set for generated (stored/virtual) columns
+			entry["is_derived"] = True
+			entry["sql_expression"] = (
+				sql_generation_to_frappe_bare_sql(gen_raw, resolve_expr) if str(gen_raw).strip() else None
+			)
+		# else: omit is_derived / sql_expression — not an expression column
 
 		column_mapping[wp_col_name] = entry
 
@@ -838,10 +908,18 @@ def mirror_table_schema(
 		)
 
 		# --- Phase 4: Build & save column mapping ---
+		previous_colmap = {}
+		if getattr(wp_table_doc, "column_mapping", None):
+			try:
+				previous_colmap = json.loads(wp_table_doc.column_mapping)
+			except Exception:
+				previous_colmap = {}
+
 		column_mapping, stored_auto_gen = _build_column_mapping(
 			schema, label_overrides, name_field_column, auto_generated_columns,
 			read_only_fieldnames, pick_list_options, bold_fieldnames,
 		)
+		column_mapping = _merge_column_mapping_for_mirror(column_mapping, previous_colmap)
 
 		wp_table_doc.frappe_doctype = doctype_name
 		wp_table_doc.mirror_status = "Mirrored"

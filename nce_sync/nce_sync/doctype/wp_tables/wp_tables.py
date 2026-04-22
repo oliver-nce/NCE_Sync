@@ -446,10 +446,12 @@ class WPTables(Document):
 		Useful for tables mirrored before column_mapping was added.
 		Also detects virtual/generated columns for reverse sync protection.
 		"""
-		import json
-
 		from nce_sync.utils.connections import get_wp_connection
-		from nce_sync.utils.schema_mirror import get_table_schema, resolve_fieldname
+		from nce_sync.utils.schema_mirror import (
+			_build_column_mapping,
+			_merge_column_mapping_for_mirror,
+			get_table_schema,
+		)
 
 		wp_conn = frappe.get_single("WordPress Connection")
 		if not wp_conn:
@@ -459,36 +461,41 @@ class WPTables(Document):
 		schema = get_table_schema(conn, self.table_name)
 		conn.close()
 
-		# Build column mapping: WP column name -> {fieldname, is_virtual[, is_name]}
-		# When name_field_column is set, that column maps to "name" with is_name=True
-		column_mapping = {}
-		virtual_count = 0
-		name_field_column = getattr(self, "name_field_column", None)
-		for col in schema["columns"]:
-			wp_col_name = col["COLUMN_NAME"]
-			extra = col.get("EXTRA", "") or ""
-			is_virtual = "VIRTUAL" in extra.upper() or "GENERATED" in extra.upper()
-			if name_field_column and wp_col_name == name_field_column:
-				column_mapping[wp_col_name] = {
-					"fieldname": "name",
-					"is_virtual": is_virtual,
-					"is_name": True,
-				}
-			else:
-				frappe_fieldname = resolve_fieldname(wp_col_name)
-				column_mapping[wp_col_name] = {
-					"fieldname": frappe_fieldname,
-					"is_virtual": is_virtual,
-				}
-			if is_virtual:
-				virtual_count += 1
+		auto_gen_list = None
+		if self.auto_generated_columns:
+			auto_gen_list = [c.strip() for c in self.auto_generated_columns.split(",") if c.strip()]
 
+		column_mapping, stored_auto_gen = _build_column_mapping(
+			schema,
+			None,
+			getattr(self, "name_field_column", None),
+			auto_gen_list,
+			set(),
+			None,
+			set(),
+		)
+		previous = {}
+		if self.column_mapping:
+			try:
+				previous = json.loads(self.column_mapping)
+			except Exception:
+				previous = {}
+		column_mapping = _merge_column_mapping_for_mirror(column_mapping, previous)
 		self.column_mapping = json.dumps(column_mapping)
+		self.auto_generated_columns = stored_auto_gen or None
 		self.save()
 
+		virtual_count = sum(
+			1 for e in column_mapping.values() if isinstance(e, dict) and e.get("is_virtual")
+		)
+		derived_count = sum(
+			1 for e in column_mapping.values() if isinstance(e, dict) and e.get("is_derived")
+		)
 		msg = _("Column mapping regenerated: {0} columns mapped").format(len(column_mapping))
 		if virtual_count > 0:
 			msg += _(", {0} virtual/computed columns detected").format(virtual_count)
+		if derived_count > 0:
+			msg += _(", {0} with is_derived/sql_expression").format(derived_count)
 		frappe.msgprint(msg, indicator="green")
 
 	@frappe.whitelist()
