@@ -25,8 +25,6 @@ show blank until a custom expression is provided).
 
 import re
 
-from nce_sync.utils.schema_mirror import resolve_fieldname
-
 
 # Helper: wrap an expression so it's safe for string operations (None → '')
 def _safe_str(expr):
@@ -316,6 +314,8 @@ def sql_generation_to_python(generation_expression, label_overrides=None):
 			break
 
 	def _resolve(col_name):
+		from nce_sync.utils.schema_mirror import resolve_fieldname
+
 		return resolve_fieldname(col_name, label_overrides)
 
 	try:
