@@ -1167,77 +1167,89 @@ def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 	"""
 	import traceback
 
-	# Set status to Running
-	wp_table_doc.last_sync_status = "Running"
-	wp_table_doc.last_sync_log = "Sync started..."
-	wp_table_doc.save()
-	frappe.db.commit()
+	from nce_sync.utils.sync_gate import clear_doctype_syncing, mark_doctype_syncing
 
-	sync_started = now_datetime()
-	sync_method = wp_table_doc.sync_method or "TS Compare"
-
-	if suppress_notifications:
-		frappe.flags.in_import = True
-		frappe.flags.mute_emails = True
+	frappe_dt = wp_table_doc.frappe_doctype
+	gate_armed = bool(frappe_dt and wp_table_doc.mirror_status in ("Mirrored", "Linked"))
+	if gate_armed:
+		mark_doctype_syncing(frappe_dt)
 
 	try:
-		result = sync_table(wp_table_doc)
-
-		# Check for anomaly: WP has rows but Frappe table is empty after sync
-		total_wp_rows = result.get("total_wp_rows", 0) or result.get("rows_inserted", 0)
-		frappe_count = frappe.db.count(wp_table_doc.frappe_doctype)
-
-		if total_wp_rows > 0 and frappe_count == 0:
-			wp_table_doc.last_sync_status = "Warning"
-			wp_table_doc.last_sync_log = (
-				f"ANOMALY: WP has {total_wp_rows} rows but Frappe table is empty. "
-				f"last_synced NOT updated - next sync will do full pull. "
-				f"Check matching keys and column mapping."
-			)
-			wp_table_doc.save()
-			_create_sync_log(
-				wp_table_doc.name, sync_method, sync_started,
-				status="Partial", error_message=wp_table_doc.last_sync_log,
-			)
-			return
-
-		# Build summary and update status
-		summary = _build_sync_summary(result, frappe_count)
-
-		wp_table_doc.last_synced = now_datetime()
-		wp_table_doc.last_sync_status = "Success"
-		wp_table_doc.last_sync_log = summary["log_message"]
+		# Set status to Running
+		wp_table_doc.last_sync_status = "Running"
+		wp_table_doc.last_sync_log = "Sync started..."
 		wp_table_doc.save()
 		frappe.db.commit()
 
-		if summary["has_changes"]:
+		sync_started = now_datetime()
+		sync_method = wp_table_doc.sync_method or "TS Compare"
+
+		if suppress_notifications:
+			frappe.flags.in_import = True
+			frappe.flags.mute_emails = True
+
+		try:
+			result = sync_table(wp_table_doc)
+
+			# Check for anomaly: WP has rows but Frappe table is empty after sync
+			total_wp_rows = result.get("total_wp_rows", 0) or result.get("rows_inserted", 0)
+			frappe_count = frappe.db.count(wp_table_doc.frappe_doctype)
+
+			if total_wp_rows > 0 and frappe_count == 0:
+				wp_table_doc.last_sync_status = "Warning"
+				wp_table_doc.last_sync_log = (
+					f"ANOMALY: WP has {total_wp_rows} rows but Frappe table is empty. "
+					f"last_synced NOT updated - next sync will do full pull. "
+					f"Check matching keys and column mapping."
+				)
+				wp_table_doc.save()
+				_create_sync_log(
+					wp_table_doc.name, sync_method, sync_started,
+					status="Partial", error_message=wp_table_doc.last_sync_log,
+				)
+				return
+
+			# Build summary and update status
+			summary = _build_sync_summary(result, frappe_count)
+
+			wp_table_doc.last_synced = now_datetime()
+			wp_table_doc.last_sync_status = "Success"
+			wp_table_doc.last_sync_log = summary["log_message"]
+			wp_table_doc.save()
+			frappe.db.commit()
+
+			if summary["has_changes"]:
+				_create_sync_log(
+					wp_table_doc.name, sync_method, sync_started,
+					status="Success",
+					records_synced=summary["records_synced"],
+					records_created=summary["records_created"],
+					records_updated=summary["records_updated"],
+					records_deleted=summary["rows_deleted"],
+				)
+
+		except Exception as e:
+			wp_table_doc.last_sync_status = "Error"
+			wp_table_doc.last_sync_log = str(e)[:500]
+			wp_table_doc.save()
+
 			_create_sync_log(
 				wp_table_doc.name, sync_method, sync_started,
-				status="Success",
-				records_synced=summary["records_synced"],
-				records_created=summary["records_created"],
-				records_updated=summary["records_updated"],
-				records_deleted=summary["rows_deleted"],
+				status="Failed", error_message=str(e)[:500],
+				error_traceback=traceback.format_exc(),
 			)
 
-	except Exception as e:
-		wp_table_doc.last_sync_status = "Error"
-		wp_table_doc.last_sync_log = str(e)[:500]
-		wp_table_doc.save()
+			frappe.log_error(title=f"Sync Error: {wp_table_doc.table_name}", message=str(e))
+			raise
 
-		_create_sync_log(
-			wp_table_doc.name, sync_method, sync_started,
-			status="Failed", error_message=str(e)[:500],
-			error_traceback=traceback.format_exc(),
-		)
-
-		frappe.log_error(title=f"Sync Error: {wp_table_doc.table_name}", message=str(e))
-		raise
+		finally:
+			if suppress_notifications:
+				frappe.flags.in_import = False
+				frappe.flags.mute_emails = False
 
 	finally:
-		if suppress_notifications:
-			frappe.flags.in_import = False
-			frappe.flags.mute_emails = False
+		if gate_armed:
+			clear_doctype_syncing(frappe_dt)
 
 
 def _create_sync_log(

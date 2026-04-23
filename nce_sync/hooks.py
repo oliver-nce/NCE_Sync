@@ -138,6 +138,7 @@ doc_events = {
 	},
 	"*": {
 		"before_insert": "nce_sync.utils.reverse_sync.assign_temp_name",
+		"validate": "nce_sync.utils.sync_gate.enforce_sync_gate",
 		"on_update": "nce_sync.utils.live_sync.on_record_change",
 		"after_insert": "nce_sync.utils.live_sync.on_record_change",
 	}

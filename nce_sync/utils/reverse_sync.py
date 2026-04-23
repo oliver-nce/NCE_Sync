@@ -171,7 +171,13 @@ def insert_record_to_wp(wp_conn_doc, wp_table_doc, frappe_doc):
 	# Rename Frappe doc: temp negative name → real WP ID
 	old_name = frappe_doc.name
 	if old_name != new_wp_id:
-		frappe.rename_doc(frappe_doc.doctype, old_name, new_wp_id, merge=False, ignore_permissions=True)
+		# Avoid sync_gate.before_save blocking this write while WP→Frappe sync is active.
+		prev_in_sync = bool(getattr(frappe.flags, "in_sync", False))
+		frappe.flags.in_sync = True
+		try:
+			frappe.rename_doc(frappe_doc.doctype, old_name, new_wp_id, merge=False, ignore_permissions=True)
+		finally:
+			frappe.flags.in_sync = prev_in_sync
 
 	return new_wp_id
 
