@@ -749,6 +749,9 @@ def _sync_truncate_replace(ctx):
 		"method": "Truncate & Replace",
 		"rows_inserted": result["rows_processed"],
 		"rows_deleted": "all",
+		"total_wp_rows": total_to_sync,
+		"rows_skipped": result.get("rows_skipped", 0),
+		"skip_errors": result.get("skip_errors") or [],
 	}
 
 
@@ -1074,11 +1077,27 @@ def run_sync_for_table(wp_table_name, user=None):
 		_run_sync_with_status(wp_table_doc, suppress_notifications=True)
 
 		frappe.db.commit()
-		frappe.publish_realtime(
-			"msgprint",
-			{"message": f"{label}: Sync complete ✓", "indicator": "green", "alert": True},
-			user=wp_table_doc._sync_user,
+		row = frappe.db.get_value(
+			"WP Tables", wp_table_name, ["last_sync_status", "last_sync_log"], as_dict=True
 		)
+		final_status = (row or {}).get("last_sync_status")
+		final_log = ((row or {}).get("last_sync_log") or "")[:200]
+		if final_status == "Success":
+			frappe.publish_realtime(
+				"msgprint",
+				{"message": f"{label}: Sync complete ✓", "indicator": "green", "alert": True},
+				user=wp_table_doc._sync_user,
+			)
+		elif final_status in ("Error", "Warning"):
+			frappe.publish_realtime(
+				"msgprint",
+				{
+					"message": f"{label}: {final_status} — {final_log or 'See WP Tables and Error Log.'}",
+					"indicator": "orange" if final_status == "Warning" else "red",
+					"alert": True,
+				},
+				user=wp_table_doc._sync_user,
+			)
 	except Exception as e:
 		frappe.db.commit()
 		frappe.publish_realtime(
@@ -1191,9 +1210,43 @@ def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 		try:
 			result = sync_table(wp_table_doc)
 
+			frappe_count = frappe.db.count(wp_table_doc.frappe_doctype)
+
+			# Truncate & Replace: WP had data but every row failed → not Success
+			if (
+				sync_method == "Truncate & Replace"
+				and result.get("method") == "Truncate & Replace"
+			):
+				tw_tr = int(result.get("total_wp_rows") or 0)
+				inserted_tr = int(result.get("rows_inserted") or 0)
+				if tw_tr > 0 and inserted_tr == 0:
+					skip_errs = result.get("skip_errors") or []
+					msg = _(
+						"Truncate & Replace failed: WordPress had {0} row(s) but 0 were saved in Frappe. "
+						"Check Error Log for row-level DB/validation errors."
+					).format(tw_tr)
+					if skip_errs:
+						msg = f"{msg} " + _("First errors: {0}").format("; ".join(skip_errs[:5])[:400])
+					wp_table_doc.last_sync_status = "Error"
+					wp_table_doc.last_sync_log = msg[:500]
+					wp_table_doc.save()
+					frappe.db.commit()
+					_create_sync_log(
+						wp_table_doc.name,
+						sync_method,
+						sync_started,
+						status="Failed",
+						error_message=wp_table_doc.last_sync_log,
+						error_traceback="\n".join(skip_errs) if skip_errs else None,
+					)
+					frappe.log_error(
+						title=f"Truncate & Replace: 0 inserts ({wp_table_doc.table_name})",
+						message=f"{msg}\n\n" + "\n".join(skip_errs) if skip_errs else msg,
+					)
+					return
+
 			# Check for anomaly: WP has rows but Frappe table is empty after sync
 			total_wp_rows = result.get("total_wp_rows", 0) or result.get("rows_inserted", 0)
-			frappe_count = frappe.db.count(wp_table_doc.frappe_doctype)
 
 			if total_wp_rows > 0 and frappe_count == 0:
 				wp_table_doc.last_sync_status = "Warning"

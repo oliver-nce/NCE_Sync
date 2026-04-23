@@ -1218,7 +1218,12 @@ function show_sync_progress_dialog(frm) {
 
 				if (status && status !== "Running") {
 					_stop_poll();
-					let color = status === "Success" ? "#28a745" : "#dc3545";
+					let color =
+						status === "Success"
+							? "#28a745"
+							: status === "Warning"
+								? "#fd7e14"
+								: "#dc3545";
 					_append(__("Sync finished: {0}", [status]), color);
 					// Reload form immediately so badge/status updates without waiting for Close
 					frm.reload_doc();
