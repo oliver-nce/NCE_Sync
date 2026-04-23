@@ -182,7 +182,7 @@
       "fieldname": "last_sync_status",
       "fieldtype": "Select",
       "label": "Last Sync Status",
-      "options": "\nSuccess\nError\nRunning",
+      "options": "\nSuccess\nWarning\nError\nRunning",
       "read_only": 1
     },
     {

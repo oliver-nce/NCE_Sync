@@ -14,6 +14,9 @@ frappe.listview_settings["WP Tables"] = {
 		if (doc.last_sync_status === "Running") {
 			return [__("Syncing"), "blue", "last_sync_status,=,Running"];
 		}
+		if (doc.last_sync_status === "Warning") {
+			return [__("Sync warning"), "orange", "last_sync_status,=,Warning"];
+		}
 		if (doc.last_sync_status === "Error") {
 			return [__("Sync Error"), "red", "last_sync_status,=,Error"];
 		}

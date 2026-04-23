@@ -78,6 +78,8 @@ frappe.ui.form.on("WP Tables", {
 			frm.page.set_indicator(__("Pending"), "orange");
 		} else if (frm.doc.last_sync_status === "Running") {
 			frm.page.set_indicator(__("Syncing"), "blue");
+		} else if (frm.doc.last_sync_status === "Warning") {
+			frm.page.set_indicator(__("Sync warning"), "orange");
 		} else if (frm.doc.last_sync_status === "Error") {
 			frm.page.set_indicator(__("Sync Error"), "red");
 		} else if (frm.doc.last_sync_status === "Success") {
