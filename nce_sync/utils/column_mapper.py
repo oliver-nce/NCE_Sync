@@ -30,6 +30,10 @@ those two keys; see ``_merge_column_mapping_for_mirror`` in
 	}
 
 Downstream: NCE_Events ``get_derived_sql_specs_api`` / ``evaluate_sql_expressions_api``.
+
+Optional ``default_value`` on each column entry: non-empty string validated by Frappe
+fieldtype when saving from the Remap dialog; for scripts creating new records only
+(not DocType/DB defaults).
 """
 
 import json

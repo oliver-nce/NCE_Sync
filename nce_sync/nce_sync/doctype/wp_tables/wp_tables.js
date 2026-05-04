@@ -382,6 +382,14 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				bold_columns.push($(this).data("column"));
 			});
 
+			// Tab 2: Script default values (optional; validated server-side by field type)
+			let column_defaults = {};
+			d.$wrapper.find(".default-value-input").each(function () {
+				let col_name = $(this).data("column");
+				let v = $(this).val();
+				column_defaults[col_name] = v == null ? "" : String(v);
+			});
+
 			// Validate reserved column labels (Tab 2)
 			let reserved_errors = [];
 			d.$wrapper.find(".field-label-input.reserved-source-col").each(function () {
@@ -425,6 +433,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 						read_only_columns: read_only_columns.join(",") || undefined,
 						pick_list_columns: pick_list_columns.join(",") || undefined,
 						bold_columns: bold_columns.join(",") || undefined,
+						column_defaults: JSON.stringify(column_defaults),
 					},
 					freeze: true,
 					freeze_message: __("Applying field settings..."),
@@ -514,6 +523,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				read_only_columns: read_only_columns.join(",") || undefined,
 				pick_list_columns: pick_list_columns.join(",") || undefined,
 				bold_columns: bold_columns.join(",") || undefined,
+				column_defaults: JSON.stringify(column_defaults),
 			};
 			if (mode === "remap" && new_table_name && new_table_name !== frm.doc.table_name) {
 				call_args.new_table_name = new_table_name;
@@ -811,6 +821,12 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 						value="${f.label}"${label_style_attr}${label_readonly}>
 					${reserved_hint}
 				</td>
+				<td>
+					<input type="text" class="form-control form-control-sm default-value-input"
+						data-column="${f.column_name}"
+						autocomplete="off"
+						placeholder="${__("Optional")}">
+				</td>
 				<td style="text-align: center;">
 					<input type="checkbox" class="read-only-checkbox"
 						data-column="${f.column_name}" data-virtual="${f.is_virtual ? 1 : 0}" ${ro_checked}>
@@ -852,15 +868,20 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			<span class="text-muted"><strong>${__("Bold:")}</strong> ${__(
 				"Display the field value in bold on the form — same as bold in Customize Form.",
 			)}</span>
+			<br>
+			<span class="text-muted"><strong>${__("Default value:")}</strong> ${__(
+				"Optional hint for your scripts when creating new records — not applied automatically. Use SQL-style date (YYYY-MM-DD), datetime (YYYY-MM-DD HH:MM:SS), 24-hour time (HH:MM:SS), valid JSON for JSON fields; other types are checked (integer, number, check, rating).",
+			)}</span>
 		</div>
 		<div class="schema-grid-scroll" style="overflow: auto;">
 			<table class="table table-bordered table-sm" style="font-size: 13px;">
 				<thead style="position: sticky; top: 0; background: var(--fg-color, #fff); z-index: 1;">
 					<tr>
-						<th style="width: 13%;">${__("WP Column")}</th>
-						<th style="width: 13%;">${__("Frappe Field")}</th>
+						<th style="width: 12%;">${__("WP Column")}</th>
+						<th style="width: 11%;">${__("Frappe Field")}</th>
 						<th style="width: 5%;" title="${__("Display title in list views and link fields")}">${__("Title")}</th>
-						<th style="width: 26%;">${__("Label")}</th>
+						<th style="width: 18%;">${__("Label")}</th>
+						<th style="width: 16%;" title="${__("Optional script hint when creating new records; validated by field type")}">${__("Default value")}</th>
 						<th style="width: 7%;" title="${__("Read-only on Frappe form")}">${__("Read Only")}</th>
 						<th style="width: 7%;" title="${__("Populate Select from distinct source values")}">${__("Pick List")}</th>
 						<th style="width: 7%;" title="${__("Display field value in bold on form")}">${__("Bold")}</th>
@@ -877,6 +898,15 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 	`;
 
 	d.fields_dict.field_preview.$wrapper.html(html);
+
+	fields.forEach(function (f) {
+		d.$wrapper
+			.find(".default-value-input")
+			.filter(function () {
+				return $(this).data("column") === f.column_name;
+			})
+			.val(f.default_value == null ? "" : f.default_value);
+	});
 
 	// ═══ Manual tab switching (avoids Frappe router intercepting # anchors) ═══
 	d.$wrapper.on("click", ".schema-tab-link", function (e) {

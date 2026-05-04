@@ -284,6 +284,7 @@ class WPTables(Document):
 		read_only_columns=None,
 		pick_list_columns=None,
 		bold_columns=None,
+		column_defaults=None,
 	):
 		"""Mirror this specific table's schema to a Frappe DocType."""
 		try:
@@ -309,6 +310,9 @@ class WPTables(Document):
 			if not wp_conn:
 				frappe.throw(_("WordPress Connection not configured"))
 
+			if column_defaults and isinstance(column_defaults, str):
+				column_defaults = json.loads(column_defaults)
+
 			mirror_table_schema(
 				wp_conn,
 				self,
@@ -322,6 +326,7 @@ class WPTables(Document):
 				read_only_columns=read_only_columns or None,
 				pick_list_columns=pick_list_columns or None,
 				bold_columns=bold_columns or None,
+				column_defaults=column_defaults,
 			)
 
 			frappe.msgprint(
@@ -531,6 +536,7 @@ class WPTables(Document):
 		read_only_columns=None,
 		pick_list_columns=None,
 		bold_columns=None,
+		column_defaults=None,
 	):
 		"""
 		Remap an existing mirrored DocType to a (possibly renamed) source table.
@@ -568,6 +574,9 @@ class WPTables(Document):
 
 		# Re-mirror: detects existing DocType and calls update_existing_doctype
 		# which adds new columns without removing existing ones
+		if column_defaults and isinstance(column_defaults, str):
+			column_defaults = json.loads(column_defaults)
+
 		mirror_table_schema(
 			wp_conn,
 			self,
@@ -581,6 +590,7 @@ class WPTables(Document):
 			read_only_columns=read_only_columns or None,
 			pick_list_columns=pick_list_columns or None,
 			bold_columns=bold_columns or None,
+			column_defaults=column_defaults,
 		)
 
 		# Reset sync status
@@ -604,11 +614,12 @@ class WPTables(Document):
 		read_only_columns=None,
 		pick_list_columns=None,
 		bold_columns=None,
+		column_defaults=None,
 	):
 		"""
 		Lightweight update of display-only field properties (label, read_only, bold,
-		pick_list, title) on the mirrored DocType.  Does NOT re-introspect the WP
-		schema, does NOT require a re-sync.
+		pick_list, title, script default_value hints in column_mapping) on the mirrored DocType.
+		Does NOT re-introspect the WP schema, does NOT require a re-sync.
 
 		Only opens a WP connection when pick-list columns are newly toggled ON
 		(to fetch DISTINCT values).
@@ -616,6 +627,8 @@ class WPTables(Document):
 		from nce_sync.utils.schema_mirror import (
 			_fetch_pick_list_options,
 			_parse_comma_columns,
+			_resolve_fieldtype_for_default_update,
+			apply_column_defaults_to_mapping,
 			apply_field_settings,
 			resolve_fieldname,
 		)
@@ -629,6 +642,15 @@ class WPTables(Document):
 		label_overrides = label_overrides or {}
 
 		existing_mapping = json.loads(self.column_mapping) if self.column_mapping else {}
+
+		if column_defaults is not None:
+			if isinstance(column_defaults, str):
+				column_defaults = json.loads(column_defaults)
+			apply_column_defaults_to_mapping(
+				existing_mapping,
+				column_defaults,
+				resolve_fieldtype=lambda wc, e: _resolve_fieldtype_for_default_update(e, self.frappe_doctype),
+			)
 
 		# Resolve fieldnames for the comma-separated column lists
 		read_only_fieldnames = _parse_comma_columns(read_only_columns, label_overrides)

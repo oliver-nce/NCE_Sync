@@ -490,6 +490,65 @@ def _parse_comma_columns(columns, label_overrides=None):
 	return {resolve_fieldname(c, label_overrides) for c in col_list}
 
 
+def _parse_column_defaults_payload(column_defaults):
+	"""Normalize API arg to dict[str, str] | None (None = do not change any defaults)."""
+	import json
+
+	if column_defaults is None:
+		return None
+	if isinstance(column_defaults, str):
+		if not column_defaults.strip():
+			return {}
+		return json.loads(column_defaults)
+	return dict(column_defaults) if column_defaults else {}
+
+
+def _resolve_fieldtype_for_default_mirror(wp_col, entry, field_overrides):
+	if entry.get("is_pick_list"):
+		return "Select"
+	if field_overrides and wp_col in field_overrides:
+		return field_overrides[wp_col]
+	if entry.get("is_name"):
+		return "Data"
+	return entry.get("original_fieldtype") or "Data"
+
+
+def _resolve_fieldtype_for_default_update(entry, doctype):
+	meta = frappe.get_meta(doctype)
+	fn = entry.get("fieldname")
+	if fn:
+		df = meta.get_field(fn)
+		if df:
+			return df.fieldtype
+	return entry.get("original_fieldtype") or "Data"
+
+
+def apply_column_defaults_to_mapping(column_mapping, column_defaults, *, resolve_fieldtype):
+	"""
+	Merge validated script defaults into ``column_mapping`` (WP column keys).
+	Pass ``column_defaults=None`` to leave stored defaults unchanged.
+	``resolve_fieldtype(wp_col, entry)`` returns the Frappe fieldtype for validation.
+	"""
+	from nce_sync.utils.script_default_validation import validate_and_normalize_script_default
+
+	payload = _parse_column_defaults_payload(column_defaults)
+	if payload is None or not column_mapping:
+		return
+
+	for wp_col, raw in payload.items():
+		if wp_col not in column_mapping:
+			continue
+		entry = column_mapping[wp_col]
+		if not isinstance(entry, dict):
+			continue
+		raw_str = raw if isinstance(raw, str) else ("" if raw is None else str(raw))
+		if not raw_str.strip():
+			entry.pop("default_value", None)
+			continue
+		ft = resolve_fieldtype(wp_col, entry)
+		entry["default_value"] = validate_and_normalize_script_default(ft, raw_str, wp_col)
+
+
 def _restore_previous_selections(wp_table_doc):
 	"""
 	Restore previous user selections from a WP Tables document for the
@@ -590,6 +649,19 @@ def preview_table_schema(wp_conn_doc, wp_table_doc):
 	existing_field_labels = prev.pop("existing_field_labels")
 	existing_columns = prev.pop("existing_columns")
 
+	import json
+
+	col_defaults_by_wp = {}
+	if getattr(wp_table_doc, "column_mapping", None):
+		try:
+			_cm = json.loads(wp_table_doc.column_mapping)
+			for _w, _info in (_cm or {}).items():
+				if isinstance(_info, dict) and _info.get("default_value") not in (None, ""):
+					dv = _info.get("default_value")
+					col_defaults_by_wp[_w] = dv if isinstance(dv, str) else json.dumps(dv)
+		except Exception:
+			pass
+
 	preview = []
 	for col in schema["columns"]:
 		col_name = col["COLUMN_NAME"]
@@ -630,6 +702,7 @@ def preview_table_schema(wp_conn_doc, wp_table_doc):
 				"options": field_mapping.get("options", ""),
 				"generation_expression": gen_src or None,
 				"sql_expression_frappe": expr_display,
+				"default_value": col_defaults_by_wp.get(col_name, ""),
 			}
 		)
 
@@ -849,7 +922,7 @@ def mirror_table_schema(
 	wp_conn_doc, wp_table_doc, field_overrides=None, label_overrides=None,
 	name_field_column=None, title_field_column=None, auto_generated_columns=None,
 	modified_ts_field=None, created_ts_field=None, read_only_columns=None,
-	pick_list_columns=None, bold_columns=None,
+	pick_list_columns=None, bold_columns=None, column_defaults=None,
 ):
 	"""
 	Mirror a WordPress table schema to a Frappe Custom DocType.
@@ -870,6 +943,10 @@ def mirror_table_schema(
 		read_only_columns: Comma-separated WP columns to mark read-only
 		pick_list_columns: Comma-separated WP columns to turn into Select fields
 		bold_columns: Comma-separated WP columns to mark bold
+		column_defaults: Optional dict ``{wp_column: text}`` for script hint defaults
+		    (validated by field type; empty string clears). None = leave prior values
+		    inside merged mapping except for columns being explicitly cleared — caller
+		    should pass a full dict from the dialog when editing.
 	"""
 	import json
 
@@ -920,6 +997,13 @@ def mirror_table_schema(
 			read_only_fieldnames, pick_list_options, bold_fieldnames,
 		)
 		column_mapping = _merge_column_mapping_for_mirror(column_mapping, previous_colmap)
+		apply_column_defaults_to_mapping(
+			column_mapping,
+			column_defaults,
+			resolve_fieldtype=lambda wc, e: _resolve_fieldtype_for_default_mirror(
+				wc, e, field_overrides
+			),
+		)
 
 		wp_table_doc.frappe_doctype = doctype_name
 		wp_table_doc.mirror_status = "Mirrored"
