@@ -1137,7 +1137,7 @@ def _build_sync_summary(result, frappe_count):
 	reverse_inserted = result.get("reverse_inserted", 0)
 	reverse_updated = result.get("reverse_updated", 0)
 
-	has_changes = (rows_upserted + rows_deleted + reverse_inserted + reverse_updated) > 0
+	has_changes = (rows_upserted + rows_inserted + rows_deleted + reverse_inserted + reverse_updated) > 0
 
 	if result.get("method") == "Truncate & Replace":
 		log_message = f"Truncate & Replace: {rows_inserted} rows inserted"
