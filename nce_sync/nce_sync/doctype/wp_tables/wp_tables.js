@@ -332,7 +332,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 		mode === "remap"
 			? __("Remap Schema — {0}", [doctype_name])
 			: __("Review Field Types — {0}", [doctype_name]);
-	let action_label = mode === "remap" ? __("Confirm & Remap") : __("Confirm & Create");
+	let action_label = mode === "remap" ? __("Save & remap") : __("Confirm & Create");
 
 	let dialog_config = {
 		title: dialog_title,
@@ -423,7 +423,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 
 			// ─── LIGHTWEIGHT PATH: Only Tab 2 changed (remap only — DocType must exist) ───
 			if (mode === "remap" && !mapping_dirty && settings_dirty) {
-				d.get_primary_btn().prop("disabled", true).text(__("Applying…"));
+				d.get_primary_btn().prop("disabled", true).text(__("Saving…"));
 
 				frappe.call({
 					method: "update_field_settings",
@@ -443,7 +443,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 						frm.reload_doc();
 					},
 					error: function (r) {
-						d.get_primary_btn().prop("disabled", false).text(__("Apply Settings"));
+						d.get_primary_btn().prop("disabled", false).text(action_label);
 					},
 				});
 				return;
@@ -505,12 +505,12 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 			}
 
 			// Disable button to prevent double-clicks while processing
-			let busy_text = mode === "remap" ? __("Remapping…") : __("Creating…");
+			let busy_text = mode === "remap" ? __("Saving…") : __("Creating…");
 			d.get_primary_btn().prop("disabled", true).text(busy_text);
 
 			let call_method = mode === "remap" ? "remap_schema" : "mirror_schema";
 			let freeze_msg =
-				mode === "remap" ? __("Remapping schema...") : __("Creating DocType...");
+				mode === "remap" ? __("Applying changes...") : __("Creating DocType...");
 
 			let call_args = {
 				field_overrides: JSON.stringify(field_overrides),
@@ -608,7 +608,14 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 	let d = new frappe.ui.Dialog(dialog_config);
 
 	// Build the two-tab preview
+	let remap_footer_hint =
+		mode === "remap"
+			? `<p class="text-muted" style="margin: 0 0 10px 0;">${__(
+					"Use both tabs as needed. Save & remap (dialog footer) applies everything in one step.",
+			  )}</p>`
+			: "";
 	let html = `
+		${remap_footer_hint}
 		<ul class="nav nav-tabs schema-tabs" role="tablist" style="margin-bottom: 0;">
 			<li class="nav-item">
 				<a class="nav-link active schema-tab-link" data-tab-target="tab-mapping" href="javascript:void(0)" role="tab">${__("Data Mapping")}</a>
@@ -967,7 +974,6 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 		"#tab-mapping input, #tab-mapping select",
 		function () {
 			d.$wrapper.find("#tab-mapping").data("dirty", true);
-			_update_primary_button_label();
 		},
 	);
 	// Mark Tab 2 (Frappe Field Settings) dirty on any change inside it
@@ -976,19 +982,8 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 		"#tab-settings input, #tab-settings select",
 		function () {
 			d.$wrapper.find("#tab-settings").data("dirty", true);
-			_update_primary_button_label();
 		},
 	);
-
-	function _update_primary_button_label() {
-		let mapping_dirty = d.$wrapper.find("#tab-mapping").data("dirty");
-		if (mode === "mirror" || mapping_dirty) {
-			// Initial create or mapping changes → always full path
-			d.get_primary_btn().text(action_label);
-		} else {
-			d.get_primary_btn().text(__("Apply Settings"));
-		}
-	}
 
 	// When "Frappe ID" radio is selected:
 	//  • Grey out the Frappe Type dropdown for that row (type is irrelevant — no field created)
@@ -1014,7 +1009,6 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 					$(this).prop("checked", false);
 					// Cross-tab side-effect: mark Tab 2 dirty since we changed a Title radio
 					d.$wrapper.find("#tab-settings").data("dirty", true);
-					_update_primary_button_label();
 					frappe.show_alert({
 						message: __("Title cleared — the Frappe ID column does not create a field"),
 						indicator: "orange",
@@ -1159,9 +1153,14 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 	// Trigger on load for any pre-checked pick-list columns
 	d.$wrapper.find(".pick-list-checkbox:checked").trigger("change");
 
-	if (preview_options.force_mapping_dirty) {
+	// New WP columns (not yet on the mirrored DocType) must use the full remap path.
+	// Otherwise only Tab 2 edits set settings_dirty and we call update_field_settings,
+	// which does not add DocType fields.
+	let needs_full_remap =
+		preview_options.force_mapping_dirty ||
+		(mode === "remap" && fields.some((f) => !f.is_existing));
+	if (needs_full_remap) {
 		d.$wrapper.find("#tab-mapping").data("dirty", true);
-		_update_primary_button_label();
 	}
 
 	// Highlight changed dropdowns
