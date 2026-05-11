@@ -320,8 +320,7 @@ frappe.ui.form.on("WP Tables", {
 	},
 });
 
-function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_options) {
-	preview_options = preview_options || {};
+function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 	mode = mode || "mirror";
 	let fields = preview_data.fields;
 	let doctype_name = preview_data.doctype_name;
@@ -412,28 +411,18 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 				return;
 			}
 
+			let field_overrides_light = {};
+			d.$wrapper.find(".field-type-select").each(function () {
+				let col_name = $(this).data("column");
+				field_overrides_light[col_name] = $(this).val();
+			});
+
 			// ─── Determine which path to take based on dirty tabs ───
 			let mapping_dirty = d.$wrapper.find("#tab-mapping").data("dirty");
-			let settings_dirty = d.$wrapper.find("#tab-settings").data("dirty");
-			let preview_has_unbound_column = fields.some((f) => !f.is_existing);
 
-			if (
-				!mapping_dirty &&
-				!settings_dirty &&
-				mode === "remap" &&
-				!preview_has_unbound_column
-			) {
-				frappe.show_alert({ message: __("No changes to apply."), indicator: "blue" });
-				return;
-			}
-
-			// ─── LIGHTWEIGHT PATH: Only Tab 2 changed (remap only — DocType must exist) ───
-			if (
-				mode === "remap" &&
-				!mapping_dirty &&
-				settings_dirty &&
-				!preview_has_unbound_column
-			) {
+			// ─── REMAP without Data Mapping edits: always hit server — reconciles DocType
+			// fields against live WordPress schema (no truncate). ───
+			if (mode === "remap" && !mapping_dirty) {
 				d.get_primary_btn().prop("disabled", true).text(__("Saving…"));
 
 				frappe.call({
@@ -446,6 +435,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 						pick_list_columns: pick_list_columns.join(",") || undefined,
 						bold_columns: bold_columns.join(",") || undefined,
 						column_defaults: JSON.stringify(column_defaults),
+						field_overrides: JSON.stringify(field_overrides_light),
 					},
 					freeze: true,
 					freeze_message: __("Applying field settings..."),
@@ -463,12 +453,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 			// ─── FULL PATH: Tab 1 changed (with or without Tab 2) ───
 
 			// Tab 1: Collect field type overrides
-			let field_overrides = {};
-			d.$wrapper.find(".field-type-select").each(function () {
-				let col_name = $(this).data("column");
-				let selected = $(this).val();
-				field_overrides[col_name] = selected;
-			});
+			let field_overrides = field_overrides_light;
 
 			// Tab 1: Collect "Use as Name" selection
 			let name_field_column = d.$wrapper.find(".name-field-radio:checked").val() || "";
@@ -608,9 +593,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 						return;
 					}
 					d.hide();
-					show_preview_dialog(frm, r.message, mode, new_table_name, {
-						force_mapping_dirty: true,
-					});
+					show_preview_dialog(frm, r.message, mode, new_table_name);
 				},
 			});
 		};
@@ -1163,16 +1146,6 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 	});
 	// Trigger on load for any pre-checked pick-list columns
 	d.$wrapper.find(".pick-list-checkbox:checked").trigger("change");
-
-	// New WP columns (not yet on the mirrored DocType) must use the full remap path.
-	// Otherwise only Tab 2 edits set settings_dirty and we call update_field_settings,
-	// which does not add DocType fields.
-	let needs_full_remap =
-		preview_options.force_mapping_dirty ||
-		(mode === "remap" && fields.some((f) => !f.is_existing));
-	if (needs_full_remap) {
-		d.$wrapper.find("#tab-mapping").data("dirty", true);
-	}
 
 	// Highlight changed dropdowns
 	d.$wrapper.on("change", ".field-type-select", function () {

@@ -1233,6 +1233,129 @@ def update_existing_doctype(
 		frappe.msgprint(_("No changes to apply to {0}").format(doctype_name), indicator="blue")
 
 
+def _append_missing_mirrored_fields(
+	doctype_name,
+	schema,
+	wp_table_doc,
+	field_overrides,
+	label_overrides,
+	name_field_column,
+	read_only_fieldnames,
+	bold_fieldnames,
+	pick_list_options,
+):
+	"""Append DocFields for WP columns that exist on the source table but not on the DocType."""
+	field_overrides = field_overrides or {}
+	label_overrides = label_overrides or {}
+	read_only_fieldnames = read_only_fieldnames or set()
+	bold_fieldnames = bold_fieldnames or set()
+	pick_list_options = pick_list_options or {}
+
+	doctype_doc = frappe.get_doc("DocType", doctype_name)
+	existing_fields = {f.fieldname for f in doctype_doc.fields}
+	added = 0
+	idx = len(doctype_doc.fields) + 1
+
+	for col in schema["columns"]:
+		col_name = col["COLUMN_NAME"]
+		if name_field_column and col_name == name_field_column:
+			continue
+		safe_fieldname = resolve_fieldname(col_name, label_overrides)
+		if safe_fieldname not in existing_fields:
+			field = build_frappe_field(
+				col,
+				schema,
+				wp_table_doc,
+				field_overrides,
+				label_overrides,
+				idx,
+				read_only_fieldnames=read_only_fieldnames,
+				pick_list_options=pick_list_options,
+				bold_fieldnames=bold_fieldnames,
+			)
+			doctype_doc.append("fields", field)
+			existing_fields.add(safe_fieldname)
+			added += 1
+			idx += 1
+
+	if added:
+		doctype_doc.save(ignore_permissions=True)
+		frappe.db.commit()
+		frappe.clear_cache(doctype=doctype_name)
+
+	return added
+
+
+def sync_mirrored_doctype_with_wordpress(
+	wp_conn_doc,
+	wp_table_doc,
+	previous_column_mapping,
+	label_overrides=None,
+	field_overrides=None,
+	read_only_fieldnames=None,
+	bold_fieldnames=None,
+	pick_list_options=None,
+	column_defaults=None,
+):
+	"""
+	Fetch the latest WordPress table schema, add any missing DocFields on the mirrored
+	DocType, and rebuild ``column_mapping`` merged with the previous JSON.
+	Does not truncate data.
+	"""
+	from nce_sync.utils.connections import wp_connection
+
+	label_overrides = label_overrides or {}
+	field_overrides = field_overrides or {}
+	read_only_fieldnames = read_only_fieldnames or set()
+	bold_fieldnames = bold_fieldnames or set()
+	pick_list_options = dict(pick_list_options or {})
+	previous_column_mapping = dict(previous_column_mapping or {})
+
+	doctype_name = wp_table_doc.frappe_doctype
+	name_field_column = getattr(wp_table_doc, "name_field_column", None) or None
+
+	with wp_connection(wp_conn_doc) as conn:
+		schema = get_table_schema(conn, wp_table_doc.table_name)
+
+	added = _append_missing_mirrored_fields(
+		doctype_name,
+		schema,
+		wp_table_doc,
+		field_overrides,
+		label_overrides,
+		name_field_column,
+		read_only_fieldnames,
+		bold_fieldnames,
+		pick_list_options,
+	)
+
+	auto_gen_raw = getattr(wp_table_doc, "auto_generated_columns", None) or ""
+	auto_gen_list = None
+	if auto_gen_raw:
+		auto_gen_list = [c.strip() for c in auto_gen_raw.split(",") if c.strip()]
+
+	column_mapping, stored_auto_gen = _build_column_mapping(
+		schema,
+		label_overrides,
+		name_field_column,
+		auto_gen_list,
+		read_only_fieldnames,
+		pick_list_options,
+		bold_fieldnames,
+	)
+	column_mapping = _merge_column_mapping_for_mirror(column_mapping, previous_column_mapping)
+
+	if column_defaults is not None:
+		apply_column_defaults_to_mapping(
+			column_mapping,
+			column_defaults,
+			resolve_fieldtype=lambda wc, e: _resolve_fieldtype_for_default_update(e, doctype_name),
+		)
+
+	wp_table_doc.auto_generated_columns = stored_auto_gen or None
+	return added, column_mapping
+
+
 def apply_field_settings(
 	doctype_name,
 	title_fieldname=None,

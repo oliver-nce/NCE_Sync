@@ -615,100 +615,94 @@ class WPTables(Document):
 		pick_list_columns=None,
 		bold_columns=None,
 		column_defaults=None,
+		field_overrides=None,
 	):
 		"""
-		Lightweight update of display-only field properties (label, read_only, bold,
-		pick_list, title, script default_value hints in column_mapping) on the mirrored DocType.
-		Does NOT re-introspect the WP schema, does NOT require a re-sync.
+		Update display properties on the mirrored DocType and **reconcile** the DocType
+		with the current WordPress table: any source column missing a DocField is appended.
+		Does not truncate data. Rebuilds ``column_mapping`` from the live WP schema.
 
-		Only opens a WP connection when pick-list columns are newly toggled ON
-		(to fetch DISTINCT values).
+		Opens a WP connection for pick-list DISTINCT values and for schema introspection.
 		"""
+		from nce_sync.utils.connections import wp_connection
 		from nce_sync.utils.schema_mirror import (
 			_fetch_pick_list_options,
 			_parse_comma_columns,
-			_resolve_fieldtype_for_default_update,
-			apply_column_defaults_to_mapping,
 			apply_field_settings,
 			resolve_fieldname,
+			sync_mirrored_doctype_with_wordpress,
 		)
 
 		if not self.frappe_doctype:
 			frappe.throw(_("No mirrored DocType to update"))
 
-		# Parse inputs
+		wp_conn = frappe.get_single("WordPress Connection")
+		if not wp_conn:
+			frappe.throw(_("WordPress Connection not configured"))
+
 		if label_overrides and isinstance(label_overrides, str):
 			label_overrides = json.loads(label_overrides)
 		label_overrides = label_overrides or {}
 
+		if field_overrides and isinstance(field_overrides, str):
+			field_overrides = json.loads(field_overrides)
+		field_overrides = field_overrides or {}
+
+		if column_defaults is not None and isinstance(column_defaults, str):
+			column_defaults = json.loads(column_defaults)
+
 		existing_mapping = json.loads(self.column_mapping) if self.column_mapping else {}
 
-		if column_defaults is not None:
-			if isinstance(column_defaults, str):
-				column_defaults = json.loads(column_defaults)
-			apply_column_defaults_to_mapping(
-				existing_mapping,
-				column_defaults,
-				resolve_fieldtype=lambda wc, e: _resolve_fieldtype_for_default_update(e, self.frappe_doctype),
-			)
-
-		# Resolve fieldnames for the comma-separated column lists
 		read_only_fieldnames = _parse_comma_columns(read_only_columns, label_overrides)
 		bold_fieldnames = _parse_comma_columns(bold_columns, label_overrides)
 		pick_list_fieldnames = _parse_comma_columns(pick_list_columns, label_overrides)
 
-		# Resolve title fieldname
 		title_fieldname = resolve_fieldname(title_field_column, label_overrides) if title_field_column else None
 
-		# Build label_map: {frappe_fieldname: new_label}
 		label_map = {}
 		for wp_col, new_label in label_overrides.items():
 			fn = resolve_fieldname(wp_col, label_overrides)
 			label_map[fn] = new_label
 
-		# Determine which pick-list columns are NEWLY toggled on
-		# (only these need a WP query for DISTINCT values)
-		previously_pick_list = set()
+		pl_wp_set = set()
+		if pick_list_columns:
+			pl_wp_set = {c.strip() for c in str(pick_list_columns).split(",") if c.strip()}
+
+		prev_pl_wp = set()
 		for wp_col, entry in existing_mapping.items():
-			if entry.get("is_pick_list"):
-				previously_pick_list.add(entry.get("fieldname"))
+			if isinstance(entry, dict) and entry.get("is_pick_list"):
+				prev_pl_wp.add(wp_col)
 
-		new_pick_list_cols = pick_list_fieldnames - previously_pick_list
-		# Map new pick-list fieldnames back to WP column names for the query
-		fieldname_to_wp_col = {
-			entry.get("fieldname"): wp_col
-			for wp_col, entry in existing_mapping.items()
-		}
-		new_pick_list_wp_cols = [
-			fieldname_to_wp_col[fn]
-			for fn in new_pick_list_cols
-			if fn in fieldname_to_wp_col
-		]
+		new_pl_wp = pl_wp_set - prev_pl_wp
 
-		# Fetch DISTINCT values for newly toggled pick-list columns only
 		pick_list_options = {}
-		if new_pick_list_wp_cols:
-			from nce_sync.utils.connections import wp_connection
-
-			wp_conn = frappe.get_single("WordPress Connection")
+		if new_pl_wp:
 			with wp_connection(wp_conn) as conn:
 				pick_list_options = _fetch_pick_list_options(
-					conn, self.table_name, new_pick_list_wp_cols, label_overrides
+					conn, self.table_name, ",".join(sorted(new_pl_wp)), label_overrides
 				)
 
-		# Preserve existing pick-list options for columns that are still toggled on
 		doctype_doc = frappe.get_doc("DocType", self.frappe_doctype)
 		for field in doctype_doc.fields:
 			if (
 				field.fieldname in pick_list_fieldnames
 				and field.fieldname not in pick_list_options
 				and field.fieldtype == "Select"
-				and field.fieldname in previously_pick_list
 			):
-				# Keep current options
 				pick_list_options[field.fieldname] = field.options or ""
 
-		# Apply changes to the DocType
+		added, existing_mapping = sync_mirrored_doctype_with_wordpress(
+			wp_conn,
+			self,
+			existing_mapping,
+			label_overrides=label_overrides,
+			field_overrides=field_overrides,
+			read_only_fieldnames=read_only_fieldnames,
+			bold_fieldnames=bold_fieldnames,
+			pick_list_options=pick_list_options,
+			column_defaults=column_defaults,
+		)
+
 		changes = apply_field_settings(
 			self.frappe_doctype,
 			title_fieldname=title_fieldname,
@@ -720,8 +714,9 @@ class WPTables(Document):
 			column_mapping=existing_mapping,
 		)
 
-		# Patch column_mapping JSON with updated flags
 		for wp_col, entry in existing_mapping.items():
+			if not isinstance(entry, dict):
+				continue
 			fn = entry.get("fieldname")
 			if fn:
 				entry["is_read_only"] = fn in read_only_fieldnames
@@ -733,10 +728,18 @@ class WPTables(Document):
 			self.title_field_column = title_field_column or None
 		self.save()
 
-		frappe.msgprint(
-			_("Field settings updated — {0} field(s) changed").format(changes),
-			indicator="green",
-		)
+		msgs = []
+		if added:
+			msgs.append(_("Added {0} missing field(s) from the source table").format(added))
+		if changes:
+			msgs.append(_("Updated display settings on {0} field(s)").format(changes))
+		if msgs:
+			frappe.msgprint("; ".join(msgs), indicator="green")
+		else:
+			frappe.msgprint(
+				_("DocType already matches the source table; no display changes were needed."),
+				indicator="blue",
+			)
 
 	@frappe.whitelist()
 	def debug_sync_one_row(self):
