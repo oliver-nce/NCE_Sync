@@ -415,14 +415,25 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_op
 			// ─── Determine which path to take based on dirty tabs ───
 			let mapping_dirty = d.$wrapper.find("#tab-mapping").data("dirty");
 			let settings_dirty = d.$wrapper.find("#tab-settings").data("dirty");
+			let preview_has_unbound_column = fields.some((f) => !f.is_existing);
 
-			if (!mapping_dirty && !settings_dirty && mode === "remap") {
+			if (
+				!mapping_dirty &&
+				!settings_dirty &&
+				mode === "remap" &&
+				!preview_has_unbound_column
+			) {
 				frappe.show_alert({ message: __("No changes to apply."), indicator: "blue" });
 				return;
 			}
 
 			// ─── LIGHTWEIGHT PATH: Only Tab 2 changed (remap only — DocType must exist) ───
-			if (mode === "remap" && !mapping_dirty && settings_dirty) {
+			if (
+				mode === "remap" &&
+				!mapping_dirty &&
+				settings_dirty &&
+				!preview_has_unbound_column
+			) {
 				d.get_primary_btn().prop("disabled", true).text(__("Saving…"));
 
 				frappe.call({

@@ -625,6 +625,32 @@ def _restore_previous_selections(wp_table_doc):
 	}
 
 
+def _preview_column_is_bound_to_doctype(wp_table_doc, col_name, col_map):
+	"""
+	True when this WP column is already represented in persisted DocType structure.
+
+	If column_mapping lists a column but the mirrored DocType has no matching
+	DocField (e.g. mapping saved without a successful schema update), returns
+	False so the remap UI treats it as needing a full save/remap.
+	"""
+	if col_name not in col_map:
+		return False
+	name_field_column = getattr(wp_table_doc, "name_field_column", None) or None
+	if name_field_column and col_name == name_field_column:
+		return True
+	dt_name = getattr(wp_table_doc, "frappe_doctype", None)
+	if not dt_name or not frappe.db.exists("DocType", dt_name):
+		return False
+	info = col_map.get(col_name)
+	if isinstance(info, dict):
+		fn = info.get("fieldname") or resolve_fieldname(col_name, None)
+	else:
+		fn = resolve_fieldname(col_name, None)
+	meta = frappe.get_meta(dt_name)
+	doctype_fns = {df.fieldname for df in meta.fields}
+	return fn in doctype_fns
+
+
 def preview_table_schema(wp_conn_doc, wp_table_doc):
 	"""
 	Introspect a WordPress table and return proposed field mappings
@@ -647,20 +673,24 @@ def preview_table_schema(wp_conn_doc, wp_table_doc):
 
 	prev = _restore_previous_selections(wp_table_doc)
 	existing_field_labels = prev.pop("existing_field_labels")
-	existing_columns = prev.pop("existing_columns")
+	prev.pop("existing_columns")  # not used; per-field is_existing replaces this
 
 	import json
 
-	col_defaults_by_wp = {}
+	col_map = {}
 	if getattr(wp_table_doc, "column_mapping", None):
 		try:
-			_cm = json.loads(wp_table_doc.column_mapping)
-			for _w, _info in (_cm or {}).items():
-				if isinstance(_info, dict) and _info.get("default_value") not in (None, ""):
-					dv = _info.get("default_value")
-					col_defaults_by_wp[_w] = dv if isinstance(dv, str) else json.dumps(dv)
+			col_map = json.loads(wp_table_doc.column_mapping) or {}
 		except Exception:
-			pass
+			col_map = {}
+
+	col_map = col_map if isinstance(col_map, dict) else {}
+
+	col_defaults_by_wp = {}
+	for _w, _info in col_map.items():
+		if isinstance(_info, dict) and _info.get("default_value") not in (None, ""):
+			dv = _info.get("default_value")
+			col_defaults_by_wp[_w] = dv if isinstance(dv, str) else json.dumps(dv)
 
 	preview = []
 	for col in schema["columns"]:
@@ -696,7 +726,7 @@ def preview_table_schema(wp_conn_doc, wp_table_doc):
 				"is_indexed": is_indexed,
 				"is_virtual": is_virtual,
 				"is_auto_increment": is_auto_increment,
-				"is_existing": col_name in existing_columns,
+				"is_existing": _preview_column_is_bound_to_doctype(wp_table_doc, col_name, col_map),
 				"length": field_mapping.get("length", 0),
 				"precision": field_mapping.get("precision", 0),
 				"options": field_mapping.get("options", ""),
