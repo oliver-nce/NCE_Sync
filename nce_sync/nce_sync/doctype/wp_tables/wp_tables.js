@@ -320,7 +320,8 @@ frappe.ui.form.on("WP Tables", {
 	},
 });
 
-function show_preview_dialog(frm, preview_data, mode, new_table_name) {
+function show_preview_dialog(frm, preview_data, mode, new_table_name, preview_options) {
+	preview_options = preview_options || {};
 	mode = mode || "mirror";
 	let fields = preview_data.fields;
 	let doctype_name = preview_data.doctype_name;
@@ -333,7 +334,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			: __("Review Field Types — {0}", [doctype_name]);
 	let action_label = mode === "remap" ? __("Confirm & Remap") : __("Confirm & Create");
 
-	let d = new frappe.ui.Dialog({
+	let dialog_config = {
 		title: dialog_title,
 		size: "extra-large",
 		fields: [
@@ -565,7 +566,46 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				},
 			});
 		},
-	});
+	};
+
+	if (mode === "remap") {
+		dialog_config.secondary_action_label = __("Refresh from WordPress");
+		dialog_config.secondary_action = function () {
+			let prev_cols = new Set(fields.map((f) => f.column_name));
+			let table_name_override =
+				new_table_name && new_table_name !== frm.doc.table_name ? new_table_name : undefined;
+			frappe.call({
+				method: "preview_schema",
+				doc: frm.doc,
+				args: { table_name_override: table_name_override },
+				freeze: true,
+				freeze_message: __("Refreshing schema from WordPress..."),
+				callback: function (r) {
+					if (!r.message) {
+						return;
+					}
+					let new_cols = new Set(r.message.fields.map((f) => f.column_name));
+					let schema_changed =
+						prev_cols.size !== new_cols.size ||
+						[...prev_cols].some((c) => !new_cols.has(c)) ||
+						[...new_cols].some((c) => !prev_cols.has(c));
+					if (!schema_changed) {
+						frappe.show_alert({
+							message: __("Source schema unchanged."),
+							indicator: "blue",
+						});
+						return;
+					}
+					d.hide();
+					show_preview_dialog(frm, r.message, mode, new_table_name, {
+						force_mapping_dirty: true,
+					});
+				},
+			});
+		};
+	}
+
+	let d = new frappe.ui.Dialog(dialog_config);
 
 	// Build the two-tab preview
 	let html = `
@@ -1118,6 +1158,11 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 	});
 	// Trigger on load for any pre-checked pick-list columns
 	d.$wrapper.find(".pick-list-checkbox:checked").trigger("change");
+
+	if (preview_options.force_mapping_dirty) {
+		d.$wrapper.find("#tab-mapping").data("dirty", true);
+		_update_primary_button_label();
+	}
 
 	// Highlight changed dropdowns
 	d.$wrapper.on("change", ".field-type-select", function () {
