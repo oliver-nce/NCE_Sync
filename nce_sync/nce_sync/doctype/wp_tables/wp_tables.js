@@ -765,10 +765,15 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			crt_ts_cell = `<span style="color:#ccc;" title="${__("Not a datetime column")}">—</span>`;
 		}
 
-		// Read Only checkbox — auto-check for virtual, matching, TS fields
-		let ro_auto = f.is_virtual || !!name_checked || !!checked || !!mod_ts_cell.includes("checked") || !!crt_ts_cell.includes("checked");
-		if (previous_read_only.includes(f.column_name.toLowerCase())) ro_auto = true;
-		let ro_checked = ro_auto ? "checked" : "";
+		// Read Only checkbox — forced on for virtual, Frappe ID, Mod/Crt TS only.
+		// Matching-key columns no longer lock read-only (users can clear it; server respects unchecked).
+		let ro_forced =
+			f.is_virtual ||
+			!!name_checked ||
+			!!mod_ts_cell.includes("checked") ||
+			!!crt_ts_cell.includes("checked");
+		let ro_saved = previous_read_only.includes(f.column_name.toLowerCase());
+		let ro_checked = (ro_forced || ro_saved) ? "checked" : "";
 
 		// Pick List checkbox — restore from previous
 		let pl_checked = previous_pick_list.includes(f.column_name.toLowerCase()) ? "checked" : "";
@@ -1056,20 +1061,17 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 		let mod_ts_col = d.$wrapper.find(".mod-ts-radio:checked").val() || null;
 		let crt_ts_col = d.$wrapper.find(".crt-ts-radio:checked").val() || null;
 
-		let matching_cols = new Set();
-		d.$wrapper.find(".matching-field-checkbox:checked").each(function () {
-			matching_cols.add($(this).data("column"));
-		});
-
 		d.$wrapper.find(".read-only-checkbox").each(function () {
 			let col = $(this).data("column");
 			let is_virtual = $(this).data("virtual") == 1;
-			let should_auto = is_virtual || col === id_col || matching_cols.has(col) || col === mod_ts_col || col === crt_ts_col;
+			// Do not include matching fields — user may turn read-only off for those columns.
+			let should_force =
+				is_virtual || col === id_col || col === mod_ts_col || col === crt_ts_col;
 
-			if (should_auto) {
+			if (should_force) {
 				$(this).prop("checked", true).data("auto", 1).css({ opacity: "0.5" });
 			} else if ($(this).data("auto") == 1) {
-				// Was previously auto-checked but condition no longer applies — uncheck
+				// Was forced (e.g. previously ID/TS) but no longer — uncheck
 				$(this).prop("checked", false).data("auto", 0).css({ opacity: "" });
 			} else {
 				// Manual selection — leave as-is, restore opacity
