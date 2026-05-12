@@ -847,6 +847,80 @@ def _upsert_record(frappe_doctype, matching_keys, row_data):
 		frappe.flags.in_sync = False
 
 
+def refresh_frappe_doc_from_wp_after_sql_push(wp_table_doc, conn, doctype, wp_pk_value, column_mapping=None):
+	"""
+	SELECT one row from WordPress by the mirrored primary-key column and upsert into Frappe.
+
+	Intended to run after SQL Direct push so DB triggers and generated columns on WP are
+	reflected in Frappe. Uses ``frappe.flags.in_sync`` inside ``_upsert_record`` so live
+	write-back is not re-triggered.
+
+	Failures are logged only; they do not undo a successful SQL push.
+
+	Args:
+		wp_table_doc: WP Tables document
+		conn: Open PyMySQL connection (DictCursor)
+		doctype: Frappe DocType name
+		wp_pk_value: Value for ``name_field_column`` (stringified before query)
+		column_mapping: Optional pre-loaded mapping from ``load_column_mapping``
+	"""
+	if wp_pk_value is None:
+		return
+
+	wp_pk_value = str(wp_pk_value)
+	name_wp_col = wp_table_doc.name_field_column
+	table_name = wp_table_doc.table_name
+	if not name_wp_col or not table_name:
+		return
+
+	if column_mapping is None:
+		column_mapping = load_column_mapping(wp_table_doc)
+
+	wp_conn_doc = frappe.get_single("WordPress Connection")
+
+	try:
+		matching_keys = _get_matching_keys(wp_table_doc)
+	except Exception as e:
+		frappe.log_error(
+			title=f"Write-back refresh skipped: {doctype}",
+			message=str(e),
+		)
+		return
+
+	cursor = conn.cursor()
+	try:
+		cursor.execute(
+			f"SELECT * FROM `{table_name}` WHERE `{name_wp_col}` = %s LIMIT 1",
+			(wp_pk_value,),
+		)
+		row = cursor.fetchone()
+	finally:
+		cursor.close()
+
+	if not row:
+		frappe.log_error(
+			title="Write-back refresh: row not found in WordPress",
+			message=f"{table_name}.{name_wp_col}={wp_pk_value}",
+		)
+		return
+
+	try:
+		converted = _convert_row(row, wp_conn_doc.wp_timezone, column_mapping)
+	except Exception as e:
+		frappe.log_error(
+			title=f"Write-back refresh convert failed: {doctype} {wp_pk_value}",
+			message=str(e),
+		)
+		return
+	try:
+		_upsert_record(doctype, matching_keys, converted)
+	except Exception as e:
+		frappe.log_error(
+			title=f"Write-back refresh upsert failed: {doctype} {wp_pk_value}",
+			message=str(e),
+		)
+
+
 def _insert_record(frappe_doctype, row_data):
 	"""
 	Insert a new Frappe document.

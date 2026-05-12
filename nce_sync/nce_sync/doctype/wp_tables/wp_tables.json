@@ -22,6 +22,7 @@
     "auto_sync_active",
     "write_back_mode",
     "listen_for_changes",
+    "write_back_refresh_seconds",
     "sync_status_section",
     "last_synced",
     "last_sync_status",
@@ -163,6 +164,15 @@
       "fieldname": "listen_for_changes",
       "fieldtype": "Check",
       "label": "Listen For Changes"
+    },
+    {
+      "default": "2",
+      "depends_on": "eval:doc.listen_for_changes && doc.write_back_mode=='SQL Direct'",
+      "description": "After SQL write-back, wait this many seconds then re-read the row from WordPress into Frappe (covers triggers and computed columns). Use 0 for no wait.",
+      "fieldname": "write_back_refresh_seconds",
+      "fieldtype": "Int",
+      "label": "Write-back refresh delay (seconds)",
+      "non_negative": 1
     },
     {
       "fieldname": "sync_status_section",

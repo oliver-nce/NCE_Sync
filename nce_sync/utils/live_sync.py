@@ -25,8 +25,11 @@ them in order, so write-backs naturally run after any in-flight sync job
 finishes — no deferred queue or sync_in_progress flags needed.
 """
 
+import time
+
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 from nce_sync.utils.column_mapper import build_wp_row, load_column_mapping
 from nce_sync.utils.connections import wp_connection
@@ -119,6 +122,11 @@ def push_record_to_wp(wp_table_name, doctype, docname):
 	  → INSERT, read back LAST_INSERT_ID(), rename Frappe doc to real WP ID.
 	- Any other name         → existing record → UPDATE WHERE <pk> = name.
 
+	After a successful commit, waits ``write_back_refresh_seconds`` (WP Tables,
+	default 2, max 120; 0 = no wait) then SELECTs the row from WordPress and
+	upserts into Frappe under ``frappe.flags.in_sync`` so WP-side triggers and
+	computed columns appear without re-enqueueing write-back.
+
 	Auto-generated and primary-key WP columns are excluded from all writes.
 	Errors are written to Frappe Error Log and re-raised so the worker retries.
 	"""
@@ -162,6 +170,7 @@ def push_record_to_wp(wp_table_name, doctype, docname):
 	with wp_connection(wp_conn_doc) as conn:
 		try:
 			cursor = conn.cursor()
+			refresh_key = None
 
 			if is_new_record:
 				# INSERT new record, skip auto-generated and name columns
@@ -178,6 +187,7 @@ def push_record_to_wp(wp_table_name, doctype, docname):
 					# Rename Frappe doc: temp negative name -> real WP ID
 					old_name = frappe_doc.name
 					frappe.rename_doc(doctype, old_name, str(new_id), merge=False, ignore_permissions=True)
+					refresh_key = str(new_id)
 				conn.commit()
 			else:
 				# UPDATE existing record
@@ -188,6 +198,7 @@ def push_record_to_wp(wp_table_name, doctype, docname):
 
 				cursor.execute(sql, values)
 				conn.commit()
+				refresh_key = str(record_id)
 
 			cursor.close()
 		except Exception as e:
@@ -197,3 +208,26 @@ def push_record_to_wp(wp_table_name, doctype, docname):
 				message=str(e),
 			)
 			raise
+
+		raw_delay = getattr(wp_table_doc, "write_back_refresh_seconds", None)
+		delay_sec = 2 if raw_delay is None else cint(raw_delay)
+		if delay_sec > 0:
+			delay_sec = min(delay_sec, 120)
+			time.sleep(delay_sec)
+
+		if refresh_key:
+			try:
+				from nce_sync.utils.data_sync import refresh_frappe_doc_from_wp_after_sql_push
+
+				refresh_frappe_doc_from_wp_after_sql_push(
+					wp_table_doc,
+					conn,
+					doctype,
+					refresh_key,
+					column_mapping=column_mapping,
+				)
+			except Exception as refresh_err:
+				frappe.log_error(
+					title=f"Write-back refresh failed: {doctype} {refresh_key}",
+					message=str(refresh_err),
+				)
