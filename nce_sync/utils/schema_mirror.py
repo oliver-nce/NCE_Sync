@@ -1411,8 +1411,26 @@ def apply_field_settings(
 			field.label = label_map[fn]
 			changed = True
 
-		# Read Only
+		# Read Only — DocField value AND Property Setter overrides (Customize Form)
+		# can disagree: DocField may be 0 while a Property Setter still forces read_only
+		# in the desk. Remove setters when the field should be writable, and bump
+		# changed if we removed any so meta is re-saved.
 		should_ro = 1 if fn in read_only_fieldnames else 0
+		if fn not in read_only_fieldnames:
+			ps_names = frappe.get_all(
+				"Property Setter",
+				filters={
+					"doc_type": doctype_name,
+					"field_name": fn,
+					"property": "read_only",
+				},
+				pluck="name",
+			)
+			for psn in ps_names:
+				frappe.delete_doc("Property Setter", psn, force=True, ignore_permissions=True)
+			if ps_names:
+				changed = True
+
 		if field.read_only != should_ro:
 			field.read_only = should_ro
 			changed = True
@@ -1462,6 +1480,7 @@ def apply_field_settings(
 	if changes:
 		doctype_doc.save(ignore_permissions=True)
 		frappe.db.commit()
+		frappe.clear_cache(doctype=doctype_name)
 
 	return changes
 
