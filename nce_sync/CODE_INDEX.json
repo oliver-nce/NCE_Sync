@@ -33,13 +33,14 @@
       "sections": ["App Metadata", "Global CSS/JS", "Apps Screen"]
     },
     "nce_sync/api.py": {
-      "purpose": "Whitelisted endpoints: toggle auto-sync, table links grid, Excel export; sync_doctype_rows validates and enqueues targeted WP→Frappe row pulls on queue default",
+      "purpose": "Whitelisted endpoints: toggle auto-sync, table links grid, Excel export; sync_doctype_rows and sync_linked_doctype_rows enqueue targeted WP→Frappe jobs on queue default",
       "exports": [
         "toggle_auto_sync",
         "get_table_links_grid_data",
         "apply_table_link_changes",
         "export_all_to_excel",
-        "sync_doctype_rows"
+        "sync_doctype_rows",
+        "sync_linked_doctype_rows"
       ],
       "depends_on": [
         "nce_sync/nce_sync/doctype/wp_tables/",
@@ -106,7 +107,8 @@
         "sync_table",
         "get_frappe_fieldname",
         "build_reverse_mapping",
-        "run_sync_doctype_rows_job"
+        "run_sync_doctype_rows_job",
+        "run_sync_linked_doctype_rows_job"
       ],
       "private_helpers": [
         "_get_cutoff_timestamp",

@@ -1342,6 +1342,176 @@ def run_sync_doctype_rows_job(doctype, names, user=None):
 			clear_doctype_syncing(doctype)
 
 
+def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None):
+	"""
+	Background job: remove Frappe rows matching a Link filter, then re-pull matching rows from WP.
+
+	1. SELECT * FROM WP where the column mapped to ``link_field`` equals ``link_value``.
+	2. DELETE Frappe rows where ``link_field`` = ``link_value`` (``frappe.db.delete``).
+	3. Upsert each fetched WP row into Frappe (typically inserts after step 2).
+
+	Serializes on ``queue="default"`` and uses the same sync-busy gate as other WP→Frappe jobs.
+
+	Args:
+		doctype: Mirrored Frappe DocType name.
+		link_field: DocField name on ``doctype`` with fieldtype **Link** (stores linked doc ``name``).
+		link_value: Value in that Link field (normally the linked document ``name``).
+		user: User to receive completion toasts.
+	"""
+	from nce_sync.utils.sync_gate import clear_doctype_syncing, mark_doctype_syncing
+
+	user = user or frappe.session.user
+	label = None
+	gate_armed = False
+
+	try:
+		link_field = (link_field or "").strip()
+		link_value = cstr(link_value).strip() if link_value is not None else ""
+		if not link_field:
+			frappe.throw(_("link_field is required"))
+		if not link_value:
+			frappe.throw(_("link_value is required"))
+
+		meta = frappe.get_meta(doctype)
+		df = meta.get_field(link_field)
+		if not df:
+			frappe.throw(_("Field '{0}' not found on DocType '{1}'").format(link_field, doctype))
+		if df.fieldtype != "Link":
+			frappe.throw(
+				_("Field '{0}' must be a Link field (got {1})").format(link_field, df.fieldtype)
+			)
+
+		wp_table_matches = frappe.get_all(
+			"WP Tables",
+			filters={
+				"frappe_doctype": doctype,
+				"mirror_status": ["in", ["Mirrored", "Linked"]],
+			},
+			limit_page_length=1,
+			pluck="name",
+		)
+		if not wp_table_matches:
+			frappe.throw(
+				_("No WP Tables configuration found for DocType '{0}' with status Mirrored or Linked").format(
+					doctype
+				)
+			)
+
+		wp_table_doc = frappe.get_doc("WP Tables", wp_table_matches[0])
+		label = wp_table_doc.nce_name or wp_table_doc.table_name or doctype
+
+		if getattr(wp_table_doc, "doctype_source", "") == "Native" or not wp_table_doc.table_name:
+			frappe.throw(_("DocType '{0}' is not linked to a WordPress table").format(doctype))
+
+		wp_conn_doc = frappe.get_single("WordPress Connection")
+		if not wp_conn_doc.host:
+			frappe.throw(_("WordPress Connection not configured"))
+
+		column_mapping = load_column_mapping(wp_table_doc)
+		reverse_mapping = build_reverse_mapping(column_mapping)
+		wp_col = reverse_mapping.get(link_field)
+		if not wp_col:
+			frappe.throw(
+				_("No WordPress column mapped for Link field '{0}' on DocType '{1}'").format(
+					link_field, doctype
+				)
+			)
+
+		gate_armed = bool(doctype and wp_table_doc.mirror_status in ("Mirrored", "Linked"))
+		if gate_armed:
+			mark_doctype_syncing(doctype)
+
+		matching_keys = _get_matching_keys(wp_table_doc)
+
+		wp_rows = []
+		with wp_connection(wp_conn_doc) as conn:
+			ctx = SyncContext(
+				conn=conn,
+				wp_table_doc=wp_table_doc,
+				wp_conn_doc=wp_conn_doc,
+				frappe_doctype=doctype,
+				table_name=wp_table_doc.table_name,
+				wp_tz=wp_conn_doc.wp_timezone,
+				column_mapping=column_mapping,
+				reverse_mapping=reverse_mapping,
+				matching_keys=matching_keys,
+				sync_user=user,
+			)
+			cursor = conn.cursor()
+			try:
+				cursor.execute(
+					f"SELECT * FROM `{ctx.table_name}` WHERE `{wp_col}` = %s",
+					(link_value,),
+				)
+				wp_rows = cursor.fetchall()
+			finally:
+				cursor.close()
+
+		frappe_rows_before = frappe.db.count(doctype, filters={link_field: link_value})
+		frappe.db.delete(doctype, {link_field: link_value})
+		frappe.db.commit()
+
+		total_to_sync = len(wp_rows) if wp_rows else 1
+
+		def upsert_one(row):
+			converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping)
+			return _upsert_record(ctx.frappe_doctype, ctx.matching_keys, converted)
+
+		result = _batch_process_rows(wp_rows, upsert_one, ctx, total_to_sync)
+
+		frappe.db.commit()
+
+		summary_msg = _(
+			"Link sync ({0}): removed {1} row(s); fetched {2} from WordPress; "
+			"processed {3}, inserted {4}, skipped {5}."
+		).format(
+			label or doctype,
+			frappe_rows_before,
+			len(wp_rows),
+			result["rows_processed"],
+			result["rows_inserted"],
+			result["rows_skipped"],
+		)
+		skip_errors = result.get("skip_errors") or []
+		indicator = "orange" if (result["rows_skipped"] or skip_errors) else "green"
+		frappe.publish_realtime(
+			"msgprint",
+			{"message": summary_msg[:500], "indicator": indicator, "alert": True},
+			user=user,
+		)
+
+	except frappe.ValidationError as e:
+		frappe.db.commit()
+		frappe.publish_realtime(
+			"msgprint",
+			{
+				"message": f"{label or doctype}: Link sync failed — {cstr(e)[:200]}",
+				"indicator": "red",
+				"alert": True,
+			},
+			user=user,
+		)
+		raise
+
+	except Exception as e:
+		frappe.db.commit()
+		frappe.publish_realtime(
+			"msgprint",
+			{
+				"message": f"{label or doctype}: Link sync failed — {str(e)[:200]}",
+				"indicator": "red",
+				"alert": True,
+			},
+			user=user,
+		)
+		frappe.log_error(title=f"Link sync failed: {doctype}", message=frappe.get_traceback())
+		raise
+
+	finally:
+		if gate_armed:
+			clear_doctype_syncing(doctype)
+
+
 def _build_sync_summary(result, frappe_count):
 	"""
 	Build a human-readable sync summary and extract record counts from a

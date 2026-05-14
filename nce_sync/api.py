@@ -317,6 +317,100 @@ def sync_doctype_rows(doctype, names):
 	}
 
 
+@frappe.whitelist()
+def sync_linked_doctype_rows(doctype, link_field, link_value):
+	"""
+	Queue a job: delete existing Frappe rows for a Link filter, then re-insert from WordPress.
+
+	Frappe rows where ``link_field`` = ``link_value`` are removed. WordPress rows whose
+	mapped column for ``link_field`` equals ``link_value`` are then pulled and upserted.
+
+	Requires a **Link** DocField on ``doctype`` with a matching column in WP Tables mapping.
+	"""
+	from frappe.utils import cstr
+
+	from nce_sync.utils.column_mapper import build_reverse_mapping, load_column_mapping
+
+	if not frappe.has_permission(doctype, "read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	if not frappe.has_permission(doctype, "delete"):
+		frappe.throw(_("Delete permission required on {0}").format(doctype), frappe.PermissionError)
+
+	link_field = (link_field or "").strip()
+	link_value = cstr(link_value).strip() if link_value is not None else ""
+	if not link_field:
+		frappe.throw(_("link_field is required"))
+
+	if not link_value:
+		frappe.throw(_("link_value is required"))
+
+	meta = frappe.get_meta(doctype)
+	df = meta.get_field(link_field)
+	if not df:
+		frappe.throw(_("Field '{0}' not found on DocType '{1}'").format(link_field, doctype))
+	if df.fieldtype != "Link":
+		frappe.throw(_("Field '{0}' must be a Link field (got {1})").format(link_field, df.fieldtype))
+
+	wp_table_matches = frappe.get_all(
+		"WP Tables",
+		filters={
+			"frappe_doctype": doctype,
+			"mirror_status": ["in", ["Mirrored", "Linked"]],
+		},
+		limit_page_length=1,
+		pluck="name",
+	)
+	if not wp_table_matches:
+		frappe.throw(
+			_("No WP Tables configuration found for DocType '{0}' with status Mirrored or Linked").format(
+				doctype
+			)
+		)
+
+	wp_table_doc = frappe.get_doc("WP Tables", wp_table_matches[0])
+	if getattr(wp_table_doc, "doctype_source", "") == "Native" or not wp_table_doc.table_name:
+		frappe.throw(_("DocType '{0}' is not linked to a WordPress table").format(doctype))
+
+	wp_conn = frappe.get_single("WordPress Connection")
+	if not wp_conn.host:
+		frappe.throw(_("WordPress Connection not configured"))
+
+	reverse_mapping = build_reverse_mapping(load_column_mapping(wp_table_doc))
+	if not reverse_mapping.get(link_field):
+		frappe.throw(
+			_("No WordPress column mapped for Link field '{0}' on DocType '{1}'").format(
+				link_field, doctype
+			)
+		)
+
+	frappe.enqueue(
+		"nce_sync.utils.data_sync.run_sync_linked_doctype_rows_job",
+		queue="default",
+		timeout=3600,
+		doctype=doctype,
+		link_field=link_field,
+		link_value=link_value,
+		user=frappe.session.user,
+	)
+
+	frappe.msgprint(
+		_(
+			"Linked row sync queued for {0}: {1} = {2}. Rows will be rebuilt from WordPress."
+		).format(doctype, link_field, link_value),
+		indicator="blue",
+		alert=True,
+	)
+
+	return {
+		"queued": True,
+		"doctype": doctype,
+		"link_field": link_field,
+		"link_value": link_value,
+		"message": _("Queued on default worker queue"),
+	}
+
+
 def _build_excel_file(doctype, user):
 	"""Background job: build xlsx and send download URL via realtime."""
 	import io
