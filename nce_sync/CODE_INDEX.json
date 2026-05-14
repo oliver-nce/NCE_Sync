@@ -33,7 +33,7 @@
       "sections": ["App Metadata", "Global CSS/JS", "Apps Screen"]
     },
     "nce_sync/api.py": {
-      "purpose": "Whitelisted endpoints: toggle auto-sync, table links grid, Excel export; sync_doctype_rows / sync_linked_doctype_rows enqueue WP sync jobs on queue default and return trackable job_id (uuid) for get_job_status / RQ Job",
+      "purpose": "Whitelisted endpoints: toggle auto-sync, table links grid, Excel export; sync_doctype_rows / sync_linked_doctype_rows enqueue WP sync jobs (job_id, optional debug_trace → step log + copyable dialog and logger nce_sync.sync_trace)",
       "exports": [
         "toggle_auto_sync",
         "get_table_links_grid_data",
@@ -134,6 +134,15 @@
         "Sync strategies (timestamp / truncate-replace)",
         "Per-row failure isolation (savepoints)"
       ]
+    },
+    "nce_sync/utils/sync_trace.py": {
+      "purpose": "Optional PerfTrace for queued sync jobs when API debug is truthy; logs logger nce_sync.sync_trace and pushes copyable Desk msgprint (wide pre)",
+      "exports": [
+        "SyncTrace",
+        "truthy_debug"
+      ],
+      "depends_on": [],
+      "sections": []
     },
     "nce_sync/utils/live_sync.py": {
       "purpose": "Real-time Frappe→WordPress write-back entry point: wildcard on_update/after_insert handler. If frappe.flags.in_sync, returns (WP→Frappe sync in progress). Else if DocType is in listen map, enqueues run_write_back_for_doc on queue default. Implements push_record_to_wp for SQL Direct path (used via lazy import from write_back_dispatch).",

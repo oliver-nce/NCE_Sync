@@ -1190,7 +1190,7 @@ def run_sync_for_table(wp_table_name, user=None):
 		)
 
 
-def run_sync_doctype_rows_job(doctype, names, user=None):
+def run_sync_doctype_rows_job(doctype, names, user=None, debug=False):
 	"""
 	Background job: pull named rows from WordPress and upsert into Frappe.
 
@@ -1201,16 +1201,21 @@ def run_sync_doctype_rows_job(doctype, names, user=None):
 		doctype: Frappe DocType name (mirrored WP table).
 		names: List of Frappe document ``name`` values.
 		user: Recipient for completion toasts (from ``frappe.session.user`` when enqueued).
+		debug: If true, emit step timings to logger ``nce_sync.sync_trace`` and a copyable Desk dialog.
 	"""
 	from nce_sync.utils.sync_gate import clear_doctype_syncing, mark_doctype_syncing
+	from nce_sync.utils.sync_trace import SyncTrace, truthy_debug
 
 	user = user or frappe.session.user
+	tr = SyncTrace(truthy_debug(debug), "run_sync_doctype_rows_job", doctype)
 	label = None
 	gate_armed = False
+	tr.step("job start")
 
 	try:
 		if isinstance(names, str):
 			names = json.loads(names)
+		tr.step("parsed names payload")
 
 		if not isinstance(names, (list, tuple)):
 			frappe.throw(_("names must be a list"))
@@ -1218,6 +1223,7 @@ def run_sync_doctype_rows_job(doctype, names, user=None):
 		raw_names = [n for n in names if n is not None]
 		if not raw_names:
 			frappe.throw(_("No row names supplied"))
+		tr.step(f"name count={len(raw_names)} (after drop nulls)")
 
 		wp_table_matches = frappe.get_all(
 			"WP Tables",
@@ -1237,6 +1243,7 @@ def run_sync_doctype_rows_job(doctype, names, user=None):
 
 		wp_table_doc = frappe.get_doc("WP Tables", wp_table_matches[0])
 		label = wp_table_doc.nce_name or wp_table_doc.table_name or doctype
+		tr.step(f"loaded WP Tables row={wp_table_doc.name!r} table_name={wp_table_doc.table_name!r}")
 
 		if getattr(wp_table_doc, "doctype_source", "") == "Native" or not wp_table_doc.table_name:
 			frappe.throw(_("DocType '{0}' is not linked to a WordPress table").format(doctype))
@@ -1244,14 +1251,17 @@ def run_sync_doctype_rows_job(doctype, names, user=None):
 		wp_conn_doc = frappe.get_single("WordPress Connection")
 		if not wp_conn_doc.host:
 			frappe.throw(_("WordPress Connection not configured"))
+		tr.step("WordPress Connection OK")
 
 		gate_armed = bool(doctype and wp_table_doc.mirror_status in ("Mirrored", "Linked"))
 		if gate_armed:
 			mark_doctype_syncing(doctype)
+			tr.step("mark_doctype_syncing(True)")
 
 		matching_keys = _get_matching_keys(wp_table_doc)
 		column_mapping = load_column_mapping(wp_table_doc)
 		reverse_mapping = build_reverse_mapping(column_mapping)
+		tr.step(f"matching_keys={matching_keys!r}")
 
 		key_set = set()
 		missing_in_frappe = []
@@ -1267,8 +1277,10 @@ def run_sync_doctype_rows_job(doctype, names, user=None):
 					key_set.add(tuple(_normalize_key_value(rec.get(k)) for k in matching_keys))
 				else:
 					missing_in_frappe.append(str(n))
+		tr.step(f"key_set size={len(key_set)} missing_in_frappe={len(missing_in_frappe)}")
 
 		with wp_connection(wp_conn_doc) as conn:
+			tr.step("wp_connection entered")
 			ctx = SyncContext(
 				conn=conn,
 				wp_table_doc=wp_table_doc,
@@ -1282,6 +1294,7 @@ def run_sync_doctype_rows_job(doctype, names, user=None):
 				sync_user=user,
 			)
 			wp_rows = _fetch_rows_by_keys(ctx, key_set)
+			tr.step(f"_fetch_rows_by_keys returned rows={len(wp_rows)}")
 
 		total_to_sync = len(wp_rows) if wp_rows else 1
 
@@ -1289,9 +1302,16 @@ def run_sync_doctype_rows_job(doctype, names, user=None):
 			converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping)
 			return _upsert_record(ctx.frappe_doctype, ctx.matching_keys, converted)
 
+		tr.step("_batch_process_rows start")
 		result = _batch_process_rows(wp_rows, upsert_one, ctx, total_to_sync)
+		tr.step(
+			"_batch_process_rows done "
+			f"processed={result['rows_processed']} inserted={result['rows_inserted']} "
+			f"skipped={result['rows_skipped']}"
+		)
 
 		frappe.db.commit()
+		tr.step("frappe.db.commit() after upsert")
 
 		summary_msg = _("Row sync ({0}) — fetched {1}, processed {2}, inserted {3}, skipped {4}").format(
 			label or doctype,
@@ -1309,9 +1329,15 @@ def run_sync_doctype_rows_job(doctype, names, user=None):
 			{"message": summary_msg[:500], "indicator": indicator, "alert": True},
 			user=user,
 		)
+		tr.step("summary toast sent")
+		tr.publish_dialog(user, _("NCE Sync — row sync trace"), extra_footer=summary_msg[:2000])
 
 	except frappe.ValidationError as e:
 		frappe.db.commit()
+		tr.step(f"ValidationError: {cstr(e)[:500]}")
+		tr.publish_dialog(
+			user, _("NCE Sync — row sync trace (validation error)"), indicator="orange",
+		)
 		frappe.publish_realtime(
 			"msgprint",
 			{
@@ -1325,6 +1351,8 @@ def run_sync_doctype_rows_job(doctype, names, user=None):
 
 	except Exception as e:
 		frappe.db.commit()
+		tr.step(f"Exception: {str(e)[:800]}")
+		tr.publish_dialog(user, _("NCE Sync — row sync trace (error)"), indicator="red")
 		frappe.publish_realtime(
 			"msgprint",
 			{
@@ -1340,9 +1368,10 @@ def run_sync_doctype_rows_job(doctype, names, user=None):
 	finally:
 		if gate_armed:
 			clear_doctype_syncing(doctype)
+		tr.step(f"finally gate_armed={gate_armed}")
 
 
-def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None):
+def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None, debug=False):
 	"""
 	Background job: remove Frappe rows matching a Link filter, then re-pull matching rows from WP.
 
@@ -1357,12 +1386,16 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None)
 		link_field: DocField name on ``doctype`` with fieldtype **Link** (stores linked doc ``name``).
 		link_value: Value in that Link field (normally the linked document ``name``).
 		user: User to receive completion toasts.
+		debug: If true, emit step timings to logger ``nce_sync.sync_trace`` and a copyable Desk dialog.
 	"""
 	from nce_sync.utils.sync_gate import clear_doctype_syncing, mark_doctype_syncing
+	from nce_sync.utils.sync_trace import SyncTrace, truthy_debug
 
 	user = user or frappe.session.user
+	tr = SyncTrace(truthy_debug(debug), "run_sync_linked_doctype_rows_job", doctype)
 	label = None
 	gate_armed = False
+	tr.step("job start")
 
 	try:
 		link_field = (link_field or "").strip()
@@ -1371,6 +1404,7 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None)
 			frappe.throw(_("link_field is required"))
 		if not link_value:
 			frappe.throw(_("link_value is required"))
+		tr.step(f"link_field={link_field!r} link_value={link_value!r}")
 
 		meta = frappe.get_meta(doctype)
 		df = meta.get_field(link_field)
@@ -1380,6 +1414,7 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None)
 			frappe.throw(
 				_("Field '{0}' must be a Link field (got {1})").format(link_field, df.fieldtype)
 			)
+		tr.step("meta / Link field OK")
 
 		wp_table_matches = frappe.get_all(
 			"WP Tables",
@@ -1399,6 +1434,7 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None)
 
 		wp_table_doc = frappe.get_doc("WP Tables", wp_table_matches[0])
 		label = wp_table_doc.nce_name or wp_table_doc.table_name or doctype
+		tr.step(f"loaded WP Tables row={wp_table_doc.name!r}")
 
 		if getattr(wp_table_doc, "doctype_source", "") == "Native" or not wp_table_doc.table_name:
 			frappe.throw(_("DocType '{0}' is not linked to a WordPress table").format(doctype))
@@ -1406,6 +1442,7 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None)
 		wp_conn_doc = frappe.get_single("WordPress Connection")
 		if not wp_conn_doc.host:
 			frappe.throw(_("WordPress Connection not configured"))
+		tr.step("WordPress Connection OK")
 
 		column_mapping = load_column_mapping(wp_table_doc)
 		reverse_mapping = build_reverse_mapping(column_mapping)
@@ -1416,15 +1453,19 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None)
 					link_field, doctype
 				)
 			)
+		tr.step(f"WP column for link_field: {wp_col!r}")
 
 		gate_armed = bool(doctype and wp_table_doc.mirror_status in ("Mirrored", "Linked"))
 		if gate_armed:
 			mark_doctype_syncing(doctype)
+			tr.step("mark_doctype_syncing(True)")
 
 		matching_keys = _get_matching_keys(wp_table_doc)
+		tr.step(f"matching_keys={matching_keys!r}")
 
 		wp_rows = []
 		with wp_connection(wp_conn_doc) as conn:
+			tr.step("wp_connection entered (SELECT phase)")
 			ctx = SyncContext(
 				conn=conn,
 				wp_table_doc=wp_table_doc,
@@ -1444,12 +1485,15 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None)
 					(link_value,),
 				)
 				wp_rows = cursor.fetchall()
+				tr.step(f"WP SELECT returned {len(wp_rows)} row(s)")
 			finally:
 				cursor.close()
 
 		frappe_rows_before = frappe.db.count(doctype, filters={link_field: link_value})
+		tr.step(f"Frappe rows to delete (count)= {frappe_rows_before}")
 		frappe.db.delete(doctype, {link_field: link_value})
 		frappe.db.commit()
+		tr.step("frappe.db.delete + commit")
 
 		total_to_sync = len(wp_rows) if wp_rows else 1
 
@@ -1457,9 +1501,16 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None)
 			converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping)
 			return _upsert_record(ctx.frappe_doctype, ctx.matching_keys, converted)
 
+		tr.step("_batch_process_rows start")
 		result = _batch_process_rows(wp_rows, upsert_one, ctx, total_to_sync)
+		tr.step(
+			"_batch_process_rows done "
+			f"processed={result['rows_processed']} inserted={result['rows_inserted']} "
+			f"skipped={result['rows_skipped']}"
+		)
 
 		frappe.db.commit()
+		tr.step("frappe.db.commit() after upsert")
 
 		summary_msg = _(
 			"Link sync ({0}): removed {1} row(s); fetched {2} from WordPress; "
@@ -1479,9 +1530,15 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None)
 			{"message": summary_msg[:500], "indicator": indicator, "alert": True},
 			user=user,
 		)
+		tr.step("summary toast sent")
+		tr.publish_dialog(user, _("NCE Sync — link sync trace"), extra_footer=summary_msg[:2000])
 
 	except frappe.ValidationError as e:
 		frappe.db.commit()
+		tr.step(f"ValidationError: {cstr(e)[:500]}")
+		tr.publish_dialog(
+			user, _("NCE Sync — link sync trace (validation error)"), indicator="orange",
+		)
 		frappe.publish_realtime(
 			"msgprint",
 			{
@@ -1495,6 +1552,8 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None)
 
 	except Exception as e:
 		frappe.db.commit()
+		tr.step(f"Exception: {str(e)[:800]}")
+		tr.publish_dialog(user, _("NCE Sync — link sync trace (error)"), indicator="red")
 		frappe.publish_realtime(
 			"msgprint",
 			{
@@ -1510,6 +1569,7 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None)
 	finally:
 		if gate_armed:
 			clear_doctype_syncing(doctype)
+		tr.step(f"finally gate_armed={gate_armed}")
 
 
 def _build_sync_summary(result, frappe_count):

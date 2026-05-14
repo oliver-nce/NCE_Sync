@@ -8,6 +8,8 @@ API endpoints for NCE Sync app.
 import frappe
 from frappe import _
 
+from nce_sync.utils.sync_trace import truthy_debug
+
 
 @frappe.whitelist()
 def toggle_auto_sync(table_names):
@@ -249,7 +251,7 @@ def _enqueue_nce_sync_job(method: str, **kwargs):
 
 
 @frappe.whitelist()
-def sync_doctype_rows(doctype, names):
+def sync_doctype_rows(doctype, names, debug=False):
 	"""
 	Queue a job to fetch listed rows from WordPress and upsert into Frappe.
 
@@ -258,9 +260,10 @@ def sync_doctype_rows(doctype, names):
 	Args:
 		doctype (str): Frappe DocType name.
 		names (list | str): List of ``name`` values or JSON-encoded list.
+		debug: If truthy (``1``, ``"true"``), worker logs each step and shows a copyable trace dialog.
 
 	Returns:
-		dict: ``queued``, ``doctype``, ``row_count``, ``job_id``, and ``message``.
+		dict: ``queued``, ``doctype``, ``row_count``, ``job_id``, ``debug_trace``, ``message``.
 	"""
 	import json
 
@@ -304,11 +307,13 @@ def sync_doctype_rows(doctype, names):
 	if not wp_conn.host:
 		frappe.throw(_("WordPress Connection not configured"))
 
+	debug_trace = truthy_debug(debug)
 	job_id = _enqueue_nce_sync_job(
 		"nce_sync.utils.data_sync.run_sync_doctype_rows_job",
 		doctype=doctype,
 		names=list(raw_names),
 		user=frappe.session.user,
+		debug=debug_trace,
 	)
 
 	frappe.msgprint(
@@ -325,12 +330,13 @@ def sync_doctype_rows(doctype, names):
 		"doctype": doctype,
 		"row_count": len(raw_names),
 		"job_id": job_id,
+		"debug_trace": debug_trace,
 		"message": _("Queued on default worker queue"),
 	}
 
 
 @frappe.whitelist()
-def sync_linked_doctype_rows(doctype, link_field, link_value):
+def sync_linked_doctype_rows(doctype, link_field, link_value, debug=False):
 	"""
 	Queue a job: delete existing Frappe rows for a Link filter, then re-insert from WordPress.
 
@@ -339,8 +345,11 @@ def sync_linked_doctype_rows(doctype, link_field, link_value):
 
 	Requires a **Link** DocField on ``doctype`` with a matching column in WP Tables mapping.
 
+	Args:
+		debug: If truthy (``1``, ``"true"``), worker logs each step and shows a copyable trace dialog.
+
 	Returns:
-		dict: ``queued``, ``doctype``, ``link_field``, ``link_value``, ``job_id``, ``message``.
+		dict: ``queued``, ``doctype``, ``link_field``, ``link_value``, ``job_id``, ``debug_trace``, ``message``.
 	"""
 	from frappe.utils import cstr
 
@@ -399,12 +408,14 @@ def sync_linked_doctype_rows(doctype, link_field, link_value):
 			)
 		)
 
+	debug_trace = truthy_debug(debug)
 	job_id = _enqueue_nce_sync_job(
 		"nce_sync.utils.data_sync.run_sync_linked_doctype_rows_job",
 		doctype=doctype,
 		link_field=link_field,
 		link_value=link_value,
 		user=frappe.session.user,
+		debug=debug_trace,
 	)
 
 	frappe.msgprint(
@@ -421,6 +432,7 @@ def sync_linked_doctype_rows(doctype, link_field, link_value):
 		"link_field": link_field,
 		"link_value": link_value,
 		"job_id": job_id,
+		"debug_trace": debug_trace,
 		"message": _("Queued on default worker queue"),
 	}
 
