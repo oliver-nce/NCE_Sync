@@ -235,6 +235,88 @@ def export_all_to_excel(doctype):
 	return total
 
 
+@frappe.whitelist()
+def sync_doctype_rows(doctype, names):
+	"""
+	Queue a job to fetch listed rows from WordPress and upsert into Frappe.
+
+	Runs on the ``default`` queue (serialized with scheduled table sync).
+
+	Args:
+		doctype (str): Frappe DocType name.
+		names (list | str): List of ``name`` values or JSON-encoded list.
+
+	Returns:
+		dict: ``queued``, ``doctype``, ``row_count``, and a short ``message``.
+	"""
+	import json
+
+	if not frappe.has_permission(doctype, "read"):
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	if isinstance(names, str):
+		names = json.loads(names)
+
+	if not isinstance(names, (list, tuple)):
+		frappe.throw(_("names must be a list"))
+
+	if not names:
+		frappe.throw(_("No rows specified"))
+
+	raw_names = [n for n in names if n is not None]
+	if not raw_names:
+		frappe.throw(_("No row names supplied"))
+
+	wp_table_matches = frappe.get_all(
+		"WP Tables",
+		filters={
+			"frappe_doctype": doctype,
+			"mirror_status": ["in", ["Mirrored", "Linked"]],
+		},
+		limit_page_length=1,
+		pluck="name",
+	)
+	if not wp_table_matches:
+		frappe.throw(
+			_("No WP Tables configuration found for DocType '{0}' with status Mirrored or Linked").format(
+				doctype
+			)
+		)
+
+	wp_table_doc = frappe.get_doc("WP Tables", wp_table_matches[0])
+	if getattr(wp_table_doc, "doctype_source", "") == "Native" or not wp_table_doc.table_name:
+		frappe.throw(_("DocType '{0}' is not linked to a WordPress table").format(doctype))
+
+	wp_conn = frappe.get_single("WordPress Connection")
+	if not wp_conn.host:
+		frappe.throw(_("WordPress Connection not configured"))
+
+	frappe.enqueue(
+		"nce_sync.utils.data_sync.run_sync_doctype_rows_job",
+		queue="default",
+		timeout=3600,
+		doctype=doctype,
+		names=list(raw_names),
+		user=frappe.session.user,
+	)
+
+	frappe.msgprint(
+		_(
+			"Row sync queued for {0} ({1} name(s)); it runs on the same queue as table sync "
+			"and you will get a toast when it finishes."
+		).format(doctype, len(raw_names)),
+		indicator="blue",
+		alert=True,
+	)
+
+	return {
+		"queued": True,
+		"doctype": doctype,
+		"row_count": len(raw_names),
+		"message": _("Queued on default worker queue"),
+	}
+
+
 def _build_excel_file(doctype, user):
 	"""Background job: build xlsx and send download URL via realtime."""
 	import io

@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional
 import frappe
 import pytz
 from frappe import _
-from frappe.utils import now_datetime
+from frappe.utils import cstr, now_datetime
 
 from nce_sync.utils.column_mapper import (
 	build_reverse_mapping,
@@ -1188,6 +1188,158 @@ def run_sync_for_table(wp_table_name, user=None):
 			doctype="WP Tables",
 			docname=wp_table_name,
 		)
+
+
+def run_sync_doctype_rows_job(doctype, names, user=None):
+	"""
+	Background job: pull named rows from WordPress and upsert into Frappe.
+
+	Serializes with scheduled/manual table sync (``queue="default"``) and uses the
+	same sync-busy gate as full table sync.
+
+	Args:
+		doctype: Frappe DocType name (mirrored WP table).
+		names: List of Frappe document ``name`` values.
+		user: Recipient for completion toasts (from ``frappe.session.user`` when enqueued).
+	"""
+	from nce_sync.utils.sync_gate import clear_doctype_syncing, mark_doctype_syncing
+
+	user = user or frappe.session.user
+	label = None
+	gate_armed = False
+
+	try:
+		if isinstance(names, str):
+			names = json.loads(names)
+
+		if not isinstance(names, (list, tuple)):
+			frappe.throw(_("names must be a list"))
+
+		raw_names = [n for n in names if n is not None]
+		if not raw_names:
+			frappe.throw(_("No row names supplied"))
+
+		wp_table_matches = frappe.get_all(
+			"WP Tables",
+			filters={
+				"frappe_doctype": doctype,
+				"mirror_status": ["in", ["Mirrored", "Linked"]],
+			},
+			limit_page_length=1,
+			pluck="name",
+		)
+		if not wp_table_matches:
+			frappe.throw(
+				_("No WP Tables configuration found for DocType '{0}' with status Mirrored or Linked").format(
+					doctype
+				)
+			)
+
+		wp_table_doc = frappe.get_doc("WP Tables", wp_table_matches[0])
+		label = wp_table_doc.nce_name or wp_table_doc.table_name or doctype
+
+		if getattr(wp_table_doc, "doctype_source", "") == "Native" or not wp_table_doc.table_name:
+			frappe.throw(_("DocType '{0}' is not linked to a WordPress table").format(doctype))
+
+		wp_conn_doc = frappe.get_single("WordPress Connection")
+		if not wp_conn_doc.host:
+			frappe.throw(_("WordPress Connection not configured"))
+
+		gate_armed = bool(doctype and wp_table_doc.mirror_status in ("Mirrored", "Linked"))
+		if gate_armed:
+			mark_doctype_syncing(doctype)
+
+		matching_keys = _get_matching_keys(wp_table_doc)
+		column_mapping = load_column_mapping(wp_table_doc)
+		reverse_mapping = build_reverse_mapping(column_mapping)
+
+		key_set = set()
+		missing_in_frappe = []
+
+		if matching_keys == ["name"]:
+			for n in raw_names:
+				key_set.add((str(n),))
+		else:
+			for n in raw_names:
+				row_kv = frappe.db.get_values(doctype, str(n), matching_keys, as_dict=True)
+				if row_kv:
+					rec = row_kv[0]
+					key_set.add(tuple(_normalize_key_value(rec.get(k)) for k in matching_keys))
+				else:
+					missing_in_frappe.append(str(n))
+
+		with wp_connection(wp_conn_doc) as conn:
+			ctx = SyncContext(
+				conn=conn,
+				wp_table_doc=wp_table_doc,
+				wp_conn_doc=wp_conn_doc,
+				frappe_doctype=doctype,
+				table_name=wp_table_doc.table_name,
+				wp_tz=wp_conn_doc.wp_timezone,
+				column_mapping=column_mapping,
+				reverse_mapping=reverse_mapping,
+				matching_keys=matching_keys,
+				sync_user=user,
+			)
+			wp_rows = _fetch_rows_by_keys(ctx, key_set)
+
+		total_to_sync = len(wp_rows) if wp_rows else 1
+
+		def upsert_one(row):
+			converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping)
+			return _upsert_record(ctx.frappe_doctype, ctx.matching_keys, converted)
+
+		result = _batch_process_rows(wp_rows, upsert_one, ctx, total_to_sync)
+
+		frappe.db.commit()
+
+		summary_msg = _("Row sync ({0}) — fetched {1}, processed {2}, inserted {3}, skipped {4}").format(
+			label or doctype,
+			len(wp_rows),
+			result["rows_processed"],
+			result["rows_inserted"],
+			result["rows_skipped"],
+		)
+		if missing_in_frappe:
+			summary_msg = f"{summary_msg} {_('Skipping {0} name(s) not found in Frappe for composite keys.').format(len(missing_in_frappe))}"
+		skip_errors = result.get("skip_errors") or []
+		indicator = "orange" if (result["rows_skipped"] or skip_errors) else "green"
+		frappe.publish_realtime(
+			"msgprint",
+			{"message": summary_msg[:500], "indicator": indicator, "alert": True},
+			user=user,
+		)
+
+	except frappe.ValidationError as e:
+		frappe.db.commit()
+		frappe.publish_realtime(
+			"msgprint",
+			{
+				"message": f"{label or doctype}: Row sync failed — {cstr(e)[:200]}",
+				"indicator": "red",
+				"alert": True,
+			},
+			user=user,
+		)
+		raise
+
+	except Exception as e:
+		frappe.db.commit()
+		frappe.publish_realtime(
+			"msgprint",
+			{
+				"message": f"{label or doctype}: Row sync failed — {str(e)[:200]}",
+				"indicator": "red",
+				"alert": True,
+			},
+			user=user,
+		)
+		frappe.log_error(title=f"Row sync failed: {doctype}", message=frappe.get_traceback())
+		raise
+
+	finally:
+		if gate_armed:
+			clear_doctype_syncing(doctype)
 
 
 def _build_sync_summary(result, frappe_count):
