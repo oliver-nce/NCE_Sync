@@ -98,18 +98,19 @@ def on_record_change(doc, method):
 
 	wp_table_name = listen_map[doc.doctype]
 
-	job = frappe.enqueue(
+	from uuid import uuid4
+	job_id = str(uuid4())
+	frappe.enqueue(
 		run_write_back_for_doc,
 		wp_table_name=wp_table_name,
 		doctype=doc.doctype,
 		docname=doc.name,
 		queue="default",
-		is_async=True,
+		job_id=job_id,
 	)
-	if job is not None and hasattr(job, "id"):
-		if not hasattr(frappe.local, "nce_sync_queued_job_ids"):
-			frappe.local.nce_sync_queued_job_ids = []
-		frappe.local.nce_sync_queued_job_ids.append(job.id)
+	if not hasattr(frappe.local, "nce_sync_queued_job_ids"):
+		frappe.local.nce_sync_queued_job_ids = []
+	frappe.local.nce_sync_queued_job_ids.append(job_id)
 
 
 # ---------------------------------------------------------------------------
