@@ -18,6 +18,7 @@
     "sync_settings_section",
     "sync_direction",
     "sync_method",
+    "literal_datetime_values",
     "column_break_sync",
     "auto_sync_active",
     "write_back_mode",
@@ -137,6 +138,13 @@
       "default": "TS Compare",
       "depends_on": "eval:doc.sync_direction=='WP to Frappe'",
       "description": "Metadata only in Phase 1"
+    },
+    {
+      "default": "0",
+      "description": "Skip timezone conversion on sync \u2014 store WP datetime values byte-for-byte in Frappe. Use for wall-clock times (event/session times) that must appear identical in both DBs. Leave off for tables storing true UTC instants.",
+      "fieldname": "literal_datetime_values",
+      "fieldtype": "Check",
+      "label": "Literal Datetime Values"
     },
     {
       "fieldname": "column_break_sync",

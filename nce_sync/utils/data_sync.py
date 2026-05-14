@@ -61,6 +61,9 @@ class SyncContext:
 		frappe_ts_field: Frappe fieldname for the modified timestamp.
 		frappe_create_ts_field: Frappe fieldname for the created timestamp.
 		sync_user: Username to target for realtime progress toasts.
+		literal_datetimes: If True, datetime values pass through unchanged
+			(no WP↔Frappe TZ conversion). Driven by the
+			``literal_datetime_values`` checkbox on WP Tables.
 	"""
 
 	conn: Any
@@ -77,6 +80,7 @@ class SyncContext:
 	frappe_ts_field: Optional[str] = None
 	frappe_create_ts_field: Optional[str] = None
 	sync_user: Optional[str] = None
+	literal_datetimes: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -225,6 +229,7 @@ def sync_table(wp_table_doc):
 			frappe_ts_field=frappe_ts_field,
 			frappe_create_ts_field=frappe_create_ts_field,
 			sync_user=getattr(wp_table_doc, "_sync_user", None),
+			literal_datetimes=bool(getattr(wp_table_doc, "literal_datetime_values", 0)),
 		)
 
 		strategy = SYNC_STRATEGIES.get(sync_method)
@@ -363,7 +368,7 @@ def _get_wp_key_set(ctx):
 	# Build set of normalized key tuples
 	wp_key_set = set()
 	for row in wp_rows:
-		converted_row = _convert_row(row, None, ctx.column_mapping)
+		converted_row = _convert_row(row, None, ctx.column_mapping, ctx.literal_datetimes)
 		key_tuple = tuple(_normalize_key_value(converted_row.get(k)) for k in ctx.matching_keys)
 		wp_key_set.add(key_tuple)
 
@@ -411,6 +416,11 @@ def _get_cutoff_timestamp(ctx):
 		max_ts = datetime.fromisoformat(max_ts)
 
 	cutoff = max_ts
+
+	# If the table is configured for literal datetimes, the Frappe value is
+	# already in the WP TZ byte-for-byte — no conversion needed.
+	if ctx.literal_datetimes:
+		return cutoff
 
 	# Convert from Frappe TZ to WP TZ for the query
 	return convert_frappe_ts_to_wp_tz(cutoff, ctx.wp_tz)
@@ -555,7 +565,7 @@ def _fetch_rows_by_keys(ctx, key_set):
 
 	result = []
 	for row in all_rows:
-		converted = _convert_row(row, None, ctx.column_mapping)
+		converted = _convert_row(row, None, ctx.column_mapping, ctx.literal_datetimes)
 		key_tuple = tuple(_normalize_key_value(converted.get(k)) for k in ctx.matching_keys)
 		if key_tuple in key_set:
 			result.append(row)
@@ -654,7 +664,7 @@ def _sync_ts_compare(ctx):
 	total_to_sync = len(changed_rows) + len(missing_rows)
 
 	def upsert_one(row):
-		converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping)
+		converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping, ctx.literal_datetimes)
 		return _upsert_record(ctx.frappe_doctype, ctx.matching_keys, converted)
 
 	result_changed = _batch_process_rows(changed_rows, upsert_one, ctx, total_to_sync)
@@ -697,7 +707,7 @@ def _collect_rows_to_sync(ctx, wp_key_set, frappe_key_set):
 	# Build set of keys already covered by the TS-changed fetch to avoid double-processing
 	changed_keys = set()
 	for row in changed_rows:
-		converted = _convert_row(row, None, ctx.column_mapping)
+		converted = _convert_row(row, None, ctx.column_mapping, ctx.literal_datetimes)
 		key_tuple = tuple(_normalize_key_value(converted.get(k)) for k in ctx.matching_keys)
 		changed_keys.add(key_tuple)
 
@@ -735,7 +745,7 @@ def _sync_truncate_replace(ctx):
 
 	# Step 3: Insert all rows via shared batch processor (with in_sync flag)
 	def insert_one(row):
-		converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping)
+		converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping, ctx.literal_datetimes)
 		_insert_record(ctx.frappe_doctype, converted)
 		return True  # Always a new insert
 
@@ -755,11 +765,12 @@ def _sync_truncate_replace(ctx):
 	}
 
 
-def _convert_row(row, wp_tz, column_mapping=None):
+def _convert_row(row, wp_tz, column_mapping=None, literal_datetimes=False):
 	"""
 	Convert a WordPress row for insertion into Frappe:
 	- Maps WP column names to Frappe fieldnames using the stored mapping
-	- Converts datetime fields from WP timezone to Frappe timezone
+	- Converts datetime fields from WP timezone to Frappe timezone, unless
+	  ``literal_datetimes`` is True (then datetimes pass through unchanged).
 
 	Args:
 		row: dict of column values from WordPress
@@ -767,6 +778,8 @@ def _convert_row(row, wp_tz, column_mapping=None):
 		column_mapping: dict mapping WP column names to Frappe fieldnames
 		                (can be old format: {wp_col: fieldname} or
 		                 new format: {wp_col: {fieldname: ..., is_virtual: ...}})
+		literal_datetimes: When True, skip the WP→Frappe TZ conversion so
+		                   the stored value byte-for-byte matches the WP value.
 
 	Returns:
 		dict with Frappe fieldnames as keys
@@ -787,13 +800,10 @@ def _convert_row(row, wp_tz, column_mapping=None):
 		frappe_key = get_frappe_fieldname(wp_key, column_mapping)
 
 		if isinstance(value, datetime):
-			result = _convert_wp_ts_to_frappe_tz(value, wp_tz)
-			if wp_key == "date_time":  # TEMP DIAG
-				frappe.log_error(
-					title="TZ DIAG date_time",
-					message=f"wp_tz={wp_tz!r}  sys_tz={frappe.utils.get_system_timezone()!r}  wp_raw={value!r}  frappe_stored={result!r}"
-				)
-			converted[frappe_key] = result
+			if literal_datetimes:
+				converted[frappe_key] = value
+			else:
+				converted[frappe_key] = _convert_wp_ts_to_frappe_tz(value, wp_tz)
 		elif frappe_key == "name" and value is not None:
 			# Frappe name is always varchar — cast to str so integer PKs
 			# (e.g. WP auto_increment id) match correctly on subsequent syncs
@@ -911,7 +921,8 @@ def refresh_frappe_doc_from_wp_after_sql_push(wp_table_doc, conn, doctype, wp_pk
 		return
 
 	try:
-		converted = _convert_row(row, wp_conn_doc.wp_timezone, column_mapping)
+		literal_dt = bool(getattr(wp_table_doc, "literal_datetime_values", 0))
+		converted = _convert_row(row, wp_conn_doc.wp_timezone, column_mapping, literal_dt)
 	except Exception as e:
 		frappe.log_error(
 			title=f"Write-back refresh convert failed: {doctype} {wp_pk_value}",
@@ -1298,6 +1309,7 @@ def run_sync_doctype_rows_job(doctype, names, user=None, debug=False):
 				reverse_mapping=reverse_mapping,
 				matching_keys=matching_keys,
 				sync_user=user,
+				literal_datetimes=bool(getattr(wp_table_doc, "literal_datetime_values", 0)),
 			)
 			wp_rows = _fetch_rows_by_keys(ctx, key_set)
 			tr.step(f"_fetch_rows_by_keys returned rows={len(wp_rows)}")
@@ -1305,7 +1317,7 @@ def run_sync_doctype_rows_job(doctype, names, user=None, debug=False):
 		total_to_sync = len(wp_rows) if wp_rows else 1
 
 		def upsert_one(row):
-			converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping)
+			converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping, ctx.literal_datetimes)
 			return _upsert_record(ctx.frappe_doctype, ctx.matching_keys, converted)
 
 		tr.step("_batch_process_rows start")
@@ -1483,6 +1495,7 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None,
 				reverse_mapping=reverse_mapping,
 				matching_keys=matching_keys,
 				sync_user=user,
+				literal_datetimes=bool(getattr(wp_table_doc, "literal_datetime_values", 0)),
 			)
 			cursor = conn.cursor()
 			try:
@@ -1504,7 +1517,7 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None,
 		total_to_sync = len(wp_rows) if wp_rows else 1
 
 		def upsert_one(row):
-			converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping)
+			converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping, ctx.literal_datetimes)
 			return _upsert_record(ctx.frappe_doctype, ctx.matching_keys, converted)
 
 		tr.step("_batch_process_rows start")
