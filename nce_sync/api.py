@@ -235,6 +235,19 @@ def export_all_to_excel(doctype):
 	return total
 
 
+def _enqueue_nce_sync_job(method: str, **kwargs):
+	"""Return a stable RQ job id for polling (e.g. ``get_job_status`` on the same site).
+
+	``job_id`` is passed to ``frappe.enqueue``; Frappe stores it namespaced per site.
+	Use ``frappe.utils.background_jobs.get_job_status(job_id)`` or Desk Background Jobs / RQ Job.
+	"""
+	from uuid import uuid4
+
+	job_id = str(uuid4())
+	frappe.enqueue(method, queue="default", timeout=3600, job_id=job_id, **kwargs)
+	return job_id
+
+
 @frappe.whitelist()
 def sync_doctype_rows(doctype, names):
 	"""
@@ -247,7 +260,7 @@ def sync_doctype_rows(doctype, names):
 		names (list | str): List of ``name`` values or JSON-encoded list.
 
 	Returns:
-		dict: ``queued``, ``doctype``, ``row_count``, and a short ``message``.
+		dict: ``queued``, ``doctype``, ``row_count``, ``job_id``, and ``message``.
 	"""
 	import json
 
@@ -291,10 +304,8 @@ def sync_doctype_rows(doctype, names):
 	if not wp_conn.host:
 		frappe.throw(_("WordPress Connection not configured"))
 
-	frappe.enqueue(
+	job_id = _enqueue_nce_sync_job(
 		"nce_sync.utils.data_sync.run_sync_doctype_rows_job",
-		queue="default",
-		timeout=3600,
 		doctype=doctype,
 		names=list(raw_names),
 		user=frappe.session.user,
@@ -313,6 +324,7 @@ def sync_doctype_rows(doctype, names):
 		"queued": True,
 		"doctype": doctype,
 		"row_count": len(raw_names),
+		"job_id": job_id,
 		"message": _("Queued on default worker queue"),
 	}
 
@@ -326,6 +338,9 @@ def sync_linked_doctype_rows(doctype, link_field, link_value):
 	mapped column for ``link_field`` equals ``link_value`` are then pulled and upserted.
 
 	Requires a **Link** DocField on ``doctype`` with a matching column in WP Tables mapping.
+
+	Returns:
+		dict: ``queued``, ``doctype``, ``link_field``, ``link_value``, ``job_id``, ``message``.
 	"""
 	from frappe.utils import cstr
 
@@ -384,10 +399,8 @@ def sync_linked_doctype_rows(doctype, link_field, link_value):
 			)
 		)
 
-	frappe.enqueue(
+	job_id = _enqueue_nce_sync_job(
 		"nce_sync.utils.data_sync.run_sync_linked_doctype_rows_job",
-		queue="default",
-		timeout=3600,
 		doctype=doctype,
 		link_field=link_field,
 		link_value=link_value,
@@ -407,6 +420,7 @@ def sync_linked_doctype_rows(doctype, link_field, link_value):
 		"doctype": doctype,
 		"link_field": link_field,
 		"link_value": link_value,
+		"job_id": job_id,
 		"message": _("Queued on default worker queue"),
 	}
 

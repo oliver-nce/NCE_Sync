@@ -33,7 +33,7 @@
       "sections": ["App Metadata", "Global CSS/JS", "Apps Screen"]
     },
     "nce_sync/api.py": {
-      "purpose": "Whitelisted endpoints: toggle auto-sync, table links grid, Excel export; sync_doctype_rows and sync_linked_doctype_rows enqueue targeted WP→Frappe jobs on queue default",
+      "purpose": "Whitelisted endpoints: toggle auto-sync, table links grid, Excel export; sync_doctype_rows / sync_linked_doctype_rows enqueue WP sync jobs on queue default and return trackable job_id (uuid) for get_job_status / RQ Job",
       "exports": [
         "toggle_auto_sync",
         "get_table_links_grid_data",
