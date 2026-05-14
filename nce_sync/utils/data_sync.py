@@ -787,7 +787,13 @@ def _convert_row(row, wp_tz, column_mapping=None):
 		frappe_key = get_frappe_fieldname(wp_key, column_mapping)
 
 		if isinstance(value, datetime):
-			converted[frappe_key] = _convert_wp_ts_to_frappe_tz(value, wp_tz)
+			result = _convert_wp_ts_to_frappe_tz(value, wp_tz)
+			if wp_key == "date_time":  # TEMP DIAG
+				frappe.log_error(
+					title="TZ DIAG date_time",
+					message=f"wp_tz={wp_tz!r}  sys_tz={frappe.utils.get_system_timezone()!r}  wp_raw={value!r}  frappe_stored={result!r}"
+				)
+			converted[frappe_key] = result
 		elif frappe_key == "name" and value is not None:
 			# Frappe name is always varchar — cast to str so integer PKs
 			# (e.g. WP auto_increment id) match correctly on subsequent syncs
