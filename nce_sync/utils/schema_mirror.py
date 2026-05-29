@@ -1235,8 +1235,109 @@ def update_existing_doctype(
 	if new_fields_added or fields_updated:
 		doctype_doc.save(ignore_permissions=True)
 		frappe.db.commit()
-	else:
+
+	# Always realign unique constraints — covers the case where source UNIQUE
+	# indexes changed shape (e.g. composite ↔ single-column) without adding
+	# new fields.  Drops stale single-column unique DB indexes when needed.
+	constraints_changed, dropped_indexes = _resync_existing_field_constraints(
+		doctype_name, schema, name_field_column,
+	)
+	if constraints_changed:
+		frappe.msgprint(
+			_("Resynced unique constraints on {0} field(s); dropped {1} stale DB index(es): {2}").format(
+				constraints_changed, len(dropped_indexes), ", ".join(dropped_indexes) or "none",
+			),
+			indicator="green",
+		)
+
+	if not (new_fields_added or fields_updated or constraints_changed):
 		frappe.msgprint(_("No changes to apply to {0}").format(doctype_name), indicator="blue")
+
+
+def _resync_existing_field_constraints(
+	doctype_name, schema, name_field_column=None, label_overrides=None,
+):
+	"""
+	Re-align the ``unique`` flag on existing DocFields against the current WP
+	source schema, and drop stale single-column unique DB indexes when a
+	field's unique flag transitions ``1 → 0``.
+
+	Required because the lighter re-mirror code paths only ADD new fields and
+	never update existing field properties.  When the source UNIQUE index
+	definition changes (e.g. a previously single-column unique becomes part of
+	a composite unique, or vice versa), the Frappe DocType keeps stale
+	``unique`` flags and the underlying DB unique index remains in place,
+	silently rejecting otherwise-valid rows on the next sync.
+
+	Scope is intentionally limited to the ``unique`` flag (and the matching DB
+	index).  Other properties — ``search_index``, ``length``, ``fieldtype`` —
+	are left untouched to avoid scope creep.
+
+	Args:
+		doctype_name: Frappe DocType name (e.g. ``"Eligibility"``).
+		schema: Schema dict from :func:`get_table_schema`
+		        (uses ``unique_keys`` and ``columns``).
+		name_field_column: Optional WP column that maps to Frappe ``name``
+		                   (skipped — has no regular DocField).
+		label_overrides: Optional ``{wp_col: custom_fieldname}`` mapping.
+
+	Returns:
+		tuple: ``(fields_changed: int, indexes_dropped: list[str])``.
+	"""
+	label_overrides = label_overrides or {}
+
+	# Set of WP columns that should map to unique=1 on Frappe (single-column
+	# unique keys only — see build_frappe_field for rationale).
+	single_unique_cols = {
+		uk[0] for uk in schema["unique_keys"].values() if len(uk) == 1
+	}
+
+	expected_unique_by_fieldname = {}
+	for col in schema["columns"]:
+		col_name = col["COLUMN_NAME"]
+		if name_field_column and col_name == name_field_column:
+			continue
+		fieldname = resolve_fieldname(col_name, label_overrides)
+		expected_unique_by_fieldname[fieldname] = 1 if col_name in single_unique_cols else 0
+
+	doctype_doc = frappe.get_doc("DocType", doctype_name)
+
+	indexes_to_drop = []
+	fields_changed = 0
+
+	for field in doctype_doc.fields:
+		if field.fieldname not in expected_unique_by_fieldname:
+			continue
+		should_unique = expected_unique_by_fieldname[field.fieldname]
+		current_unique = 1 if field.unique else 0
+		if current_unique == should_unique:
+			continue
+		if current_unique == 1 and should_unique == 0:
+			indexes_to_drop.append(field.fieldname)
+		field.unique = should_unique
+		fields_changed += 1
+
+	# Drop stale DB indexes BEFORE saving the DocType so Frappe's
+	# sync_database does not race against the index removal.
+	dropped = []
+	for fieldname in indexes_to_drop:
+		try:
+			frappe.db.sql(
+				f"ALTER TABLE `tab{doctype_name}` DROP INDEX `{fieldname}`"
+			)
+			dropped.append(fieldname)
+		except Exception as exc:
+			frappe.log_error(
+				title=f"Resync schema: failed to drop index {fieldname} on {doctype_name}",
+				message=str(exc),
+			)
+
+	if fields_changed:
+		doctype_doc.save(ignore_permissions=True)
+		frappe.db.commit()
+		frappe.clear_cache(doctype=doctype_name)
+
+	return fields_changed, dropped
 
 
 def _append_missing_mirrored_fields(
@@ -1335,6 +1436,10 @@ def sync_mirrored_doctype_with_wordpress(
 		pick_list_options,
 	)
 
+	constraints_changed, dropped_indexes = _resync_existing_field_constraints(
+		doctype_name, schema, name_field_column, label_overrides,
+	)
+
 	auto_gen_raw = getattr(wp_table_doc, "auto_generated_columns", None) or ""
 	auto_gen_list = None
 	if auto_gen_raw:
@@ -1359,7 +1464,7 @@ def sync_mirrored_doctype_with_wordpress(
 		)
 
 	wp_table_doc.auto_generated_columns = stored_auto_gen or None
-	return added, column_mapping
+	return added, column_mapping, constraints_changed, dropped_indexes
 
 
 def apply_field_settings(

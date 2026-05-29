@@ -691,7 +691,7 @@ class WPTables(Document):
 			):
 				pick_list_options[field.fieldname] = field.options or ""
 
-		added, existing_mapping = sync_mirrored_doctype_with_wordpress(
+		added, existing_mapping, constraints_changed, dropped_indexes = sync_mirrored_doctype_with_wordpress(
 			wp_conn,
 			self,
 			existing_mapping,
@@ -733,6 +733,13 @@ class WPTables(Document):
 			msgs.append(_("Added {0} missing field(s) from the source table").format(added))
 		if changes:
 			msgs.append(_("Updated display settings on {0} field(s)").format(changes))
+		if constraints_changed:
+			dropped_label = ", ".join(dropped_indexes) if dropped_indexes else _("none")
+			msgs.append(
+				_("Realigned unique constraints on {0} field(s); dropped {1} stale DB index(es): {2}").format(
+					constraints_changed, len(dropped_indexes), dropped_label,
+				)
+			)
 		if msgs:
 			frappe.msgprint("; ".join(msgs), indicator="green")
 		else:
