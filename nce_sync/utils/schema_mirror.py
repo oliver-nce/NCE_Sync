@@ -122,8 +122,13 @@ def build_frappe_field(col, schema, wp_table_doc, field_overrides=None, label_ov
 	if "options" in field_mapping:
 		field["options"] = field_mapping["options"]
 
-	# Mark unique columns (only from actual DB unique constraints)
-	if any(col_name in uk for uk in schema["unique_keys"].values()):
+	# Mark unique columns only when the column is the SOLE member of a
+	# single-column unique key.  Frappe's DocField `unique=1` is per-column,
+	# so a multi-column UNIQUE (col_a, col_b) in WP must NOT translate to
+	# unique=1 on either col_a or col_b individually — that would falsely
+	# reject rows that are unique only as a pair.  Composite uniqueness is
+	# left enforced at the WP source.
+	if any(col_name in uk and len(uk) == 1 for uk in schema["unique_keys"].values()):
 		field["unique"] = 1
 
 	# Mark indexed columns (from DB indexes OR matching fields OR timestamp fields)
@@ -697,7 +702,8 @@ def preview_table_schema(wp_conn_doc, wp_table_doc):
 		col_name = col["COLUMN_NAME"]
 		field_mapping = map_mariadb_to_frappe_type(col)
 
-		is_unique = any(col_name in uk for uk in schema["unique_keys"].values())
+		# Single-column unique only — see build_frappe_field for rationale
+		is_unique = any(col_name in uk and len(uk) == 1 for uk in schema["unique_keys"].values())
 		is_indexed = any(col_name in idx_cols for idx_cols in schema["indexes"].values())
 		is_pk = col_name in schema.get("primary_key", [])
 
