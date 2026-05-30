@@ -25,6 +25,7 @@ from nce_sync.utils.column_mapper import (
 )
 from nce_sync.utils.connections import wp_connection
 from nce_sync.utils.constants import (
+	DELETE_BATCH_SIZE,
 	KEEP_SYNC_LOG_COUNT,
 	MAX_ROW_ERROR_MESSAGES,
 	SYNC_FREQUENCY_MAP,
@@ -426,7 +427,7 @@ def _get_cutoff_timestamp(ctx):
 	return convert_frappe_ts_to_wp_tz(cutoff, ctx.wp_tz)
 
 
-def _publish_sync_progress(table_name, rows_processed, total_rows, user=None):
+def _publish_sync_progress(table_name, rows_processed, total_rows, user=None, phase="uploaded"):
 	"""
 	Publish sync progress as toast notifications via realtime.
 	Targets the user who triggered the sync so toasts reach their browser.
@@ -436,8 +437,9 @@ def _publish_sync_progress(table_name, rows_processed, total_rows, user=None):
 		rows_processed: Number of rows processed so far
 		total_rows: Total rows expected
 		user: Username to target (required for background jobs; worker has no session)
+		phase: Progress verb shown in the message (e.g. ``uploaded``, ``deleted``)
 	"""
-	message = f"{table_name}: {rows_processed} of {total_rows} rows uploaded"
+	message = f"{table_name}: {rows_processed} of {total_rows} rows {phase}"
 	frappe.publish_realtime(
 		"msgprint",
 		{"message": message, "indicator": "blue", "alert": 1},
@@ -448,7 +450,7 @@ def _publish_sync_progress(table_name, rows_processed, total_rows, user=None):
 		"WP Tables",
 		table_name,
 		"last_sync_log",
-		f"Syncing: {rows_processed} of {total_rows} rows uploaded",
+		f"Syncing: {rows_processed} of {total_rows} rows {phase}",
 		update_modified=False,
 	)
 	frappe.db.commit()
@@ -1077,6 +1079,9 @@ def _delete_orphans(ctx, wp_key_set):
 	locally in Frappe (temp IDs) that have not yet been pushed to WordPress.
 	Only deletes records with real positive WP IDs that no longer exist in the source.
 
+	Orphan deletes are committed in batches of ``DELETE_BATCH_SIZE`` (mirrors upsert
+	batching) so large orphan counts do not hold one long transaction or hit worker limits.
+
 	Args:
 		ctx: SyncContext
 		wp_key_set: Set of key tuples from WordPress
@@ -1087,8 +1092,8 @@ def _delete_orphans(ctx, wp_key_set):
 	"""
 	frappe_records = frappe.get_all(ctx.frappe_doctype, fields=["name", *ctx.matching_keys], limit_page_length=0)
 
-	deleted_count = 0
 	frappe_key_set = set()
+	orphan_names = []
 
 	for record in frappe_records:
 		# Skip temp records (negative integer names) — not yet pushed to WP
@@ -1101,13 +1106,35 @@ def _delete_orphans(ctx, wp_key_set):
 		frappe_key = tuple(_normalize_key_value(record.get(k)) for k in ctx.matching_keys)
 
 		if frappe_key not in wp_key_set:
-			frappe.delete_doc(ctx.frappe_doctype, record.name, force=True, ignore_permissions=True)
-			deleted_count += 1
+			orphan_names.append(record.name)
 		else:
 			frappe_key_set.add(frappe_key)
 
-	if deleted_count > 0:
+	total_to_delete = len(orphan_names)
+	deleted_count = 0
+
+	for i in range(0, total_to_delete, DELETE_BATCH_SIZE):
+		batch = orphan_names[i : i + DELETE_BATCH_SIZE]
+		for name in batch:
+			frappe.delete_doc(ctx.frappe_doctype, name, force=True, ignore_permissions=True)
+			deleted_count += 1
 		frappe.db.commit()
+		_publish_sync_progress(
+			ctx.wp_table_doc.name,
+			deleted_count,
+			total_to_delete,
+			user=ctx.sync_user,
+			phase="deleted",
+		)
+
+	if total_to_delete > 0:
+		_publish_sync_progress(
+			ctx.wp_table_doc.name,
+			deleted_count,
+			total_to_delete,
+			user=ctx.sync_user,
+			phase="deleted",
+		)
 
 	return deleted_count, frappe_key_set
 

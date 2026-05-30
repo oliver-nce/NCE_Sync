@@ -15,6 +15,9 @@ defaults live here so every module draws from a single source of truth.
 #: Number of records per INSERT / UPDATE batch during WP→Frappe sync.
 UPSERT_BATCH_SIZE = 3000
 
+#: Number of orphan Frappe records deleted per commit during TS Compare sync.
+DELETE_BATCH_SIZE = 3000
+
 #: Maximum number of values in a single WHERE … IN (…) clause.
 WHERE_IN_BATCH_SIZE = 1000
 
