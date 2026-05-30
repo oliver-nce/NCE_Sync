@@ -851,3 +851,20 @@ class WPTables(Document):
 			indicator="blue",
 			alert=True,
 		)
+
+	@frappe.whitelist()
+	def preview_sync_counts(self):
+		"""Preview how many rows would be upserted/dropped on the next sync."""
+		if self.mirror_status not in ("Mirrored", "Linked"):
+			frappe.throw(_("Table must be mirrored before previewing sync counts"))
+
+		if not self.frappe_doctype:
+			frappe.throw(_("No Frappe DocType associated with this table"))
+
+		sync_direction = getattr(self, "sync_direction", "WP to Frappe") or "WP to Frappe"
+		if sync_direction != "WP to Frappe":
+			frappe.throw(_("Preview Sync Counts is only available for WP to Frappe sync direction"))
+
+		from nce_sync.utils.data_sync import preview_sync_counts
+
+		return preview_sync_counts(self)

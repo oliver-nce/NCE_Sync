@@ -719,6 +719,74 @@ def _collect_rows_to_sync(ctx, wp_key_set, frappe_key_set):
 	return changed_rows, missing_rows
 
 
+def preview_sync_counts(wp_table_doc):
+	"""
+	Read-only preview of rows that would be upserted/dropped on the next sync.
+	Does not modify WordPress or Frappe data.
+	"""
+	if wp_table_doc.mirror_status not in ("Mirrored", "Linked"):
+		frappe.throw(_("Table must be in Mirrored or Linked status before syncing"))
+
+	if not wp_table_doc.frappe_doctype:
+		frappe.throw(_("No Frappe DocType associated with this table"))
+
+	wp_conn_doc = frappe.get_single("WordPress Connection")
+	if not wp_conn_doc:
+		frappe.throw(_("WordPress Connection not configured"))
+
+	sync_method = wp_table_doc.sync_method or "TS Compare"
+	ts_field = _get_effective_ts_field(wp_table_doc)
+	frappe_doctype = wp_table_doc.frappe_doctype
+	column_mapping = load_column_mapping(wp_table_doc)
+	reverse_mapping = build_reverse_mapping(column_mapping)
+	matching_keys = _get_matching_keys(wp_table_doc)
+	create_ts_field = wp_table_doc.created_timestamp_field or None
+	frappe_ts_field = (
+		get_frappe_fieldname(ts_field, column_mapping) if ts_field else None
+	)
+	frappe_create_ts_field = (
+		get_frappe_fieldname(create_ts_field, column_mapping) if create_ts_field else None
+	)
+
+	with wp_connection(wp_conn_doc) as conn:
+		ctx = SyncContext(
+			conn=conn,
+			wp_table_doc=wp_table_doc,
+			wp_conn_doc=wp_conn_doc,
+			frappe_doctype=frappe_doctype,
+			table_name=wp_table_doc.table_name,
+			wp_tz=wp_conn_doc.wp_timezone,
+			column_mapping=column_mapping,
+			reverse_mapping=reverse_mapping,
+			matching_keys=matching_keys,
+			ts_field=ts_field,
+			create_ts_field=create_ts_field,
+			frappe_ts_field=frappe_ts_field,
+			frappe_create_ts_field=frappe_create_ts_field,
+			literal_datetimes=bool(getattr(wp_table_doc, "literal_datetime_values", 0)),
+		)
+
+		if sync_method == "Truncate & Replace":
+			source_upserts = _count_rows_to_sync(ctx, cutoff=None)
+			return {
+				"sync_method": sync_method,
+				"source_upserts": source_upserts,
+				"target_drops": frappe.db.count(frappe_doctype),
+			}
+
+		wp_key_set = _get_wp_key_set(ctx)
+		target_drops = _count_orphans_to_drop(ctx, wp_key_set)
+		frappe_key_set = _get_frappe_key_set_in_wp(ctx, wp_key_set)
+		changed_rows, missing_rows = _collect_rows_to_sync(ctx, wp_key_set, frappe_key_set)
+		cutoff = _get_cutoff_timestamp(ctx)
+		return {
+			"sync_method": sync_method,
+			"source_upserts": len(changed_rows) + len(missing_rows),
+			"target_drops": target_drops,
+			"cutoff": str(cutoff) if cutoff else None,
+		}
+
+
 @_register_sync_strategy("Truncate & Replace")
 def _sync_truncate_replace(ctx):
 	"""
@@ -963,6 +1031,42 @@ def _insert_record(frappe_doctype, row_data):
 	doc.flags.ignore_mandatory = True
 	doc.flags.ignore_links = True
 	doc.insert()
+
+
+def _count_orphans_to_drop(ctx, wp_key_set):
+	"""Count Frappe records that would be deleted by _delete_orphans (no deletes)."""
+	frappe_records = frappe.get_all(
+		ctx.frappe_doctype, fields=["name", *ctx.matching_keys], limit_page_length=0
+	)
+	count = 0
+	for record in frappe_records:
+		try:
+			if int(record.name) < 0:
+				continue
+		except (ValueError, TypeError):
+			pass
+		frappe_key = tuple(_normalize_key_value(record.get(k)) for k in ctx.matching_keys)
+		if frappe_key not in wp_key_set:
+			count += 1
+	return count
+
+
+def _get_frappe_key_set_in_wp(ctx, wp_key_set):
+	"""Matching keys present in both Frappe and WP (mirrors _delete_orphans survivor set)."""
+	frappe_records = frappe.get_all(
+		ctx.frappe_doctype, fields=["name", *ctx.matching_keys], limit_page_length=0
+	)
+	frappe_key_set = set()
+	for record in frappe_records:
+		try:
+			if int(record.name) < 0:
+				continue
+		except (ValueError, TypeError):
+			pass
+		frappe_key = tuple(_normalize_key_value(record.get(k)) for k in ctx.matching_keys)
+		if frappe_key in wp_key_set:
+			frappe_key_set.add(frappe_key)
+	return frappe_key_set
 
 
 def _delete_orphans(ctx, wp_key_set):

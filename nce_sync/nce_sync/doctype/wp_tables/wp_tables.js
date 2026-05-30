@@ -184,6 +184,27 @@ frappe.ui.form.on("WP Tables", {
 				__("Actions"),
 			);
 
+			// Preview Sync Counts
+			if ((frm.doc.sync_direction || "WP to Frappe") === "WP to Frappe") {
+				frm.add_custom_button(
+					__("Preview Sync Counts"),
+					function () {
+						frappe.call({
+							method: "preview_sync_counts",
+							doc: frm.doc,
+							freeze: true,
+							freeze_message: __("Calculating sync preview..."),
+							callback: function (r) {
+								if (r.message) {
+									show_preview_sync_counts_dialog(frm, r.message);
+								}
+							},
+						});
+					},
+					__("Actions"),
+				);
+			}
+
 			// Truncate Data — clears all records, keeps DocType structure
 			frm.add_custom_button(
 				__("Truncate Data"),
@@ -1300,4 +1321,55 @@ function show_sync_progress_dialog(frm) {
 	d.$wrapper.on("hide.bs.modal", function () {
 		_stop_poll();
 	});
+}
+
+function show_preview_sync_counts_dialog(frm, data) {
+	let label = frm.doc.nce_name || frm.doc.table_name || frm.doc.name;
+	let is_truncate = data.sync_method === "Truncate & Replace";
+	let html;
+
+	if (is_truncate) {
+		html = `
+			<p><strong>${__("Sync Method")}:</strong> ${frappe.utils.escape_html(data.sync_method)}</p>
+			<p style="font-size: 1.1em; margin-top: 12px;">
+				<strong>${__("Source records to upsert")}:</strong>
+				<span style="font-size: 1.25em; font-weight: bold;">${data.source_upserts}</span>
+			</p>
+			<p class="text-muted">${__(
+				"Truncate & Replace will reload all rows from the WordPress source table.",
+			)}</p>
+		`;
+	} else {
+		html = `
+			<p><strong>${__("Sync Method")}:</strong> ${frappe.utils.escape_html(data.sync_method)}</p>
+			<table class="table table-bordered" style="margin-top: 12px;">
+				<tbody>
+					<tr>
+						<td>${__("Source records to upsert")}</td>
+						<td style="font-weight: bold;">${data.source_upserts}</td>
+					</tr>
+					<tr>
+						<td>${__("Target records to drop")}</td>
+						<td style="font-weight: bold;">${data.target_drops}</td>
+					</tr>
+				</tbody>
+			</table>
+			${
+				data.cutoff
+					? `<p class="text-muted"><strong>${__("Cutoff (WP timezone)")}:</strong> ${frappe.utils.escape_html(data.cutoff)}</p>`
+					: `<p class="text-muted">${__("No cutoff — first sync or empty Frappe table.")}</p>`
+			}
+		`;
+	}
+
+	let d = new frappe.ui.Dialog({
+		title: __("Preview Sync Counts — {0}", [label]),
+		fields: [{ fieldtype: "HTML", fieldname: "preview_area" }],
+		primary_action_label: __("Close"),
+		primary_action: function () {
+			d.hide();
+		},
+	});
+	d.fields_dict.preview_area.$wrapper.html(html);
+	d.show();
 }
