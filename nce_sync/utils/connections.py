@@ -48,6 +48,7 @@ def get_wp_connection(wp_conn_doc):
 			database=wp_conn_doc.database,
 			charset="utf8mb4",
 			cursorclass=pymysql.cursors.DictCursor,
+			autocommit=True,
 		)
 		return conn
 	except Exception as e:
@@ -69,5 +70,18 @@ def wp_connection(wp_conn_doc):
 	conn = get_wp_connection(wp_conn_doc)
 	try:
 		yield conn
+		try:
+			conn.commit()
+		except Exception:
+			pass
+	except Exception:
+		try:
+			conn.rollback()
+		except Exception:
+			pass
+		raise
 	finally:
-		conn.close()
+		try:
+			conn.close()
+		except Exception:
+			pass

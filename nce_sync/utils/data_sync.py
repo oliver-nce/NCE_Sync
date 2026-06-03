@@ -802,9 +802,18 @@ def _sync_truncate_replace(ctx):
 	Returns:
 		dict with sync results
 	"""
-	# Step 1: Delete all existing Frappe records
-	frappe.db.delete(ctx.frappe_doctype)
-	frappe.db.commit()
+	# Step 1: Delete all existing Frappe records in chunks so a single
+	# giant transaction doesn't hit innodb_lock_wait_timeout (1205) when
+	# another worker briefly holds locks on the same table.
+	delete_chunk = 1000
+	while True:
+		frappe.db.sql(
+			f"DELETE FROM `tab{ctx.frappe_doctype}` LIMIT {delete_chunk}"
+		)
+		affected = getattr(getattr(frappe.db, "_cursor", None), "rowcount", 0)
+		frappe.db.commit()
+		if affected < delete_chunk:
+			break
 
 	# Step 2: Fetch all rows from WordPress
 	cursor = ctx.conn.cursor()
