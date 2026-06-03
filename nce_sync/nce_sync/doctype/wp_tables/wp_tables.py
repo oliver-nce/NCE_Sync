@@ -853,6 +853,51 @@ class WPTables(Document):
 		)
 
 	@frappe.whitelist()
+	def test_sync(self, row_limit):
+		"""
+		Test Sync: run the configured sync_method against the first
+		`row_limit` WordPress rows (capped at 2999). Does not move
+		last_synced. Refuses if a real sync is already running.
+		"""
+		from nce_sync.utils.sync_gate import is_doctype_syncing
+
+		if self.mirror_status != "Mirrored":
+			frappe.throw(_("Table must be mirrored before syncing"))
+		if not self.frappe_doctype:
+			frappe.throw(_("No Frappe DocType associated with this table"))
+
+		try:
+			row_limit = int(row_limit)
+		except (TypeError, ValueError):
+			frappe.throw(_("row_limit must be an integer"))
+		if not (1 <= row_limit <= 2999):
+			frappe.throw(_("row_limit must be between 1 and 2999"))
+
+		if is_doctype_syncing(self.frappe_doctype):
+			frappe.throw(
+				_("A sync is in progress for {0} — wait for it to finish, then try again.").format(
+					self.frappe_doctype
+				)
+			)
+
+		frappe.enqueue(
+			"nce_sync.utils.data_sync.run_test_sync_for_table",
+			queue="default",
+			timeout=1800,
+			wp_table_name=self.name,
+			row_limit=row_limit,
+			user=frappe.session.user,
+		)
+
+		frappe.msgprint(
+			_("Test Sync started: first {0} rows from {1}. Watch for progress toasts.").format(
+				row_limit, self.nce_name or self.table_name
+			),
+			indicator="blue",
+			alert=True,
+		)
+
+	@frappe.whitelist()
 	def preview_sync_counts(self):
 		"""Preview how many rows would be upserted/dropped on the next sync."""
 		if self.mirror_status not in ("Mirrored", "Linked"):

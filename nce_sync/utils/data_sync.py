@@ -65,6 +65,9 @@ class SyncContext:
 		literal_datetimes: If True, datetime values pass through unchanged
 			(no WP↔Frappe TZ conversion). Driven by the
 			``literal_datetime_values`` checkbox on WP Tables.
+		row_limit: If set, cap how many WP rows are processed (Test Sync).
+		is_test: True when invoked from Test Sync. Skips orphan-delete,
+			reverse-sync, and the last_synced watermark update.
 	"""
 
 	conn: Any
@@ -82,6 +85,8 @@ class SyncContext:
 	frappe_create_ts_field: Optional[str] = None
 	sync_user: Optional[str] = None
 	literal_datetimes: bool = False
+	row_limit: Optional[int] = None
+	is_test: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -231,6 +236,8 @@ def sync_table(wp_table_doc):
 			frappe_create_ts_field=frappe_create_ts_field,
 			sync_user=getattr(wp_table_doc, "_sync_user", None),
 			literal_datetimes=bool(getattr(wp_table_doc, "literal_datetime_values", 0)),
+			row_limit=getattr(wp_table_doc, "_sync_row_limit", None),
+			is_test=bool(getattr(wp_table_doc, "_sync_is_test", False)),
 		)
 
 		strategy = SYNC_STRATEGIES.get(sync_method)
@@ -245,7 +252,7 @@ def sync_table(wp_table_doc):
 	# Reverse sync: push Frappe-created records back to WordPress
 	# Only runs when direction is explicitly "Both" and the WP PK maps to Frappe name
 	sync_direction = getattr(wp_table_doc, "sync_direction", "WP to Frappe") or "WP to Frappe"
-	if sync_direction != "WP to Frappe" and getattr(wp_table_doc, "name_field_column", None):
+	if not ctx.is_test and sync_direction != "WP to Frappe" and getattr(wp_table_doc, "name_field_column", None):
 		from nce_sync.utils.reverse_sync import sync_frappe_to_wp
 
 		reverse_result = sync_frappe_to_wp(wp_table_doc)
@@ -657,7 +664,13 @@ def _sync_ts_compare(ctx):
 	"""
 	# Step 1: Delete orphans and get key sets
 	wp_key_set = _get_wp_key_set(ctx)
-	rows_deleted, frappe_key_set = _delete_orphans(ctx, wp_key_set)
+	if ctx.is_test:
+		# Skip orphan-delete in test mode — we're working on a slice.
+		from nce_sync.utils.data_sync import _get_frappe_key_set_in_wp  # local import to avoid forward ref
+		frappe_key_set = set(_get_frappe_key_set_in_wp(ctx, wp_key_set))
+		rows_deleted = 0
+	else:
+		rows_deleted, frappe_key_set = _delete_orphans(ctx, wp_key_set)
 
 	# Step 2: Collect changed + missing rows
 	changed_rows, missing_rows = _collect_rows_to_sync(ctx, wp_key_set, frappe_key_set)
@@ -705,6 +718,8 @@ def _collect_rows_to_sync(ctx, wp_key_set, frappe_key_set):
 	cutoff = _get_cutoff_timestamp(ctx)
 
 	changed_rows = _fetch_changed_rows(ctx, cutoff)
+	if ctx.row_limit and len(changed_rows) > ctx.row_limit:
+		changed_rows = changed_rows[: ctx.row_limit]
 
 	# Build set of keys already covered by the TS-changed fetch to avoid double-processing
 	changed_keys = set()
@@ -716,7 +731,17 @@ def _collect_rows_to_sync(ctx, wp_key_set, frappe_key_set):
 	# Rows missing from Frappe that weren't in the TS-changed set
 	missing_keys = wp_key_set - frappe_key_set
 	missing_keys_only = missing_keys - changed_keys
-	missing_rows = _fetch_rows_by_keys(ctx, missing_keys_only)
+
+	if ctx.row_limit:
+		slots_left = ctx.row_limit - len(changed_rows)
+		if slots_left <= 0:
+			missing_rows = []
+		else:
+			# set has no defined order — list it, then slice
+			limited = list(missing_keys_only)[:slots_left]
+			missing_rows = _fetch_rows_by_keys(ctx, limited)
+	else:
+		missing_rows = _fetch_rows_by_keys(ctx, missing_keys_only)
 
 	return changed_rows, missing_rows
 
@@ -817,7 +842,10 @@ def _sync_truncate_replace(ctx):
 
 	# Step 2: Fetch all rows from WordPress
 	cursor = ctx.conn.cursor()
-	cursor.execute(f"SELECT * FROM `{ctx.table_name}`")
+	if ctx.row_limit:
+		cursor.execute(f"SELECT * FROM `{ctx.table_name}` LIMIT {int(ctx.row_limit)}")
+	else:
+		cursor.execute(f"SELECT * FROM `{ctx.table_name}`")
 	all_rows = cursor.fetchall()
 	cursor.close()
 	total_to_sync = len(all_rows)
@@ -1855,6 +1883,8 @@ def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 
 		sync_started = now_datetime()
 		sync_method = wp_table_doc.sync_method or "TS Compare"
+		if getattr(wp_table_doc, "_sync_is_test", False):
+			sync_method = f"{sync_method} (Test)"
 
 		if suppress_notifications:
 			frappe.flags.in_import = True
@@ -1918,7 +1948,8 @@ def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 			# Build summary and update status
 			summary = _build_sync_summary(result, frappe_count)
 
-			wp_table_doc.last_synced = now_datetime()
+			if not getattr(wp_table_doc, "_sync_is_test", False):
+				wp_table_doc.last_synced = now_datetime()
 			wp_table_doc.last_sync_status = "Success"
 			wp_table_doc.last_sync_log = summary["log_message"]
 			wp_table_doc.save()
@@ -1988,3 +2019,53 @@ def _create_sync_log(
 		sync_log.error_traceback = error_traceback
 	sync_log.insert(ignore_permissions=True)
 	frappe.db.commit()
+
+
+@frappe.whitelist()
+def run_test_sync_for_table(wp_table_name, row_limit, user=None):
+	"""
+	Background-job entry point for Test Sync.
+
+	Runs the configured sync_method against the first `row_limit` rows
+	(Truncate & Replace: SELECT … LIMIT N; TS Compare: first N of
+	changed-then-missing). Does NOT update last_synced. Skips
+	orphan-delete and reverse-sync. Refuses if a real sync is already
+	running for the same DocType.
+	"""
+	from nce_sync.utils.sync_gate import is_doctype_syncing
+
+	row_limit = int(row_limit)
+	if not (1 <= row_limit <= 2999):
+		frappe.throw(_("Test Sync row_limit must be between 1 and 2999"))
+
+	wp_table_doc = frappe.get_doc("WP Tables", wp_table_name)
+	if is_doctype_syncing(wp_table_doc.frappe_doctype):
+		frappe.throw(
+			_("A sync is already running for {0}. Wait for it to finish, then try again.").format(
+				wp_table_doc.frappe_doctype
+			)
+		)
+
+	wp_table_doc._sync_user = user or frappe.session.user
+	wp_table_doc._sync_row_limit = row_limit
+	wp_table_doc._sync_is_test = True
+	label = wp_table_doc.nce_name or wp_table_doc.table_name
+
+	try:
+		_run_sync_with_status(wp_table_doc, suppress_notifications=True)
+		frappe.db.commit()
+		frappe.publish_realtime(
+			"msgprint",
+			{"message": f"{label}: Test Sync complete ({row_limit} rows max) ✓",
+			 "indicator": "green", "alert": True},
+			user=wp_table_doc._sync_user,
+		)
+	except Exception as e:
+		frappe.db.commit()
+		frappe.publish_realtime(
+			"msgprint",
+			{"message": f"{label}: Test Sync failed — {str(e)[:120]}",
+			 "indicator": "red", "alert": True},
+			user=wp_table_doc._sync_user,
+		)
+		raise

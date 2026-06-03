@@ -184,6 +184,54 @@ frappe.ui.form.on("WP Tables", {
 				__("Actions"),
 			);
 
+			// Test Sync — run sync_method against first N rows (1–2999)
+			frm.add_custom_button(
+				__("Test Sync"),
+				function () {
+					frappe.prompt(
+						[
+							{
+								fieldtype: "Int",
+								fieldname: "row_limit",
+								label: __("Rows to sync (1–2999)"),
+								default: 500,
+								reqd: 1,
+								description: __(
+									"Test Sync runs the configured Sync Method against the first N rows. " +
+									"Must be under 3000 so the run fits in one batch. " +
+									"last_synced is NOT updated, so the next real sync still sees these rows.",
+								),
+							},
+						],
+						function (values) {
+							const n = parseInt(values.row_limit, 10);
+							if (!Number.isFinite(n) || n < 1 || n > 2999) {
+								frappe.msgprint({
+									title: __("Invalid row count"),
+									message: __("Choose a value between 1 and 2999."),
+									indicator: "red",
+								});
+								return;
+							}
+							frappe.call({
+								method: "test_sync",
+								doc: frm.doc,
+								args: { row_limit: n },
+								callback: function () {
+									show_sync_progress_dialog(frm);
+								},
+								error: function () {
+									frm.reload_doc();
+								},
+							});
+						},
+						__("Test Sync"),
+						__("Run"),
+					);
+				},
+				__("Actions"),
+			);
+
 			// Preview Sync Counts
 			if ((frm.doc.sync_direction || "WP to Frappe") === "WP to Frappe") {
 				frm.add_custom_button(
