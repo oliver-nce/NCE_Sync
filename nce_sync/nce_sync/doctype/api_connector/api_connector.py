@@ -12,12 +12,24 @@ VALID_SERVICES = [
 	"WordPress", "WooCommerce", "Google Sheets", "Google Maps",
 	"Authorize.net", "Stripe", "SendGrid", "Twilio", "Anthropic", "Klaviyo",
 ]
-VALID_AUTH_TYPES = ["API Key", "Basic Auth", "Bearer Token", "OAuth2", "None"]
+VALID_AUTH_TYPES = ["API Key", "Secret", "Basic Auth", "Bearer Token", "OAuth2", "None"]
 VALID_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"]
 
 
+def _safe_get_password(doc, fieldname):
+	"""Read a Password field without raising if unset."""
+	try:
+		if not getattr(doc, fieldname, None):
+			return None
+		return doc.get_password(fieldname) or None
+	except Exception:
+		return None
+
+
 class APIConnector(Document):
-	pass
+	def validate(self):
+		if self.auth_type == "Secret" and not self.api_secret:
+			frappe.throw("Secret is required for Secret auth type.")
 
 
 @frappe.whitelist()
@@ -30,7 +42,7 @@ def get_credential(connector_name, fieldname):
 	doc = frappe.get_doc("API Connector", connector_name)
 	doc.check_permission("read")
 
-	value = doc.get_password(fieldname) if getattr(doc, fieldname, None) else None
+	value = _safe_get_password(doc, fieldname)
 	return value or ""
 
 
@@ -44,17 +56,22 @@ def test_connection(connector_name):
 		auth = None
 
 		if doc.auth_type == "API Key":
-			api_key = doc.get_password("api_key") if doc.api_key else None
+			api_key = _safe_get_password(doc, "api_key")
 			if api_key:
 				headers["X-API-Key"] = api_key
 
+		elif doc.auth_type == "Secret":
+			secret = _safe_get_password(doc, "api_secret")
+			if not secret:
+				frappe.throw("Secret is required.")
+
 		elif doc.auth_type == "Basic Auth":
 			username = doc.username or ""
-			password = doc.get_password("password") if doc.password else ""
+			password = _safe_get_password(doc, "password") or ""
 			auth = (username, password)
 
 		elif doc.auth_type == "Bearer Token":
-			token = doc.get_password("bearer_token") if doc.bearer_token else None
+			token = _safe_get_password(doc, "bearer_token")
 			if token:
 				headers["Authorization"] = f"Bearer {token}"
 
@@ -142,7 +159,7 @@ def _get_anthropic_key():
 	if not frappe.db.exists("API Connector", "Anthropic"):
 		frappe.throw("No 'Anthropic' connector found. Create one with a valid API key first.")
 	doc = frappe.get_doc("API Connector", "Anthropic")
-	key = doc.get_password("api_key") if doc.api_key else None
+	key = _safe_get_password(doc, "api_key")
 	if not key:
 		frappe.throw("The Anthropic connector has no API Key configured.")
 	return key

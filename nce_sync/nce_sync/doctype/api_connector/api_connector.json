@@ -95,7 +95,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Auth Type",
-   "options": "API Key\nBasic Auth\nBearer Token\nOAuth2\nNone",
+   "options": "API Key\nSecret\nBasic Auth\nBearer Token\nOAuth2\nNone",
    "default": "API Key",
    "reqd": 1
   },
@@ -130,7 +130,7 @@
    "fieldname": "api_secret",
    "fieldtype": "Password",
    "label": "API Secret",
-   "depends_on": "eval:['API Key'].includes(doc.auth_type)"
+   "depends_on": "eval:['API Key', 'Secret'].includes(doc.auth_type)"
   },
   {
    "fieldname": "column_break_cred1",

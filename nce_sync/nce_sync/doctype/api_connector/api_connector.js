@@ -9,8 +9,20 @@ const CREDENTIAL_FIELDS = [
 	"oauth_refresh_token",
 ];
 
+function refresh_credential_labels(frm) {
+	const is_secret = frm.doc.auth_type === "Secret";
+	if (frm.fields_dict.api_secret) {
+		frm.set_df_property(
+			"api_secret",
+			"label",
+			is_secret ? __("Secret") : __("API Secret")
+		);
+	}
+}
+
 frappe.ui.form.on("API Connector", {
 	refresh(frm) {
+		refresh_credential_labels(frm);
 		if (!frm.is_new()) {
 			frm.add_custom_button(__("Test Connection"), function () {
 				frappe.call({
@@ -65,6 +77,9 @@ frappe.ui.form.on("API Connector", {
 
 			add_copy_buttons(frm);
 		}
+	},
+	auth_type(frm) {
+		refresh_credential_labels(frm);
 	},
 });
 
