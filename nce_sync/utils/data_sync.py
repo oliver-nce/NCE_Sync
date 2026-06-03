@@ -1219,13 +1219,15 @@ def run_scheduled_syncs():
 			"auto_sync_active": 1,
 			"mirror_status": ["in", ["Mirrored", "Linked"]],
 		},
-		fields=["name", "table_name", "last_synced"],
+		fields=["name", "table_name", "last_synced", "frappe_doctype"],
 	)
 
 	now = now_datetime()
 	tables_synced = 0
 	tables_failed = 0
 	log_messages = []
+
+	from nce_sync.utils.sync_gate import is_doctype_syncing
 
 	for table_info in tables:
 		try:
@@ -1238,6 +1240,11 @@ def run_scheduled_syncs():
 				time_since_sync = (now - last_synced).total_seconds() / 60
 				if time_since_sync < sync_frequency:
 					continue  # Not due yet
+
+			# Skip if a sync is already running for this DocType (prevents lock pileup)
+			if is_doctype_syncing(table_info.frappe_doctype):
+				log_messages.append(f"⏭ {table_info.table_name}: already syncing, skipped")
+				continue
 
 			# Sync is due - run it
 			wp_table_doc = frappe.get_doc("WP Tables", table_info.name)

@@ -26,8 +26,11 @@ from nce_sync.utils.connections import wp_connection
 
 # Open transactions older than this many seconds AND holding locks are
 # treated as stale blockers. Anything younger is ignored as normal app
-# write activity.
-LOCK_AGE_THRESHOLD_S = 60
+# write activity. Kept short (5s) because in practice an "in-flight"
+# Frappe transaction rarely exceeds a couple of seconds; anything older
+# is almost certainly a leaked/zombie connection from a previous failed
+# job and will block the sync.
+LOCK_AGE_THRESHOLD_S = 5
 
 
 _TRX_SQL = """
@@ -101,12 +104,19 @@ def check_locks(wp_conn_doc) -> dict:
 
 
 def has_blockers(report: dict) -> bool:
-	"""True if the report contains any stale locks or active waits."""
+	"""True if the report contains any stale locks, active waits, or errors.
+
+	Errors (e.g. ``Access denied; you need the PROCESS privilege``) are
+	treated as blockers so the user is told to grant the privilege rather
+	than silently letting the sync proceed without a working lock check.
+	"""
 	return bool(
 		report.get("frappe_trx")
 		or report.get("frappe_waits")
 		or report.get("wp_trx")
 		or report.get("wp_waits")
+		or report.get("frappe_error")
+		or report.get("wp_error")
 	)
 
 
@@ -158,11 +168,23 @@ def format_report_html(report: dict, frappe_doctype: str, wp_table_name: str) ->
 
 	for key, label in (("frappe_error", "Frappe DB check error"),
 	                   ("wp_error", "WordPress DB check error")):
-		if report.get(key):
-			parts.append(
-				f"<p style='color:#b85c00'><em>{label}:</em> "
-				f"{frappe.utils.escape_html(report[key])}</p>"
+		err = report.get(key)
+		if not err:
+			continue
+		hint = ""
+		if "PROCESS" in err or "1227" in err:
+			db_user = (
+				"the Frappe DB user" if key == "frappe_error" else "the WordPress DB user"
 			)
+			hint = (
+				"<br><em>Fix:</em> connect to that database as the RDS master user and run "
+				f"<code>GRANT PROCESS ON *.* TO '&lt;{db_user}&gt;'@'%'; FLUSH PRIVILEGES;</code> "
+				"— PROCESS is read-only and safe to grant."
+			)
+		parts.append(
+			f"<p style='color:#b85c00'><strong>{label}:</strong> "
+			f"{frappe.utils.escape_html(err)}{hint}</p>"
+		)
 
 	parts.append(
 		"<p style='margin-top:12px'><strong>To clear a blocker:</strong><br>"
