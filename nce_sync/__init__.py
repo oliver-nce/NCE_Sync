@@ -1,4 +1,4 @@
-__version__ = "2.1.1"
+__version__ = "2.1.2"
 
 import frappe
 import frappe.email.queue as _email_queue
