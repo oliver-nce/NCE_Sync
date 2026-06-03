@@ -1801,9 +1801,47 @@ def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 	"""
 	import traceback
 
+	from nce_sync.utils.lock_check import preflight
 	from nce_sync.utils.sync_gate import clear_doctype_syncing, mark_doctype_syncing
 
 	frappe_dt = wp_table_doc.frappe_doctype
+
+	# ── Pre-flight lock check ─────────────────────────────────────────────
+	# Inspect both Frappe and WordPress DBs for stale transactions holding
+	# locks (or active row-lock waits). If anything looks suspect, surface
+	# it as a copyable dialog and abort BEFORE we touch either DB, so the
+	# user sees actionable thread IDs instead of a generic 1205 error.
+	ok, _lock_report, _lock_html = preflight(wp_table_doc)
+	if not ok:
+		sync_user = getattr(wp_table_doc, "_sync_user", None) or frappe.session.user
+		try:
+			wp_table_doc.last_sync_status = "Error"
+			wp_table_doc.last_sync_log = (
+				"Aborted by pre-flight lock check — see dialog for blocker thread IDs."
+			)[:500]
+			wp_table_doc.save(ignore_permissions=True)
+			frappe.db.commit()
+		except Exception:
+			pass
+		frappe.publish_realtime(
+			"msgprint",
+			{
+				"message": _lock_html,
+				"indicator": "red",
+				"alert": True,
+				"wide": True,
+				"title": _("Sync aborted — database locks detected"),
+			},
+			user=sync_user,
+		)
+		frappe.throw(
+			_(
+				"Sync aborted: another transaction is holding locks on the "
+				"Frappe or WordPress database. See the dialog for thread IDs "
+				"and kill commands."
+			)
+		)
+
 	gate_armed = bool(frappe_dt and wp_table_doc.mirror_status in ("Mirrored", "Linked"))
 	if gate_armed:
 		mark_doctype_syncing(frappe_dt)
