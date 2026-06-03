@@ -836,6 +836,16 @@ class WPTables(Document):
 		if not self.frappe_doctype:
 			frappe.throw(_("No Frappe DocType associated with this table"))
 
+		from nce_sync.utils.sync_gate import is_doctype_syncing
+
+		if is_doctype_syncing(self.frappe_doctype):
+			frappe.msgprint(
+				_("Sync already running — no need to start another."),
+				title=_("Sync in progress"),
+				indicator="blue",
+			)
+			return
+
 		frappe.enqueue(
 			"nce_sync.utils.data_sync.run_sync_for_table",
 			queue="default",

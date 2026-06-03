@@ -166,6 +166,8 @@ frappe.ui.form.on("WP Tables", {
 		}
 
 		if (is_mirrored) {
+			let sync_running = frm.doc.last_sync_status === "Running";
+			if (!sync_running) {
 			// Sync Now
 			frm.add_custom_button(
 				__("Sync Now"),
@@ -231,6 +233,7 @@ frappe.ui.form.on("WP Tables", {
 				},
 				__("Actions"),
 			);
+			}
 
 			// Preview Sync Counts
 			if ((frm.doc.sync_direction || "WP to Frappe") === "WP to Frappe") {
