@@ -503,9 +503,9 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 					args: {
 						title_field_column: title_field_column || undefined,
 						label_overrides: JSON.stringify(label_overrides),
-						read_only_columns: read_only_columns.join(",") || undefined,
-						pick_list_columns: pick_list_columns.join(",") || undefined,
-						bold_columns: bold_columns.join(",") || undefined,
+						read_only_columns: read_only_columns.join(","),
+						pick_list_columns: pick_list_columns.join(","),
+						bold_columns: bold_columns.join(","),
 						column_defaults: JSON.stringify(column_defaults),
 						field_overrides: JSON.stringify(field_overrides_light),
 					},
@@ -589,9 +589,9 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				auto_generated_columns: auto_generated_columns.join(",") || undefined,
 				modified_ts_field: modified_ts_field || undefined,
 				created_ts_field: created_ts_field || undefined,
-				read_only_columns: read_only_columns.join(",") || undefined,
-				pick_list_columns: pick_list_columns.join(",") || undefined,
-				bold_columns: bold_columns.join(",") || undefined,
+				read_only_columns: read_only_columns.join(","),
+				pick_list_columns: pick_list_columns.join(","),
+				bold_columns: bold_columns.join(","),
 				column_defaults: JSON.stringify(column_defaults),
 			};
 			if (mode === "remap" && new_table_name && new_table_name !== frm.doc.table_name) {

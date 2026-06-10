@@ -597,6 +597,7 @@ class WPTables(Document):
 		self.last_synced = None
 		self.last_sync_status = None
 		self.last_sync_log = "Schema remapped — ready for sync"
+		self.saved_field_settings = None
 		self.save()
 
 		frappe.msgprint(
@@ -726,6 +727,7 @@ class WPTables(Document):
 		self.column_mapping = json.dumps(existing_mapping)
 		if title_field_column is not None:
 			self.title_field_column = title_field_column or None
+		self.saved_field_settings = None
 		self.save()
 
 		msgs = []

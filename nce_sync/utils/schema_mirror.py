@@ -495,6 +495,22 @@ def _parse_comma_columns(columns, label_overrides=None):
 	return {resolve_fieldname(c, label_overrides) for c in col_list}
 
 
+def _delete_read_only_property_setters(doctype_name, fieldname):
+	"""Remove Customize Form read_only Property Setters so DocField.read_only=0 takes effect."""
+	ps_names = frappe.get_all(
+		"Property Setter",
+		filters={
+			"doc_type": doctype_name,
+			"field_name": fieldname,
+			"property": "read_only",
+		},
+		pluck="name",
+	)
+	for psn in ps_names:
+		frappe.delete_doc("Property Setter", psn, force=True, ignore_permissions=True)
+	return len(ps_names)
+
+
 def _parse_column_defaults_payload(column_defaults):
 	"""Normalize API arg to dict[str, str] | None (None = do not change any defaults)."""
 	import json
@@ -582,27 +598,32 @@ def _restore_previous_selections(wp_table_doc):
 	previous_pick_list = []
 	previous_bold = []
 
-	# Read saved_field_settings from delete_mirror snapshot (Tab 2 attributes)
-	saved_settings_raw = getattr(wp_table_doc, "saved_field_settings", None)
-	if saved_settings_raw:
-		saved = json.loads(saved_settings_raw)
-		previous_read_only.extend(saved.get("read_only", []))
-		previous_pick_list.extend(saved.get("pick_list", []))
-		previous_bold.extend(saved.get("bold", []))
-
-	# Also read column_mapping — older mirrors may have flags stored there
 	col_map_raw = getattr(wp_table_doc, "column_mapping", None)
+	col_map = {}
 	if col_map_raw:
-		col_map = json.loads(col_map_raw)
+		try:
+			col_map = json.loads(col_map_raw) or {}
+		except Exception:
+			col_map = {}
+
+	if col_map:
 		existing_columns = set(col_map.keys())
 		for wp_col, info in col_map.items():
 			if isinstance(info, dict):
-				if info.get("is_read_only") and wp_col.lower() not in previous_read_only:
+				if info.get("is_read_only"):
 					previous_read_only.append(wp_col.lower())
-				if info.get("is_pick_list") and wp_col.lower() not in previous_pick_list:
+				if info.get("is_pick_list"):
 					previous_pick_list.append(wp_col.lower())
-				if info.get("is_bold") and wp_col.lower() not in previous_bold:
+				if info.get("is_bold"):
 					previous_bold.append(wp_col.lower())
+	else:
+		# Re-mirror after delete_mirror — no column_mapping yet; use snapshot
+		saved_settings_raw = getattr(wp_table_doc, "saved_field_settings", None)
+		if saved_settings_raw:
+			saved = json.loads(saved_settings_raw)
+			previous_read_only.extend(saved.get("read_only", []))
+			previous_pick_list.extend(saved.get("pick_list", []))
+			previous_bold.extend(saved.get("bold", []))
 
 	# Label lookup requires the DocType to exist (deleted during Reconfigure)
 	if wp_table_doc.frappe_doctype and frappe.db.exists("DocType", wp_table_doc.frappe_doctype):
@@ -1192,6 +1213,20 @@ def update_existing_doctype(
 	# Get existing field names
 	existing_fields = {f.fieldname for f in doctype_doc.fields}
 
+	previous_mapping = {}
+	if getattr(wp_table_doc, "column_mapping", None):
+		try:
+			previous_mapping = json.loads(wp_table_doc.column_mapping) or {}
+		except Exception:
+			previous_mapping = {}
+	original_types = {}
+	for entry in previous_mapping.values():
+		if isinstance(entry, dict):
+			fn = entry.get("fieldname")
+			if fn and entry.get("original_fieldtype"):
+				original_types[fn] = entry["original_fieldtype"]
+	pick_list_active = set(pick_list_options.keys()) if pick_list_options else set()
+
 	# Find new fields to add - skip name column when name_field_column is set
 	new_fields_added = False
 	idx = len(doctype_doc.fields) + 1
@@ -1215,6 +1250,8 @@ def update_existing_doctype(
 
 		# Read Only
 		should_ro = 1 if (read_only_fieldnames and fn in read_only_fieldnames) else 0
+		if not should_ro and _delete_read_only_property_setters(doctype_name, fn):
+			fields_updated = True
 		if field.read_only != should_ro:
 			field.read_only = should_ro
 			fields_updated = True
@@ -1230,6 +1267,16 @@ def update_existing_doctype(
 			if field.fieldtype != "Select" or field.options != pick_list_options[fn]:
 				field.fieldtype = "Select"
 				field.options = pick_list_options[fn]
+				fields_updated = True
+		elif fn not in pick_list_active:
+			was_pick_list = any(
+				isinstance(e, dict) and e.get("fieldname") == fn and e.get("is_pick_list")
+				for e in previous_mapping.values()
+			)
+			if was_pick_list and field.fieldtype == "Select":
+				revert_type = original_types.get(fn, "Data")
+				field.fieldtype = revert_type
+				field.options = None
 				fields_updated = True
 
 	if new_fields_added or fields_updated:
@@ -1527,20 +1574,8 @@ def apply_field_settings(
 		# in the desk. Remove setters when the field should be writable, and bump
 		# changed if we removed any so meta is re-saved.
 		should_ro = 1 if fn in read_only_fieldnames else 0
-		if fn not in read_only_fieldnames:
-			ps_names = frappe.get_all(
-				"Property Setter",
-				filters={
-					"doc_type": doctype_name,
-					"field_name": fn,
-					"property": "read_only",
-				},
-				pluck="name",
-			)
-			for psn in ps_names:
-				frappe.delete_doc("Property Setter", psn, force=True, ignore_permissions=True)
-			if ps_names:
-				changed = True
+		if fn not in read_only_fieldnames and _delete_read_only_property_setters(doctype_name, fn):
+			changed = True
 
 		if field.read_only != should_ro:
 			field.read_only = should_ro
@@ -1560,17 +1595,13 @@ def apply_field_settings(
 					field.options = pick_list_options[fn]
 					changed = True
 		else:
-			# Pick List OFF → revert to original type if currently a pick-list Select
-			# Check column_mapping to see if this was a pick-list (not a native ENUM Select)
-			was_pick_list = any(
-				e.get("fieldname") == fn and e.get("is_pick_list")
-				for e in column_mapping.values()
-			)
-			if was_pick_list and field.fieldtype == "Select":
-				revert_type = original_types.get(fn, "Data")
-				field.fieldtype = revert_type
-				field.options = None
-				changed = True
+			# Pick List OFF → revert mirrored pick-list Select to original_fieldtype
+			if field.fieldtype == "Select":
+				orig = original_types.get(fn)
+				if orig and orig != "Select":
+					field.fieldtype = orig
+					field.options = None
+					changed = True
 
 		if changed:
 			changes += 1
