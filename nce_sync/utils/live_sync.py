@@ -113,6 +113,48 @@ def on_record_change(doc, method):
 	frappe.local.nce_sync_queued_job_ids.append(job_id)
 
 
+def on_record_delete(doc, method):
+	"""
+	Wildcard doc_events handler (on_trash).
+
+	Mirror of on_record_change for deletes, but SYNCHRONOUS: the WordPress row is
+	deleted inline so a failure raises and aborts the Frappe delete (no orphan,
+	no half-deleted state), and any subsequent read-back sees a completed WP delete.
+
+	Rule A: if frappe.flags.in_sync (or the doctype is mid-sync) -> ignore
+	        (the delete came from a WP->Frappe sync; raw-SQL bulk deletes never
+	         reach here anyway).
+	Rule B: if the DocType is in the listen map -> delete the WP row now.
+	"""
+	if getattr(frappe.flags, "in_sync", False):
+		return
+
+	# Defense in depth: never propagate while this doctype is mid-sync.
+	try:
+		from nce_sync.utils.sync_gate import is_doctype_syncing
+
+		if is_doctype_syncing(doc.doctype):
+			return
+	except Exception:
+		# sync_gate import/availability must never block a normal delete
+		pass
+
+	listen_map = _get_listen_map()
+	wp_table_name = listen_map.get(doc.doctype)
+	if not wp_table_name:
+		return
+
+	# Skip temp/never-pushed records (negative integer names) — not in WP yet.
+	try:
+		if int(doc.name) < 0:
+			return
+	except (ValueError, TypeError):
+		pass
+
+	# Synchronous — raises on failure to abort the Frappe delete.
+	delete_record_from_wp(wp_table_name, doc.doctype, doc.name)
+
+
 # ---------------------------------------------------------------------------
 # Background job
 # ---------------------------------------------------------------------------
@@ -236,3 +278,48 @@ def push_record_to_wp(wp_table_name, doctype, docname):
 					title=f"Write-back refresh failed: {doctype} {refresh_key}",
 					message=str(refresh_err),
 				)
+
+
+def delete_record_from_wp(wp_table_name, doctype, record_key):
+	"""
+	Delete one row from the mapped WordPress table by primary key.
+
+	Returns True on success. Raises on SQL/connection failure so the caller's
+	frappe.delete_doc transaction aborts (fail-safe — no WP orphan).
+	"""
+	key = str(record_key).strip()
+
+	# Never-pushed temp record: nothing to delete in WP.
+	try:
+		if int(key) < 0:
+			return True
+	except (ValueError, TypeError):
+		pass
+
+	wp_table_doc = frappe.get_doc("WP Tables", wp_table_name)
+	table_name = wp_table_doc.table_name
+	name_wp_col = wp_table_doc.name_field_column
+	if not table_name or not name_wp_col:
+		frappe.log_error(
+			title=f"WP delete skip: {doctype}",
+			message=f"Missing table_name/name_field_column on WP Tables '{wp_table_name}'",
+		)
+		return False
+
+	wp_conn_doc = frappe.get_single("WordPress Connection")
+	with wp_connection(wp_conn_doc) as conn:
+		cursor = conn.cursor()
+		try:
+			cursor.execute(
+				f"DELETE FROM `{table_name}` WHERE `{name_wp_col}` = %s",
+				[key],
+			)
+			conn.commit()
+		except Exception as e:
+			conn.rollback()
+			frappe.log_error(title=f"WP delete error: {doctype} {key}", message=str(e))
+			cursor.close()
+			raise
+		cursor.close()
+
+	return True
