@@ -537,12 +537,14 @@ class WPTables(Document):
 		pick_list_columns=None,
 		bold_columns=None,
 		column_defaults=None,
+		truncate_data=1,
 	):
 		"""
 		Remap an existing mirrored DocType to a (possibly renamed) source table.
-		Truncates data, updates source reference, adds any new columns, rebuilds
-		the column mapping, then leaves the DocType ready for a fresh sync.
-		The DocType and its SQL table are preserved so other apps' references stay intact.
+
+		Always reconciles DocType metadata against the live WordPress schema
+		(prune stale fields, add new ones, rebuild column_mapping). Truncates
+		row data only when ``truncate_data`` is truthy (Data Mapping tab changed).
 		"""
 		from nce_sync.utils.schema_mirror import mirror_table_schema
 
@@ -560,20 +562,20 @@ class WPTables(Document):
 			self.save()
 
 		# Update matching fields if provided
-		if matching_fields and matching_fields != self.matching_fields:
+		if matching_fields is not None and matching_fields != self.matching_fields:
 			self.matching_fields = matching_fields
 			self.save()
 
-		# Truncate existing data
-		frappe.db.delete(self.frappe_doctype)
-		frappe.db.commit()
+		if frappe.utils.cint(truncate_data):
+			frappe.db.delete(self.frappe_doctype)
+			frappe.db.commit()
 
 		wp_conn = frappe.get_single("WordPress Connection")
 		if not wp_conn:
 			frappe.throw(_("WordPress Connection not configured"))
 
 		# Re-mirror: detects existing DocType and calls update_existing_doctype
-		# which adds new columns without removing existing ones
+		# which reconciles fields against the live WordPress schema
 		if column_defaults and isinstance(column_defaults, str):
 			column_defaults = json.loads(column_defaults)
 
@@ -593,19 +595,28 @@ class WPTables(Document):
 			column_defaults=column_defaults,
 		)
 
-		# Reset sync status
-		self.last_synced = None
-		self.last_sync_status = None
-		self.last_sync_log = "Schema remapped — ready for sync"
+		# Reset sync status when data was truncated
+		if frappe.utils.cint(truncate_data):
+			self.last_synced = None
+			self.last_sync_status = None
+			self.last_sync_log = "Schema remapped — ready for sync"
 		self.saved_field_settings = None
 		self.save()
 
-		frappe.msgprint(
-			_("Remapped '{0}' to source table '{1}'. Data cleared — run Sync Now to repopulate.").format(
-				self.frappe_doctype, self.table_name
-			),
-			indicator="green",
-		)
+		if frappe.utils.cint(truncate_data):
+			frappe.msgprint(
+				_("Remapped '{0}' to source table '{1}'. Data cleared — run Sync Now to repopulate.").format(
+					self.frappe_doctype, self.table_name
+				),
+				indicator="green",
+			)
+		else:
+			frappe.msgprint(
+				_("Reconciled '{0}' with source table '{1}' — DocType metadata updated.").format(
+					self.frappe_doctype, self.table_name
+				),
+				indicator="green",
+			)
 
 	@frappe.whitelist()
 	def update_field_settings(
@@ -620,8 +631,9 @@ class WPTables(Document):
 	):
 		"""
 		Update display properties on the mirrored DocType and **reconcile** the DocType
-		with the current WordPress table: any source column missing a DocField is appended.
-		Does not truncate data. Rebuilds ``column_mapping`` from the live WP schema.
+		with the current WordPress table: prune DocFields with no source column and
+		append any missing ones. Does not truncate data. Rebuilds ``column_mapping``
+		from the live WP schema.
 
 		Opens a WP connection for pick-list DISTINCT values and for schema introspection.
 		"""
@@ -692,7 +704,7 @@ class WPTables(Document):
 			):
 				pick_list_options[field.fieldname] = field.options or ""
 
-		added, existing_mapping, constraints_changed, dropped_indexes = sync_mirrored_doctype_with_wordpress(
+		added, existing_mapping, constraints_changed, dropped_indexes, removed = sync_mirrored_doctype_with_wordpress(
 			wp_conn,
 			self,
 			existing_mapping,
@@ -731,6 +743,8 @@ class WPTables(Document):
 		self.save()
 
 		msgs = []
+		if removed:
+			msgs.append(_("Removed {0} field(s) that no longer exist in the WordPress source").format(removed))
 		if added:
 			msgs.append(_("Added {0} missing field(s) from the source table").format(added))
 		if changes:

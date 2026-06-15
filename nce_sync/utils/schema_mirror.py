@@ -1168,8 +1168,8 @@ def update_existing_doctype(
 	title_fieldname=None, read_only_fieldnames=None, pick_list_options=None, bold_fieldnames=None,
 ):
 	"""
-	Update an existing DocType with new fields from schema.
-	Adds missing fields without removing existing ones.
+	Update an existing DocType to match the current WordPress schema.
+	Removes DocFields whose source columns no longer exist, then adds any missing fields.
 
 	Note: If the autoname setting changes (e.g., from hash to field:wp_id),
 	existing records will NOT be renamed. To apply new naming to all records,
@@ -1210,15 +1210,20 @@ def update_existing_doctype(
 			indicator="orange",
 		)
 
-	# Get existing field names
-	existing_fields = {f.fieldname for f in doctype_doc.fields}
-
 	previous_mapping = {}
 	if getattr(wp_table_doc, "column_mapping", None):
+		import json
+
 		try:
 			previous_mapping = json.loads(wp_table_doc.column_mapping) or {}
 		except Exception:
 			previous_mapping = {}
+
+	fields_removed = _prune_stale_fields_from_doctype_doc(
+		doctype_doc, schema, label_overrides, name_field_column, previous_mapping
+	)
+	existing_fields = {f.fieldname for f in doctype_doc.fields}
+
 	original_types = {}
 	for entry in previous_mapping.values():
 		if isinstance(entry, dict):
@@ -1279,9 +1284,17 @@ def update_existing_doctype(
 				field.options = None
 				fields_updated = True
 
-	if new_fields_added or fields_updated:
+	if new_fields_added or fields_updated or fields_removed:
 		doctype_doc.save(ignore_permissions=True)
 		frappe.db.commit()
+		if fields_removed:
+			frappe.clear_cache(doctype=doctype_name)
+
+	if fields_removed:
+		frappe.msgprint(
+			_("Removed {0} field(s) that no longer exist in the WordPress source.").format(fields_removed),
+			indicator="green",
+		)
 
 	# Always realign unique constraints — covers the case where source UNIQUE
 	# indexes changed shape (e.g. composite ↔ single-column) without adding
@@ -1297,7 +1310,7 @@ def update_existing_doctype(
 			indicator="green",
 		)
 
-	if not (new_fields_added or fields_updated or constraints_changed):
+	if not (new_fields_added or fields_updated or fields_removed or constraints_changed):
 		frappe.msgprint(_("No changes to apply to {0}").format(doctype_name), indicator="blue")
 
 
@@ -1387,6 +1400,68 @@ def _resync_existing_field_constraints(
 	return fields_changed, dropped
 
 
+def _expected_mirrored_fieldnames(
+	schema, label_overrides=None, name_field_column=None, column_mapping=None
+):
+	"""Frappe fieldnames that should exist for the current WordPress table schema."""
+	label_overrides = label_overrides or {}
+	column_mapping = column_mapping or {}
+	expected = set()
+	for col in schema["columns"]:
+		col_name = col["COLUMN_NAME"]
+		if name_field_column and col_name == name_field_column:
+			continue
+		info = column_mapping.get(col_name)
+		if isinstance(info, dict) and info.get("fieldname"):
+			expected.add(info["fieldname"])
+		else:
+			expected.add(resolve_fieldname(col_name, label_overrides))
+	return expected
+
+
+def _prune_stale_fields_from_doctype_doc(
+	doctype_doc, schema, label_overrides=None, name_field_column=None, column_mapping=None
+):
+	"""
+	Remove DocFields with no matching WordPress source column (in-place).
+
+	Downstream forms, list views, and APIs use DocType meta — pruning here
+	prevents ghost columns from appearing after a remap.
+	"""
+	expected = _expected_mirrored_fieldnames(
+		schema, label_overrides, name_field_column, column_mapping
+	)
+	stale_count = sum(1 for f in doctype_doc.fields if f.fieldname not in expected)
+	if not stale_count:
+		return 0
+
+	doctype_doc.fields = [f for f in doctype_doc.fields if f.fieldname in expected]
+	for i, field in enumerate(doctype_doc.fields, start=1):
+		field.idx = i
+
+	if doctype_doc.title_field and doctype_doc.title_field not in expected:
+		doctype_doc.title_field = None
+		doctype_doc.show_title_field_in_link = 0
+		doctype_doc.search_fields = None
+
+	return stale_count
+
+
+def _remove_stale_mirrored_fields(
+	doctype_name, schema, label_overrides=None, name_field_column=None, column_mapping=None
+):
+	"""Load DocType, prune stale mirrored fields, save if anything was removed."""
+	doctype_doc = frappe.get_doc("DocType", doctype_name)
+	removed = _prune_stale_fields_from_doctype_doc(
+		doctype_doc, schema, label_overrides, name_field_column, column_mapping
+	)
+	if removed:
+		doctype_doc.save(ignore_permissions=True)
+		frappe.db.commit()
+		frappe.clear_cache(doctype=doctype_name)
+	return removed
+
+
 def _append_missing_mirrored_fields(
 	doctype_name,
 	schema,
@@ -1452,9 +1527,9 @@ def sync_mirrored_doctype_with_wordpress(
 	column_defaults=None,
 ):
 	"""
-	Fetch the latest WordPress table schema, add any missing DocFields on the mirrored
-	DocType, and rebuild ``column_mapping`` merged with the previous JSON.
-	Does not truncate data.
+	Fetch the latest WordPress table schema, prune stale DocFields, add any missing
+	DocFields on the mirrored DocType, and rebuild ``column_mapping`` merged with
+	the previous JSON. Does not truncate data.
 	"""
 	from nce_sync.utils.connections import wp_connection
 
@@ -1470,6 +1545,10 @@ def sync_mirrored_doctype_with_wordpress(
 
 	with wp_connection(wp_conn_doc) as conn:
 		schema = get_table_schema(conn, wp_table_doc.table_name)
+
+	removed = _remove_stale_mirrored_fields(
+		doctype_name, schema, label_overrides, name_field_column, previous_column_mapping
+	)
 
 	added = _append_missing_mirrored_fields(
 		doctype_name,
@@ -1511,7 +1590,7 @@ def sync_mirrored_doctype_with_wordpress(
 		)
 
 	wp_table_doc.auto_generated_columns = stored_auto_gen or None
-	return added, column_mapping, constraints_changed, dropped_indexes
+	return added, column_mapping, constraints_changed, dropped_indexes, removed
 
 
 def apply_field_settings(

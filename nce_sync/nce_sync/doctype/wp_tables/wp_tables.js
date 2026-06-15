@@ -296,7 +296,7 @@ frappe.ui.form.on("WP Tables", {
 								fieldtype: "HTML",
 								fieldname: "info",
 								options: `<p class="text-muted">${__(
-									"This will truncate all data in '{0}', re-read the source schema (adding any new columns), and rebuild the column mapping. The DocType and its table are preserved.",
+									"This will re-read the source schema and reconcile the DocType with WordPress (removing columns dropped from the source and adding new ones). Existing row data is kept unless you change the Data Mapping tab.",
 									[frm.doc.frappe_doctype],
 								)}</p>`,
 							},
@@ -489,87 +489,53 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				field_overrides_light[col_name] = $(this).val();
 			});
 
-			// ─── Determine which path to take based on dirty tabs ───
+			// ─── Tab 1: Data Mapping (always collected for remap; required for mirror) ───
 			let mapping_dirty = d.$wrapper.find("#tab-mapping").data("dirty");
-
-			// ─── REMAP without Data Mapping edits: always hit server — reconciles DocType
-			// fields against live WordPress schema (no truncate). ───
-			if (mode === "remap" && !mapping_dirty) {
-				d.get_primary_btn().prop("disabled", true).text(__("Saving…"));
-
-				frappe.call({
-					method: "update_field_settings",
-					doc: frm.doc,
-					args: {
-						title_field_column: title_field_column || undefined,
-						label_overrides: JSON.stringify(label_overrides),
-						read_only_columns: read_only_columns.join(","),
-						pick_list_columns: pick_list_columns.join(","),
-						bold_columns: bold_columns.join(","),
-						column_defaults: JSON.stringify(column_defaults),
-						field_overrides: JSON.stringify(field_overrides_light),
-					},
-					freeze: true,
-					freeze_message: __("Applying field settings..."),
-					callback: function (r) {
-						d.hide();
-						frm.reload_doc();
-					},
-					error: function (r) {
-						d.get_primary_btn().prop("disabled", false).text(action_label);
-					},
-				});
-				return;
-			}
-
-			// ─── FULL PATH: Tab 1 changed (with or without Tab 2) ───
-
-			// Tab 1: Collect field type overrides
 			let field_overrides = field_overrides_light;
-
-			// Tab 1: Collect "Use as Name" selection
 			let name_field_column = d.$wrapper.find(".name-field-radio:checked").val() || "";
-
-			// Tab 1: Collect matching fields
 			let matching_fields = [];
 			d.$wrapper.find(".matching-field-checkbox:checked").each(function () {
 				matching_fields.push($(this).data("column"));
 			});
-
-			// Tab 1: Collect auto-generated columns
 			let auto_generated_columns = [];
 			d.$wrapper.find(".auto-generated-checkbox:checked").each(function () {
 				auto_generated_columns.push($(this).data("column"));
 			});
-
-			// Tab 1: Collect timestamp field selections
 			let modified_ts_field = d.$wrapper.find(".mod-ts-radio:checked").val() || "";
 			let created_ts_field = d.$wrapper.find(".crt-ts-radio:checked").val() || "";
 
-			// Validate: Title cannot be the same column as Frappe ID
-			if (title_field_column && title_field_column === name_field_column) {
-				frappe.msgprint(
-					__("Title field cannot be the same as Frappe ID — the ID column does not create a DocType field."),
-				);
-				return;
-			}
+			if (mode === "remap" || mode === "mirror") {
+				// Validate: Title cannot be the same column as Frappe ID
+				if (title_field_column && title_field_column === name_field_column) {
+					frappe.msgprint(
+						__(
+							"Title field cannot be the same as Frappe ID — the ID column does not create a DocType field.",
+						),
+					);
+					return;
+				}
 
-			// Validate: max 3 matching fields (when not using Name)
-			if (!name_field_column && matching_fields.length > 3) {
-				frappe.msgprint(__("Please select a maximum of 3 matching fields."));
-				return;
-			}
-			if (!name_field_column && matching_fields.length === 0) {
-				frappe.msgprint(
-					__("Please select at least one matching field, or use a column as Name."),
-				);
-				return;
-			}
+				// Validate: max 3 matching fields (when not using Name)
+				if (!name_field_column && matching_fields.length > 3) {
+					frappe.msgprint(__("Please select a maximum of 3 matching fields."));
+					return;
+				}
+				if (!name_field_column && matching_fields.length === 0) {
+					frappe.msgprint(
+						__(
+							"Please select at least one matching field, or use a column as Name.",
+						),
+					);
+					return;
+				}
 
-			// Validate: Modified TS is mandatory
-			if (!modified_ts_field) {
-				frappe.msgprint(__("Please select a Modified Timestamp field (Mod TS column)."));
-				return;
+				// Validate: Modified TS is mandatory
+				if (!modified_ts_field) {
+					frappe.msgprint(
+						__("Please select a Modified Timestamp field (Mod TS column)."),
+					);
+					return;
+				}
 			}
 
 			// Disable button to prevent double-clicks while processing
@@ -578,7 +544,11 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 
 			let call_method = mode === "remap" ? "remap_schema" : "mirror_schema";
 			let freeze_msg =
-				mode === "remap" ? __("Applying changes...") : __("Creating DocType...");
+				mode === "remap"
+					? mapping_dirty
+						? __("Applying changes...")
+						: __("Reconciling DocType metadata...")
+					: __("Creating DocType...");
 
 			let call_args = {
 				field_overrides: JSON.stringify(field_overrides),
@@ -594,8 +564,12 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				bold_columns: bold_columns.join(","),
 				column_defaults: JSON.stringify(column_defaults),
 			};
-			if (mode === "remap" && new_table_name && new_table_name !== frm.doc.table_name) {
-				call_args.new_table_name = new_table_name;
+			if (mode === "remap") {
+				// Always reconcile DocType metadata; truncate row data only when Tab 1 changed
+				call_args.truncate_data = mapping_dirty ? 1 : 0;
+				if (new_table_name && new_table_name !== frm.doc.table_name) {
+					call_args.new_table_name = new_table_name;
+				}
 			}
 
 			frappe.call({
