@@ -36,6 +36,52 @@ _NEVER_DROP_DOCTYPES = frozenset(
 )
 
 
+def _write_back_exclusion_reason(wp_col, info, name_col, auto_gen_set):
+	"""Return (excluded: bool, reason: str) aligned with column_mapper.build_wp_row skips."""
+	if info.get("is_name") or (name_col and wp_col == name_col):
+		return True, _("Frappe ID — WordPress owns the primary key")
+	if info.get("is_virtual"):
+		expr = (info.get("sql_expression") or "").strip()
+		short = (expr[:80] + "\u2026") if len(expr) > 80 else expr
+		reason = _("Derived column — GENERATED/VIRTUAL in WordPress")
+		if short:
+			reason += f" ({short})"
+		return True, reason
+	if info.get("is_auto_generated") or wp_col.lower() in auto_gen_set:
+		return True, _("Auto-generated — skipped on SQL write-back")
+	return False, ""
+
+
+def _build_field_exhibit_row(wp_col, info, meta_by_fn, name_col, auto_gen_set):
+	"""One exhibit row from column_mapping entry + live DocType meta."""
+	is_name = bool(info.get("is_name")) or (name_col and wp_col == name_col)
+
+	if is_name:
+		return {
+			"wp_column": wp_col,
+			"frappe_field": "name",
+			"data_type": "Data",
+			"mandatory": None,
+			"read_only": True,
+			"write_back_excluded": True,
+			"write_back_reason": _("Frappe ID — WordPress owns the primary key"),
+		}
+
+	fn = info.get("fieldname") or wp_col.lower()
+	df = meta_by_fn.get(fn)
+	excluded, reason = _write_back_exclusion_reason(wp_col, info, name_col, auto_gen_set)
+
+	return {
+		"wp_column": wp_col,
+		"frappe_field": fn,
+		"data_type": df.fieldtype if df else info.get("original_fieldtype") or "Data",
+		"mandatory": bool(df.reqd) if df else False,
+		"read_only": bool(df.read_only) if df else bool(info.get("is_read_only")),
+		"write_back_excluded": excluded,
+		"write_back_reason": reason,
+	}
+
+
 def _is_safe_to_drop_table(doctype_name):
 	"""Return False if dropping this table could harm core Frappe."""
 	if not doctype_name or "`" in doctype_name or ";" in doctype_name:
@@ -234,6 +280,83 @@ class WPTables(Document):
 			return preview_table_schema(wp_conn, self)
 		finally:
 			self.table_name = original_table_name
+
+	@frappe.whitelist()
+	def get_field_exhibit(self):
+		"""Return desk-native field settings and write-back exclusion for the form exhibit tab."""
+		import json
+
+		if not self.frappe_doctype:
+			return {"rows": [], "message": _("No Frappe DocType linked yet.")}
+
+		if self.mirror_status not in ("Mirrored", "Linked"):
+			return {
+				"rows": [],
+				"message": _("Mirror or link a DocType to see field settings."),
+			}
+
+		if not frappe.db.exists("DocType", self.frappe_doctype):
+			return {
+				"rows": [],
+				"message": _("DocType '{0}' not found.").format(self.frappe_doctype),
+			}
+
+		meta = frappe.get_meta(self.frappe_doctype)
+		meta_by_fn = {df.fieldname: df for df in meta.fields}
+
+		col_map = {}
+		if self.column_mapping:
+			try:
+				col_map = json.loads(self.column_mapping) or {}
+			except Exception:
+				col_map = {}
+
+		name_col = (self.name_field_column or "").strip()
+		auto_gen_set = {
+			c.strip().lower()
+			for c in (self.auto_generated_columns or "").split(",")
+			if c.strip()
+		}
+
+		rows = []
+		if col_map:
+			for wp_col in sorted(col_map.keys()):
+				info = col_map.get(wp_col)
+				if not isinstance(info, dict):
+					continue
+				rows.append(
+					_build_field_exhibit_row(
+						wp_col, info, meta_by_fn, name_col, auto_gen_set
+					)
+				)
+		else:
+			layout_skip = frozenset(
+				{
+					"Section Break",
+					"Column Break",
+					"Tab Break",
+					"HTML",
+					"Table",
+					"Fold",
+					"Heading",
+				}
+			)
+			for df in meta.fields:
+				if df.fieldtype in layout_skip:
+					continue
+				rows.append(
+					{
+						"wp_column": "",
+						"frappe_field": df.fieldname,
+						"data_type": df.fieldtype,
+						"mandatory": bool(df.reqd),
+						"read_only": bool(df.read_only),
+						"write_back_excluded": None,
+						"write_back_reason": "",
+					}
+				)
+
+		return {"rows": rows, "message": ""}
 
 	@frappe.whitelist()
 	def link_external_doctype(self):

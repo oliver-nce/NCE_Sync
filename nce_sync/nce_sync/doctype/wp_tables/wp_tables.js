@@ -42,6 +42,157 @@ function _scrub_fieldname(label) {
 		.replace(/[^a-z0-9_]/g, "");
 }
 
+function build_desk_exhibit_table_html(rows, intro_html) {
+	let intro = intro_html || "";
+	return (
+		intro +
+		'<div class="schema-grid-scroll" style="overflow: auto; max-height: 65vh;">' +
+		_desk_exhibit_table_markup(rows) +
+		"</div>"
+	);
+}
+
+function _desk_exhibit_table_markup(rows) {
+	let html =
+		'<table class="table table-bordered table-sm" style="font-size: 13px;">' +
+		"<thead><tr>" +
+		"<th>" +
+		__("WP Column") +
+		"</th>" +
+		"<th>" +
+		__("Frappe Field") +
+		"</th>" +
+		"<th>" +
+		__("Data Type") +
+		"</th>" +
+		"<th>" +
+		__("Mandatory") +
+		"</th>" +
+		"<th>" +
+		__("Read Only") +
+		"</th>" +
+		"<th>" +
+		__("Write-back") +
+		"</th>" +
+		"<th>" +
+		__("Write-back note") +
+		"</th>" +
+		"</tr></thead><tbody>";
+
+	if (!rows || !rows.length) {
+		html +=
+			'<tr><td colspan="7" class="text-muted">' +
+			__("No fields to show.") +
+			"</td></tr>";
+	} else {
+		rows.forEach(function (row) {
+			let wp_col = row.wp_column
+				? frappe.utils.escape_html(row.wp_column)
+				: "\u2014";
+			let frappe_fn = row.frappe_field
+				? "<code>" + frappe.utils.escape_html(row.frappe_field) + "</code>"
+				: "\u2014";
+			let data_type = row.data_type
+				? frappe.utils.escape_html(row.data_type)
+				: "\u2014";
+
+			let mandatory_html;
+			if (row.mandatory === null || row.mandatory === undefined) {
+				mandatory_html = "\u2014";
+			} else if (row.mandatory) {
+				mandatory_html =
+					'<strong style="color:#c0392b;">' + __("Yes") + "</strong>";
+			} else {
+				mandatory_html = __("No");
+			}
+
+			let read_only_html = row.read_only
+				? '<strong style="color:#856404;">' + __("Yes") + "</strong>"
+				: __("No");
+
+			let wb_badge;
+			if (row.write_back_excluded === null || row.write_back_excluded === undefined) {
+				wb_badge = "\u2014";
+			} else if (row.write_back_excluded) {
+				wb_badge =
+					'<span class="badge badge-secondary">' + __("Excluded") + "</span>";
+			} else {
+				wb_badge =
+					'<span class="badge badge-success">' + __("Included") + "</span>";
+			}
+
+			let wb_note =
+				row.write_back_reason && row.write_back_excluded
+					? frappe.utils.escape_html(row.write_back_reason)
+					: row.write_back_excluded === false
+						? "\u2014"
+						: row.write_back_reason
+							? frappe.utils.escape_html(row.write_back_reason)
+							: "\u2014";
+
+			let row_style =
+				row.mandatory === true ? ' style="background:#fff5f5;"' : "";
+			html +=
+				"<tr" +
+				row_style +
+				"><td><strong>" +
+				wp_col +
+				"</strong></td><td>" +
+				frappe_fn +
+				"</td><td>" +
+				data_type +
+				"</td><td>" +
+				mandatory_html +
+				"</td><td>" +
+				read_only_html +
+				"</td><td>" +
+				wb_badge +
+				'</td><td class="text-muted" style="font-size:12px;">' +
+				wb_note +
+				"</td></tr>";
+		});
+	}
+
+	html += "</tbody></table>";
+	return html;
+}
+
+function render_field_reference_tab(frm) {
+	let fd = frm.fields_dict.field_reference_html;
+	if (!fd || !fd.$wrapper) {
+		return;
+	}
+	if (frm.is_new() || !frm.doc.frappe_doctype || frm.doc.doctype_source === "Native") {
+		return;
+	}
+
+	fd.$wrapper.html(
+		'<p class="text-muted">' + __("Loading field settings…") + "</p>",
+	);
+
+	frappe.call({
+		method: "get_field_exhibit",
+		doc: frm.doc,
+		callback: function (r) {
+			let payload = r.message || {};
+			let rows = payload.rows || [];
+			if (payload.message && !rows.length) {
+				fd.$wrapper.html(
+					'<p class="text-muted">' + frappe.utils.escape_html(payload.message) + "</p>",
+				);
+				return;
+			}
+			let intro =
+				'<p class="text-muted" style="margin-bottom: 10px;">' +
+				__("Desk settings currently applied on {0}. Mandatory fields block saves when empty.", [
+					frm.doc.frappe_doctype,
+				]) +
+				"</p>";
+			fd.$wrapper.html(build_desk_exhibit_table_html(rows, intro));
+		},
+	});
+}
+
 frappe.ui.form.on("WP Tables", {
 	after_save: function (frm) {
 		let desired = (
@@ -389,6 +540,8 @@ frappe.ui.form.on("WP Tables", {
 					}
 				});
 		}
+
+		render_field_reference_tab(frm);
 	},
 });
 
@@ -1004,22 +1157,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				"Desk form only; does not by itself exclude write-back.",
 			)}</span>
 		</div>
-		<div class="schema-grid-scroll" style="overflow: auto;">
-			<table class="table table-bordered table-sm" style="font-size: 13px;">
-				<thead style="position: sticky; top: 0; background: var(--fg-color, #fff); z-index: 1;">
-					<tr>
-						<th style="width: 14%;">${__("WP Column")}</th>
-						<th style="width: 12%;">${__("Frappe Field")}</th>
-						<th style="width: 10%;">${__("Data Type")}</th>
-						<th style="width: 8%;">${__("Mandatory")}</th>
-						<th style="width: 8%;">${__("Read Only")}</th>
-						<th style="width: 10%;">${__("Write-back")}</th>
-						<th style="width: 38%;">${__("Write-back note")}</th>
-					</tr>
-				</thead>
-				<tbody id="desk-exhibit-body"></tbody>
-			</table>
-		</div>
+		<div class="schema-grid-scroll" style="overflow: auto;"></div>
 		</div><!-- /tab-exhibit -->
 
 		</div><!-- /tab-content -->
@@ -1222,8 +1360,8 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 	}
 
 	function _render_desk_exhibit() {
-		let $body = d.$wrapper.find("#desk-exhibit-body");
-		if (!$body.length) {
+		let $scroll = d.$wrapper.find("#tab-exhibit .schema-grid-scroll");
+		if (!$scroll.length) {
 			return;
 		}
 
@@ -1232,67 +1370,28 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 
 		fields.forEach(function (f) {
 			let is_frappe_id = id_col && f.column_name === id_col;
-			let frappe_fn = is_frappe_id ? "\u2014" : _exhibit_frappe_fieldname(f);
-
-			let data_type = "\u2014";
-			if (!is_frappe_id) {
-				data_type =
-					d.$wrapper
-						.find(`.field-type-select[data-column="${f.column_name}"]`)
-						.val() || f.proposed_fieldtype;
-			}
-
-			let is_mandatory =
-				!is_frappe_id && String(f.is_nullable || "").toUpperCase() === "NO";
-			let mandatory_html = is_frappe_id
-				? "\u2014"
-				: is_mandatory
-					? '<strong style="color:#c0392b;">' + __("Yes") + "</strong>"
-					: __("No");
-
-			let is_read_only = d.$wrapper
-				.find(`.read-only-checkbox[data-column="${f.column_name}"]`)
-				.prop("checked");
-			let read_only_html = is_read_only
-				? '<strong style="color:#856404;">' + __("Yes") + "</strong>"
-				: __("No");
-
 			let wb = _write_back_exclusion(f, id_col);
-			let wb_badge = wb.excluded
-				? '<span class="badge badge-secondary">' + __("Excluded") + "</span>"
-				: '<span class="badge badge-success">' + __("Included") + "</span>";
 
-			let row_style = is_mandatory ? ' style="background:#fff5f5;"' : "";
-			rows.push(
-				"<tr" +
-					row_style +
-					">" +
-					"<td><strong>" +
-					frappe.utils.escape_html(f.column_name) +
-					"</strong></td>" +
-					"<td><code>" +
-					frappe.utils.escape_html(frappe_fn) +
-					"</code></td>" +
-					"<td>" +
-					frappe.utils.escape_html(data_type) +
-					"</td>" +
-					"<td>" +
-					mandatory_html +
-					"</td>" +
-					"<td>" +
-					read_only_html +
-					"</td>" +
-					"<td>" +
-					wb_badge +
-					"</td>" +
-					'<td class="text-muted" style="font-size:12px;">' +
-					wb.reason +
-					"</td>" +
-					"</tr>",
-			);
+			rows.push({
+				wp_column: f.column_name,
+				frappe_field: is_frappe_id ? "name" : _exhibit_frappe_fieldname(f),
+				data_type: is_frappe_id
+					? "Data"
+					: d.$wrapper
+							.find(`.field-type-select[data-column="${f.column_name}"]`)
+							.val() || f.proposed_fieldtype,
+				mandatory: is_frappe_id
+					? null
+					: String(f.is_nullable || "").toUpperCase() === "NO",
+				read_only: d.$wrapper
+					.find(`.read-only-checkbox[data-column="${f.column_name}"]`)
+					.prop("checked"),
+				write_back_excluded: wb.excluded,
+				write_back_reason: wb.excluded ? wb.reason : "",
+			});
 		});
 
-		$body.html(rows.join(""));
+		$scroll.html(_desk_exhibit_table_markup(rows));
 	}
 
 	d.$wrapper.on("change", ".name-field-radio", _refresh_frappe_id_state);

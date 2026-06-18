@@ -24,6 +24,9 @@
     "write_back_mode",
     "listen_for_changes",
     "write_back_refresh_seconds",
+    "field_reference_tab",
+    "field_reference_html",
+    "advanced_tab",
     "sync_status_section",
     "last_synced",
     "last_sync_status",
@@ -181,6 +184,25 @@
       "fieldtype": "Int",
       "label": "Write-back refresh delay (seconds)",
       "non_negative": 1
+    },
+    {
+      "depends_on": "eval:doc.doctype_source !== 'Native' && doc.frappe_doctype",
+      "fieldname": "field_reference_tab",
+      "fieldtype": "Tab Break",
+      "label": "Field Reference"
+    },
+    {
+      "depends_on": "eval:doc.doctype_source !== 'Native' && doc.frappe_doctype",
+      "fieldname": "field_reference_html",
+      "fieldtype": "HTML",
+      "label": "Field Reference",
+      "options": "<p class=\"text-muted\">Loading field settings…</p>"
+    },
+    {
+      "depends_on": "eval:doc.doctype_source !== 'Native'",
+      "fieldname": "advanced_tab",
+      "fieldtype": "Tab Break",
+      "label": "Advanced"
     },
     {
       "fieldname": "sync_status_section",

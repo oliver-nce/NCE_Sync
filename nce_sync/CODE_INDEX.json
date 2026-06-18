@@ -218,7 +218,7 @@
 
   "doctypes": {
     "nce_sync/nce_sync/doctype/wp_tables/": {
-      "purpose": "Central config per synced WordPress table: WP connection, table name, Frappe doctype name, column mapping, matching keys, field overrides, timestamp fields, auto-sync, listen_for_changes, write_back_mode. Schema preview dialog supports title field, read_only, bold, virtual, and pick_list column selection. sync_now enqueues run_sync_for_table on queue default.",
+      "purpose": "Central config per synced WordPress table: WP connection, table name, Frappe doctype name, column mapping, matching keys, field overrides, timestamp fields, auto-sync, listen_for_changes, write_back_mode. Schema preview dialog + main form Field Reference tab show mandatory/read-only/data type and write-back exclusion per column. sync_now enqueues run_sync_for_table on queue default.",
       "key_fields": [
         "wp_connection",
         "table_name",
@@ -232,7 +232,7 @@
         "write_back_mode"
       ],
       "client_js": [
-        "wp_tables.js (form actions, schema preview dialog with Data Mapping / Frappe Field Settings / Desk & Write-back exhibit tabs, resizable 95vw modal)",
+        "wp_tables.js (form actions, Field Reference tab on main form, schema preview dialog tabs, resizable 95vw modal)",
         "wp_tables_list.js (list view actions)"
       ],
       "depends_on": ["wordpress_connection"]
