@@ -232,7 +232,7 @@
         "write_back_mode"
       ],
       "client_js": [
-        "wp_tables.js (form actions, schema preview dialog with title/read_only/bold/virtual/pick_list columns, resizable 95vw modal)",
+        "wp_tables.js (form actions, schema preview dialog with Data Mapping / Frappe Field Settings / Desk & Write-back exhibit tabs, resizable 95vw modal)",
         "wp_tables_list.js (list view actions)"
       ],
       "depends_on": ["wordpress_connection"]

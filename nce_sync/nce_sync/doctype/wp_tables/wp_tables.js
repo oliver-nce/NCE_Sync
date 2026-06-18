@@ -651,7 +651,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 	let remap_footer_hint =
 		mode === "remap"
 			? `<p class="text-muted" style="margin: 0 0 10px 0;">${__(
-					"Use both tabs as needed. Save & remap (dialog footer) applies everything in one step.",
+					"Use all tabs as needed. Save & remap (dialog footer) applies everything in one step.",
 			  )}</p>`
 			: "";
 	let html = `
@@ -662,6 +662,9 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			</li>
 			<li class="nav-item">
 				<a class="nav-link schema-tab-link" data-tab-target="tab-settings" href="javascript:void(0)" role="tab">${__("Frappe Field Settings")}</a>
+			</li>
+			<li class="nav-item">
+				<a class="nav-link schema-tab-link" data-tab-target="tab-exhibit" href="javascript:void(0)" role="tab">${__("Desk & Write-back")}</a>
 			</li>
 		</ul>
 		<div class="tab-content" style="border: 1px solid var(--border-color, #d1d8dd); border-top: none; border-radius: 0 0 var(--border-radius, 6px) var(--border-radius, 6px);">
@@ -986,8 +989,41 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 		</div>
 		</div><!-- /tab-settings -->
 
+		<!-- ═══ TAB 3: Desk & Write-back (read-only exhibit) ═══ -->
+		<div class="tab-pane" id="tab-exhibit" role="tabpanel">
+		<div style="padding: 10px 10px 0;">
+			<span class="text-muted">${__(
+				"Quick reference for each field after mirroring — what Desk will enforce and whether SQL write-back includes the column.",
+			)}</span>
+			<br>
+			<span class="text-muted"><strong>${__("Mandatory")}:</strong> ${__(
+				"from WordPress NOT NULL — empty values block saves in Frappe (e.g. NCE Events edits).",
+			)}</span>
+			<br>
+			<span class="text-muted"><strong>${__("Read Only")}:</strong> ${__(
+				"Desk form only; does not by itself exclude write-back.",
+			)}</span>
+		</div>
+		<div class="schema-grid-scroll" style="overflow: auto;">
+			<table class="table table-bordered table-sm" style="font-size: 13px;">
+				<thead style="position: sticky; top: 0; background: var(--fg-color, #fff); z-index: 1;">
+					<tr>
+						<th style="width: 14%;">${__("WP Column")}</th>
+						<th style="width: 12%;">${__("Frappe Field")}</th>
+						<th style="width: 10%;">${__("Data Type")}</th>
+						<th style="width: 8%;">${__("Mandatory")}</th>
+						<th style="width: 8%;">${__("Read Only")}</th>
+						<th style="width: 10%;">${__("Write-back")}</th>
+						<th style="width: 38%;">${__("Write-back note")}</th>
+					</tr>
+				</thead>
+				<tbody id="desk-exhibit-body"></tbody>
+			</table>
+		</div>
+		</div><!-- /tab-exhibit -->
+
 		</div><!-- /tab-content -->
-	`;
+`;
 
 	d.fields_dict.field_preview.$wrapper.html(html);
 
@@ -1124,6 +1160,139 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				$(this).css({ opacity: "" });
 			}
 		});
+
+		_render_desk_exhibit();
+	}
+
+	function _exhibit_frappe_fieldname(f) {
+		let label =
+			d.$wrapper.find(`.field-label-input[data-column="${f.column_name}"]`).val() ||
+			f.label ||
+			"";
+		label = String(label).trim();
+		let fn = f.column_name.toLowerCase();
+		if (RESERVED_FIELDNAMES.includes(fn)) {
+			let scrubbed = _scrub_fieldname(label);
+			if (scrubbed && !RESERVED_FIELDNAMES.includes(scrubbed)) {
+				fn = scrubbed;
+			} else {
+				fn = fn + "_field";
+			}
+		}
+		return fn;
+	}
+
+	function _write_back_exclusion(f, id_col) {
+		if (id_col && f.column_name === id_col) {
+			return {
+				excluded: true,
+				reason: __("Frappe ID — WordPress owns the primary key"),
+			};
+		}
+		if (f.is_virtual) {
+			let expr = f.sql_expression_frappe || f.generation_expression || "";
+			let short =
+				expr.length > 80 ? expr.substring(0, 80) + "\u2026" : expr;
+			let reason = __("Derived column — GENERATED/VIRTUAL in WordPress");
+			if (short) {
+				reason += " (" + frappe.utils.escape_html(short) + ")";
+			}
+			return { excluded: true, reason };
+		}
+		if (f.is_auto_increment) {
+			return {
+				excluded: true,
+				reason: __("Auto-entered by WordPress (AUTO_INCREMENT)"),
+			};
+		}
+		if (
+			d.$wrapper
+				.find(`.auto-generated-checkbox[data-column="${f.column_name}"]`)
+				.prop("checked")
+		) {
+			return {
+				excluded: true,
+				reason: __("Marked Auto — skipped on SQL write-back"),
+			};
+		}
+		return {
+			excluded: false,
+			reason: "\u2014",
+		};
+	}
+
+	function _render_desk_exhibit() {
+		let $body = d.$wrapper.find("#desk-exhibit-body");
+		if (!$body.length) {
+			return;
+		}
+
+		let id_col = d.$wrapper.find(".name-field-radio:checked").val() || null;
+		let rows = [];
+
+		fields.forEach(function (f) {
+			let is_frappe_id = id_col && f.column_name === id_col;
+			let frappe_fn = is_frappe_id ? "\u2014" : _exhibit_frappe_fieldname(f);
+
+			let data_type = "\u2014";
+			if (!is_frappe_id) {
+				data_type =
+					d.$wrapper
+						.find(`.field-type-select[data-column="${f.column_name}"]`)
+						.val() || f.proposed_fieldtype;
+			}
+
+			let is_mandatory =
+				!is_frappe_id && String(f.is_nullable || "").toUpperCase() === "NO";
+			let mandatory_html = is_frappe_id
+				? "\u2014"
+				: is_mandatory
+					? '<strong style="color:#c0392b;">' + __("Yes") + "</strong>"
+					: __("No");
+
+			let is_read_only = d.$wrapper
+				.find(`.read-only-checkbox[data-column="${f.column_name}"]`)
+				.prop("checked");
+			let read_only_html = is_read_only
+				? '<strong style="color:#856404;">' + __("Yes") + "</strong>"
+				: __("No");
+
+			let wb = _write_back_exclusion(f, id_col);
+			let wb_badge = wb.excluded
+				? '<span class="badge badge-secondary">' + __("Excluded") + "</span>"
+				: '<span class="badge badge-success">' + __("Included") + "</span>";
+
+			let row_style = is_mandatory ? ' style="background:#fff5f5;"' : "";
+			rows.push(
+				"<tr" +
+					row_style +
+					">" +
+					"<td><strong>" +
+					frappe.utils.escape_html(f.column_name) +
+					"</strong></td>" +
+					"<td><code>" +
+					frappe.utils.escape_html(frappe_fn) +
+					"</code></td>" +
+					"<td>" +
+					frappe.utils.escape_html(data_type) +
+					"</td>" +
+					"<td>" +
+					mandatory_html +
+					"</td>" +
+					"<td>" +
+					read_only_html +
+					"</td>" +
+					"<td>" +
+					wb_badge +
+					"</td>" +
+					'<td class="text-muted" style="font-size:12px;">' +
+					wb.reason +
+					"</td>" +
+					"</tr>",
+			);
+		});
+
+		$body.html(rows.join(""));
 	}
 
 	d.$wrapper.on("change", ".name-field-radio", _refresh_frappe_id_state);
@@ -1157,6 +1326,8 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 	d.$wrapper.on("change", ".matching-field-checkbox", _refresh_read_only_state);
 	d.$wrapper.on("change", ".mod-ts-radio", _refresh_read_only_state);
 	d.$wrapper.on("change", ".crt-ts-radio", _refresh_read_only_state);
+	d.$wrapper.on("change", ".auto-generated-checkbox", _render_desk_exhibit);
+	d.$wrapper.on("change", ".read-only-checkbox", _render_desk_exhibit);
 
 	// Trigger on load
 	_refresh_frappe_id_state();
@@ -1191,6 +1362,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				.removeAttr("title")
 				.val($select.data("original"));
 		}
+		_render_desk_exhibit();
 	});
 	// Trigger on load for any pre-checked pick-list columns
 	d.$wrapper.find(".pick-list-checkbox:checked").trigger("change");
@@ -1205,6 +1377,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			$(this).css("border-color", "");
 			$(this).css("background-color", "");
 		}
+		_render_desk_exhibit();
 	});
 
 	// Highlight changed labels (with reserved-column validation)
@@ -1231,6 +1404,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			$(this).css("border-color", "");
 			$(this).css("background-color", "");
 		}
+		_render_desk_exhibit();
 	});
 
 	d.show();
