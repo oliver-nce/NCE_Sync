@@ -111,6 +111,7 @@ def on_record_change(doc, method):
 		docname=doc.name,
 		queue="default",
 		job_id=job_id,
+		enqueue_after_commit=True,
 	)
 	if not hasattr(frappe.local, "nce_sync_queued_job_ids"):
 		frappe.local.nce_sync_queued_job_ids = []
