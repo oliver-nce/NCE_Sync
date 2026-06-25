@@ -10,7 +10,8 @@ write_back_mode = SQL Direct, and mirror_status = Mirrored.
 
 New records (identified by a negative temp name assigned by reverse_sync) are
 INSERTed into WordPress; the Frappe doc is then renamed to the real WP auto-
-increment ID.  Existing records are UPDATEd.
+increment ID.  Records with a positive name use upsert: UPDATE when the WP row
+exists, otherwise INSERT with ``name_field_column`` = Frappe ``name``.
 
 Auto-generated WP columns (e.g. computed/virtual columns) are never written.
 
@@ -92,6 +93,9 @@ def on_record_change(doc, method):
 	if getattr(frappe.flags, "in_sync", False):
 		return
 
+	if getattr(frappe.flags, "nce_skip_wp_write_back", False):
+		return
+
 	listen_map = _get_listen_map()
 	if doc.doctype not in listen_map:
 		return
@@ -156,6 +160,32 @@ def on_record_delete(doc, method):
 
 
 # ---------------------------------------------------------------------------
+# SQL helpers
+# ---------------------------------------------------------------------------
+
+
+def _wp_row_exists(cursor, table_name: str, name_wp_col: str, record_id) -> bool:
+	cursor.execute(
+		f"SELECT 1 FROM `{table_name}` WHERE `{name_wp_col}` = %s LIMIT 1",
+		[record_id],
+	)
+	return cursor.fetchone() is not None
+
+
+def _insert_wp_row(cursor, table_name: str, row: dict) -> None:
+	cols = ", ".join(f"`{c}`" for c in row.keys())
+	placeholders = ", ".join(["%s"] * len(row))
+	sql = f"INSERT INTO `{table_name}` ({cols}) VALUES ({placeholders})"
+	cursor.execute(sql, list(row.values()))
+
+
+def _update_wp_row(cursor, table_name: str, row: dict, name_wp_col: str, record_id) -> None:
+	set_clause = ", ".join(f"`{c}` = %s" for c in row.keys())
+	sql = f"UPDATE `{table_name}` SET {set_clause} WHERE `{name_wp_col}` = %s"
+	cursor.execute(sql, list(row.values()) + [record_id])
+
+
+# ---------------------------------------------------------------------------
 # Background job
 # ---------------------------------------------------------------------------
 
@@ -167,7 +197,8 @@ def push_record_to_wp(wp_table_name, doctype, docname):
 	Decision logic:
 	- Negative integer name  → new record (temp name from assign_temp_name hook)
 	  → INSERT, read back LAST_INSERT_ID(), rename Frappe doc to real WP ID.
-	- Any other name         → existing record → UPDATE WHERE <pk> = name.
+	- Any other name         → upsert: UPDATE when the WP row exists; otherwise
+	  INSERT with ``name_field_column`` = Frappe ``name``.
 
 	After a successful commit, waits ``write_back_refresh_seconds`` (WP Tables,
 	default 2, max 120; 0 = no wait) then SELECTs the row from WordPress and
@@ -222,12 +253,8 @@ def push_record_to_wp(wp_table_name, doctype, docname):
 			if is_new_record:
 				# INSERT new record, skip auto-generated and name columns
 				table_name = wp_table_doc.table_name
-				cols = ", ".join(f"`{c}`" for c in row.keys())
-				placeholders = ", ".join(["%s"] * len(row))
-				sql = f"INSERT INTO `{table_name}` ({cols}) VALUES ({placeholders})"
-				values = list(row.values())
+				_insert_wp_row(cursor, table_name, row)
 
-				cursor.execute(sql, values)
 				new_id = cursor.lastrowid
 
 				if new_id:
@@ -237,13 +264,13 @@ def push_record_to_wp(wp_table_name, doctype, docname):
 					refresh_key = str(new_id)
 				conn.commit()
 			else:
-				# UPDATE existing record
 				table_name = wp_table_doc.table_name
-				set_clause = ", ".join(f"`{c}` = %s" for c in row.keys())
-				sql = f"UPDATE `{table_name}` SET {set_clause} WHERE `{name_wp_col}` = %s"
-				values = list(row.values()) + [record_id]
-
-				cursor.execute(sql, values)
+				if _wp_row_exists(cursor, table_name, name_wp_col, record_id):
+					_update_wp_row(cursor, table_name, row, name_wp_col, record_id)
+				else:
+					insert_row = dict(row)
+					insert_row[name_wp_col] = record_id
+					_insert_wp_row(cursor, table_name, insert_row)
 				conn.commit()
 				refresh_key = str(record_id)
 
