@@ -51,7 +51,7 @@ SYNC_FREQUENCY_MAP = {
 # ---------------------------------------------------------------------------
 
 #: Singleton DocType that stores the auto-decrementing counter.
-TEMP_NAME_COUNTER_DOCTYPE = "NCE Sync Settings"
+TEMP_NAME_COUNTER_DOCTYPE = "Sync Manager"
 
 #: Field on the singleton that holds the current counter value.
 TEMP_NAME_COUNTER_FIELD = "temp_name_counter"

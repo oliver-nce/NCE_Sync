@@ -13,7 +13,8 @@
   "last_run_status",
   "column_break_status",
   "next_scheduled_run",
-  "last_run_log"
+  "last_run_log",
+  "temp_name_counter"
  ],
  "fields": [
   {
@@ -75,6 +76,14 @@
    "fieldname": "last_run_log",
    "fieldtype": "Long Text",
    "label": "Last Run Log",
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "temp_name_counter",
+   "fieldtype": "Int",
+   "hidden": 1,
+   "label": "Temp Name Counter",
    "read_only": 1
   }
  ],
