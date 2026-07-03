@@ -31,6 +31,11 @@ RESTRICTED_FIELDNAMES = (
 	"docstatus",
 )
 
+# Layout-only DocField types — preserved across Remap / schema reconcile
+BREAK_TYPES = frozenset(("Section Break", "Column Break", "Tab Break", "Fold"))
+NEW_FIELDS_TAB_FIELDNAME = "new_fields_tab"
+NEW_FIELDS_TAB_LABEL = "New fields"
+
 
 def sanitize_fieldname(fieldname):
 	"""
@@ -697,6 +702,9 @@ def preview_table_schema(wp_conn_doc, wp_table_doc):
 		schema = get_table_schema(conn, table_name)
 		timestamps = detect_timestamp_fields(conn, table_name)
 
+	if getattr(wp_table_doc, "mirror_status", None) == "Mirrored" and wp_table_doc.frappe_doctype:
+		_sync_field_settings_from_doctype(wp_table_doc)
+
 	prev = _restore_previous_selections(wp_table_doc)
 	existing_field_labels = prev.pop("existing_field_labels")
 	prev.pop("existing_columns")  # not used; per-field is_existing replaces this
@@ -1029,11 +1037,6 @@ def mirror_table_schema(
 		read_only_fieldnames = _parse_comma_columns(read_only_columns, label_overrides)
 		bold_fieldnames = _parse_comma_columns(bold_columns, label_overrides)
 
-		# --- Phase 2.5: Save existing layout before reconfigure ---
-		saved_layout = None
-		if frappe.db.exists("DocType", doctype_name):
-			saved_layout = save_doctype_layout(doctype_name)
-
 		# --- Phase 3: Create or update the DocType ---
 		_create_or_update_doctype(
 			doctype_name, schema, wp_table_doc, field_overrides, label_overrides,
@@ -1169,7 +1172,9 @@ def update_existing_doctype(
 ):
 	"""
 	Update an existing DocType to match the current WordPress schema.
-	Removes DocFields whose source columns no longer exist, then adds any missing fields.
+	Removes data DocFields whose source columns no longer exist (layout breaks kept),
+	updates properties on surviving fields in place, then adds missing fields under
+	the "New fields" tab.
 
 	Note: If the autoname setting changes (e.g., from hash to field:wp_id),
 	existing records will NOT be renamed. To apply new naming to all records,
@@ -1222,7 +1227,6 @@ def update_existing_doctype(
 	fields_removed = _prune_stale_fields_from_doctype_doc(
 		doctype_doc, schema, label_overrides, name_field_column, previous_mapping
 	)
-	existing_fields = {f.fieldname for f in doctype_doc.fields}
 
 	original_types = {}
 	for entry in previous_mapping.values():
@@ -1232,25 +1236,26 @@ def update_existing_doctype(
 				original_types[fn] = entry["original_fieldtype"]
 	pick_list_active = set(pick_list_options.keys()) if pick_list_options else set()
 
-	# Find new fields to add - skip name column when name_field_column is set
-	new_fields_added = False
-	idx = len(doctype_doc.fields) + 1
+	new_fields_added = (
+		_append_new_mirrored_fields_to_new_tab(
+			doctype_doc,
+			schema,
+			wp_table_doc,
+			field_overrides,
+			label_overrides,
+			name_field_column,
+			read_only_fieldnames,
+			bold_fieldnames,
+			pick_list_options,
+		)
+		> 0
+	)
 
-	for col in schema["columns"]:
-		col_name = col["COLUMN_NAME"]
-		if name_field_column and col_name == name_field_column:
-			continue  # Skip - no DocType field for name column
-		safe_fieldname = resolve_fieldname(col_name, label_overrides)
-
-		if safe_fieldname not in existing_fields:
-			field = build_frappe_field(col, schema, wp_table_doc, field_overrides, label_overrides, idx, read_only_fieldnames=read_only_fieldnames, pick_list_options=pick_list_options, bold_fieldnames=bold_fieldnames)
-			doctype_doc.append("fields", field)
-			new_fields_added = True
-			idx += 1
-
-	# Update existing field properties (read_only, bold, label, pick_list)
+	# Update existing field properties (read_only, bold, pick_list) — in place, same idx
 	fields_updated = False
 	for field in doctype_doc.fields:
+		if field.fieldtype in BREAK_TYPES:
+			continue
 		fn = field.fieldname
 
 		# Read Only
@@ -1423,28 +1428,176 @@ def _prune_stale_fields_from_doctype_doc(
 	doctype_doc, schema, label_overrides=None, name_field_column=None, column_mapping=None
 ):
 	"""
-	Remove DocFields with no matching WordPress source column (in-place).
+	Remove data DocFields with no matching WordPress source column (in-place).
 
-	Downstream forms, list views, and APIs use DocType meta — pruning here
-	prevents ghost columns from appearing after a remap.
+	Tab Break, Section Break, Column Break, and Fold rows are kept so hand-built
+	form layout survives Remap. Existing field ``idx`` values are not renumbered.
 	"""
 	expected = _expected_mirrored_fieldnames(
 		schema, label_overrides, name_field_column, column_mapping
 	)
-	stale_count = sum(1 for f in doctype_doc.fields if f.fieldname not in expected)
-	if not stale_count:
+	kept = []
+	removed = 0
+	for field in doctype_doc.fields:
+		if field.fieldtype in BREAK_TYPES or field.fieldname in expected:
+			kept.append(field)
+		else:
+			removed += 1
+
+	if not removed:
 		return 0
 
-	doctype_doc.fields = [f for f in doctype_doc.fields if f.fieldname in expected]
-	for i, field in enumerate(doctype_doc.fields, start=1):
-		field.idx = i
+	doctype_doc.fields = kept
 
 	if doctype_doc.title_field and doctype_doc.title_field not in expected:
 		doctype_doc.title_field = None
 		doctype_doc.show_title_field_in_link = 0
 		doctype_doc.search_fields = None
 
-	return stale_count
+	return removed
+
+
+def _get_new_fields_tab_insert_index(fields):
+	"""List index where the next new mirrored field should be inserted."""
+	tab_idx = None
+	for i, field in enumerate(fields):
+		if field.fieldname == NEW_FIELDS_TAB_FIELDNAME and field.fieldtype == "Tab Break":
+			tab_idx = i
+			break
+
+	if tab_idx is None:
+		return len(fields)
+
+	insert_at = tab_idx + 1
+	for i in range(tab_idx + 1, len(fields)):
+		if fields[i].fieldtype == "Tab Break":
+			break
+		insert_at = i + 1
+	return insert_at
+
+
+def _append_new_mirrored_fields_to_new_tab(
+	doctype_doc,
+	schema,
+	wp_table_doc,
+	field_overrides=None,
+	label_overrides=None,
+	name_field_column=None,
+	read_only_fieldnames=None,
+	bold_fieldnames=None,
+	pick_list_options=None,
+):
+	"""Append DocFields for new WP columns under the shared 'New fields' tab."""
+	field_overrides = field_overrides or {}
+	label_overrides = label_overrides or {}
+	read_only_fieldnames = read_only_fieldnames or set()
+	bold_fieldnames = bold_fieldnames or set()
+	pick_list_options = pick_list_options or {}
+
+	existing_fields = {f.fieldname for f in doctype_doc.fields}
+	cols_to_add = []
+	for col in schema["columns"]:
+		col_name = col["COLUMN_NAME"]
+		if name_field_column and col_name == name_field_column:
+			continue
+		safe_fieldname = resolve_fieldname(col_name, label_overrides)
+		if safe_fieldname not in existing_fields:
+			cols_to_add.append(col)
+
+	if not cols_to_add:
+		return 0
+
+	has_new_fields_tab = any(
+		f.fieldname == NEW_FIELDS_TAB_FIELDNAME and f.fieldtype == "Tab Break"
+		for f in doctype_doc.fields
+	)
+	if not has_new_fields_tab:
+		max_idx = max((f.idx or 0) for f in doctype_doc.fields) if doctype_doc.fields else 0
+		doctype_doc.append(
+			"fields",
+			{
+				"fieldname": NEW_FIELDS_TAB_FIELDNAME,
+				"fieldtype": "Tab Break",
+				"label": NEW_FIELDS_TAB_LABEL,
+				"idx": max_idx + 1,
+			},
+		)
+
+	insert_at = _get_new_fields_tab_insert_index(doctype_doc.fields)
+	added = 0
+	for col in cols_to_add:
+		field_dict = build_frappe_field(
+			col,
+			schema,
+			wp_table_doc,
+			field_overrides,
+			label_overrides,
+			idx=1,
+			read_only_fieldnames=read_only_fieldnames,
+			pick_list_options=pick_list_options,
+			bold_fieldnames=bold_fieldnames,
+		)
+		doctype_doc.append("fields", field_dict)
+		row = doctype_doc.fields.pop()
+		doctype_doc.fields.insert(insert_at, row)
+		insert_at += 1
+		added += 1
+
+	return added
+
+
+def _sync_field_settings_from_doctype(wp_table_doc):
+	"""
+	Refresh column_mapping display flags from the live mirrored DocType so the
+	Remap preview dialog reflects Desk edits made since the last mapping save.
+	"""
+	import json
+
+	if not wp_table_doc.frappe_doctype or not frappe.db.exists("DocType", wp_table_doc.frappe_doctype):
+		return False
+	if not wp_table_doc.column_mapping:
+		return False
+
+	try:
+		col_map = json.loads(wp_table_doc.column_mapping) or {}
+	except Exception:
+		return False
+	if not col_map:
+		return False
+
+	meta_by_fn = {df.fieldname: df for df in frappe.get_meta(wp_table_doc.frappe_doctype).fields}
+	changed = False
+
+	for _wp_col, entry in col_map.items():
+		if not isinstance(entry, dict):
+			continue
+		fn = entry.get("fieldname")
+		if not fn or fn == "name" or fn not in meta_by_fn:
+			continue
+		df = meta_by_fn[fn]
+		if df.fieldtype in BREAK_TYPES:
+			continue
+
+		new_ro = bool(df.read_only)
+		new_bold = bool(df.bold)
+		new_pl = df.fieldtype == "Select" and bool(df.options)
+
+		if entry.get("is_read_only") != new_ro:
+			entry["is_read_only"] = new_ro
+			changed = True
+		if entry.get("is_bold") != new_bold:
+			entry["is_bold"] = new_bold
+			changed = True
+		if entry.get("is_pick_list") != new_pl:
+			entry["is_pick_list"] = new_pl
+			changed = True
+
+	if changed:
+		wp_table_doc.column_mapping = json.dumps(col_map)
+		wp_table_doc.save(ignore_permissions=True)
+		frappe.db.commit()
+
+	return changed
 
 
 def _remove_stale_mirrored_fields(
@@ -1481,31 +1634,17 @@ def _append_missing_mirrored_fields(
 	pick_list_options = pick_list_options or {}
 
 	doctype_doc = frappe.get_doc("DocType", doctype_name)
-	existing_fields = {f.fieldname for f in doctype_doc.fields}
-	added = 0
-	idx = len(doctype_doc.fields) + 1
-
-	for col in schema["columns"]:
-		col_name = col["COLUMN_NAME"]
-		if name_field_column and col_name == name_field_column:
-			continue
-		safe_fieldname = resolve_fieldname(col_name, label_overrides)
-		if safe_fieldname not in existing_fields:
-			field = build_frappe_field(
-				col,
-				schema,
-				wp_table_doc,
-				field_overrides,
-				label_overrides,
-				idx,
-				read_only_fieldnames=read_only_fieldnames,
-				pick_list_options=pick_list_options,
-				bold_fieldnames=bold_fieldnames,
-			)
-			doctype_doc.append("fields", field)
-			existing_fields.add(safe_fieldname)
-			added += 1
-			idx += 1
+	added = _append_new_mirrored_fields_to_new_tab(
+		doctype_doc,
+		schema,
+		wp_table_doc,
+		field_overrides,
+		label_overrides,
+		name_field_column,
+		read_only_fieldnames,
+		bold_fieldnames,
+		pick_list_options,
+	)
 
 	if added:
 		doctype_doc.save(ignore_permissions=True)
@@ -1707,10 +1846,8 @@ def apply_field_settings(
 
 
 # ---------------------------------------------------------------------------
-#  DocType layout save / restore — for reconfigure
+#  DocType layout save / restore — for delete_mirror / re-mirror
 # ---------------------------------------------------------------------------
-
-BREAK_TYPES = ("Section Break", "Column Break", "Tab Break", "Fold")
 
 
 def save_doctype_layout(doctype_name):

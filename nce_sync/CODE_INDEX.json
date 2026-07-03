@@ -55,7 +55,7 @@
       "sections": ["DocType override hooks"]
     },
     "nce_sync/utils/schema_mirror.py": {
-      "purpose": "WordPress schema introspection and Frappe doctype mirroring: connect to WP MySQL, discover tables/views, map MariaDB types to Frappe types, create or update Frappe custom doctype with matching field configuration. Supports read_only fields, bold fields, pick_list fields (Select fieldtype with DISTINCT values from WP), and virtual/generated column translation via sql_to_python.",
+      "purpose": "WordPress schema introspection and Frappe doctype mirroring: connect to WP MySQL, discover tables/views, map MariaDB types to Frappe types, create or update Frappe custom doctype with matching field configuration. Remap/update preserves hand-built form layout (Tab/Section/Column breaks); new WP columns append under shared New fields tab. Preview syncs column_mapping flags from live DocType before Remap dialog. Supports read_only, bold, pick_list, virtual/generated columns via sql_to_python.",
       "exports": [
         "sanitize_fieldname",
         "resolve_fieldname",

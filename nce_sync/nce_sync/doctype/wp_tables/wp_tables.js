@@ -447,7 +447,7 @@ frappe.ui.form.on("WP Tables", {
 								fieldtype: "HTML",
 								fieldname: "info",
 								options: `<p class="text-muted">${__(
-									"This will re-read the source schema and reconcile the DocType with WordPress (removing columns dropped from the source and adding new ones). Existing row data is kept unless you change the Data Mapping tab.",
+									"This will re-read the source schema and reconcile the DocType with WordPress. Existing form layout (tabs, sections, columns) is preserved. Removed source columns drop their fields; new columns are added under a New fields tab. Existing row data is kept unless you change the Data Mapping tab.",
 									[frm.doc.frappe_doctype],
 								)}</p>`,
 							},
