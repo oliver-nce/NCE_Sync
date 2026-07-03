@@ -764,7 +764,9 @@ class WPTables(Document):
 		from nce_sync.utils.schema_mirror import (
 			_fetch_pick_list_options,
 			_parse_comma_columns,
+			_resolve_read_only_fieldnames,
 			apply_field_settings,
+			get_table_schema,
 			resolve_fieldname,
 			sync_mirrored_doctype_with_wordpress,
 		)
@@ -789,7 +791,18 @@ class WPTables(Document):
 
 		existing_mapping = json.loads(self.column_mapping) if self.column_mapping else {}
 
-		read_only_fieldnames = _parse_comma_columns(read_only_columns, label_overrides)
+		with wp_connection(wp_conn) as conn:
+			schema = get_table_schema(conn, self.table_name)
+
+		read_only_fieldnames = _resolve_read_only_fieldnames(
+			read_only_columns,
+			label_overrides,
+			schema,
+			name_field_column=getattr(self, "name_field_column", None) or None,
+			modified_ts_field=getattr(self, "modified_timestamp_field", None) or None,
+			created_ts_field=getattr(self, "created_timestamp_field", None) or None,
+			auto_generated_columns=getattr(self, "auto_generated_columns", None) or None,
+		)
 		bold_fieldnames = _parse_comma_columns(bold_columns, label_overrides)
 		pick_list_fieldnames = _parse_comma_columns(pick_list_columns, label_overrides)
 

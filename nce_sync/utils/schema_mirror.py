@@ -500,6 +500,67 @@ def _parse_comma_columns(columns, label_overrides=None):
 	return {resolve_fieldname(c, label_overrides) for c in col_list}
 
 
+def _forced_read_only_wp_columns(
+	schema,
+	name_field_column=None,
+	modified_ts_field=None,
+	created_ts_field=None,
+	auto_generated_columns=None,
+):
+	"""WP column names that must always be read-only on the mirrored Frappe form."""
+	forced = set()
+	auto_gen_set = set()
+	if auto_generated_columns:
+		if isinstance(auto_generated_columns, str):
+			auto_gen_set = {c.strip().lower() for c in auto_generated_columns.split(",") if c.strip()}
+		else:
+			auto_gen_set = {str(c).strip().lower() for c in auto_generated_columns if c and str(c).strip()}
+
+	for col in schema.get("columns") or []:
+		wp_col_name = col["COLUMN_NAME"]
+		extra = (col.get("EXTRA") or "") or ""
+		extra_upper = extra.upper()
+		if "VIRTUAL" in extra_upper or "GENERATED" in extra_upper:
+			forced.add(wp_col_name)
+		if "AUTO_INCREMENT" in extra_upper:
+			forced.add(wp_col_name)
+		if wp_col_name.lower() in auto_gen_set:
+			forced.add(wp_col_name)
+
+	if name_field_column:
+		forced.add(name_field_column)
+	if modified_ts_field:
+		forced.add(modified_ts_field)
+	if created_ts_field:
+		forced.add(created_ts_field)
+	return forced
+
+
+def _resolve_read_only_fieldnames(
+	read_only_columns,
+	label_overrides,
+	schema,
+	name_field_column=None,
+	modified_ts_field=None,
+	created_ts_field=None,
+	auto_generated_columns=None,
+):
+	"""Merge user-selected read-only columns with system-forced ones."""
+	fieldnames = _parse_comma_columns(read_only_columns, label_overrides)
+	forced_wp = _forced_read_only_wp_columns(
+		schema,
+		name_field_column=name_field_column,
+		modified_ts_field=modified_ts_field,
+		created_ts_field=created_ts_field,
+		auto_generated_columns=auto_generated_columns,
+	)
+	if forced_wp:
+		fieldnames |= _parse_comma_columns(",".join(sorted(forced_wp)), label_overrides)
+	if name_field_column and name_field_column in forced_wp:
+		fieldnames.add("name")
+	return fieldnames
+
+
 def _delete_read_only_property_setters(doctype_name, fieldname):
 	"""Remove Customize Form read_only Property Setters so DocField.read_only=0 takes effect."""
 	ps_names = frappe.get_all(
@@ -1034,7 +1095,15 @@ def mirror_table_schema(
 		# --- Phase 2: Resolve column option sets ---
 		doctype_name = wp_table_doc.nce_name or table_name
 		title_fieldname = resolve_fieldname(title_field_column, label_overrides) if title_field_column else None
-		read_only_fieldnames = _parse_comma_columns(read_only_columns, label_overrides)
+		read_only_fieldnames = _resolve_read_only_fieldnames(
+			read_only_columns,
+			label_overrides,
+			schema,
+			name_field_column=name_field_column,
+			modified_ts_field=modified_ts_field or wp_table_doc.modified_timestamp_field,
+			created_ts_field=created_ts_field or wp_table_doc.created_timestamp_field,
+			auto_generated_columns=auto_generated_columns,
+		)
 		bold_fieldnames = _parse_comma_columns(bold_columns, label_overrides)
 
 		# --- Phase 3: Create or update the DocType ---

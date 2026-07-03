@@ -589,10 +589,15 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			// Tab 2: Collect Title field selection (optional)
 			let title_field_column = d.$wrapper.find(".title-field-radio:checked").val() || "";
 
-			// Tab 2: Collect Read Only columns
+			// Tab 2: Collect Read Only columns (include system-forced even if disabled)
 			let read_only_columns = [];
 			d.$wrapper.find(".read-only-checkbox:checked").each(function () {
 				read_only_columns.push($(this).data("column"));
+			});
+			_forced_read_only_columns().forEach(function (col) {
+				if (!read_only_columns.includes(col)) {
+					read_only_columns.push(col);
+				}
 			});
 
 			// Tab 2: Collect Pick List columns
@@ -967,15 +972,21 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			crt_ts_cell = `<span style="color:#ccc;" title="${__("Not a datetime column")}">—</span>`;
 		}
 
-		// Read Only checkbox — forced on for virtual, Frappe ID, Mod/Crt TS only.
+		// Read Only checkbox — forced on for virtual, auto-enter, Frappe ID, Mod/Crt TS, and Auto-marked columns.
 		// Matching-key columns no longer lock read-only (users can clear it; server respects unchecked).
+		let auto_checked_for_ro =
+			previous_auto_generated.includes(f.column_name.toLowerCase()) ||
+			(!previous_auto_generated.length && f.is_auto_increment);
 		let ro_forced =
 			f.is_virtual ||
+			f.is_auto_increment ||
+			auto_checked_for_ro ||
 			!!name_checked ||
 			!!mod_ts_cell.includes("checked") ||
 			!!crt_ts_cell.includes("checked");
 		let ro_saved = previous_read_only.includes(f.column_name.toLowerCase());
 		let ro_checked = (ro_forced || ro_saved) ? "checked" : "";
+		let ro_disabled = ro_forced ? " disabled" : "";
 
 		// Pick List checkbox — restore from previous
 		let pl_checked = previous_pick_list.includes(f.column_name.toLowerCase()) ? "checked" : "";
@@ -1077,7 +1088,9 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 				</td>
 				<td style="text-align: center;">
 					<input type="checkbox" class="read-only-checkbox"
-						data-column="${f.column_name}" data-virtual="${f.is_virtual ? 1 : 0}" ${ro_checked}>
+						data-column="${f.column_name}"
+						data-virtual="${f.is_virtual ? 1 : 0}"
+						data-auto-increment="${f.is_auto_increment ? 1 : 0}" ${ro_checked}${ro_disabled}>
 				</td>
 				<td style="text-align: center;">
 					<input type="checkbox" class="pick-list-checkbox"
@@ -1106,7 +1119,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 			)}</span>
 			<br>
 			<span class="text-muted"><strong>${__("Read Only:")}</strong> ${__(
-				"Mark fields as read-only on the Frappe form. Auto-checked for ID, virtual, matching, and timestamp fields.",
+				"Mark fields as read-only on the Frappe form. Derived, auto-enter, ID, timestamp, and Auto-marked columns are locked on and cannot be cleared.",
 			)}</span>
 			<br>
 			<span class="text-muted"><strong>${__("Pick List:")}</strong> ${__(
@@ -1274,28 +1287,56 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 		_refresh_read_only_state();
 	}
 
-	// Refresh Read Only checkboxes: auto-check for virtual, Frappe ID, matching, TS columns
-	// Auto-checked items get reduced opacity to signal they're system-set
+	// Refresh Read Only checkboxes: auto-check for virtual, auto-enter, Frappe ID, Auto, TS columns
+	// Forced items are disabled so they cannot be unchecked in the dialog.
+	function _forced_read_only_columns() {
+		let id_col = d.$wrapper.find(".name-field-radio:checked").val() || null;
+		let mod_ts_col = d.$wrapper.find(".mod-ts-radio:checked").val() || null;
+		let crt_ts_col = d.$wrapper.find(".crt-ts-radio:checked").val() || null;
+		let forced = [];
+
+		fields.forEach(function (f) {
+			let col = f.column_name;
+			let auto_marked = d.$wrapper
+				.find(`.auto-generated-checkbox[data-column="${col}"]`)
+				.prop("checked");
+			if (
+				f.is_virtual ||
+				f.is_auto_increment ||
+				auto_marked ||
+				col === id_col ||
+				col === mod_ts_col ||
+				col === crt_ts_col
+			) {
+				forced.push(col);
+			}
+		});
+		return forced;
+	}
+
 	function _refresh_read_only_state() {
 		let id_col = d.$wrapper.find(".name-field-radio:checked").val() || null;
 		let mod_ts_col = d.$wrapper.find(".mod-ts-radio:checked").val() || null;
 		let crt_ts_col = d.$wrapper.find(".crt-ts-radio:checked").val() || null;
+		let forced_set = new Set(_forced_read_only_columns());
 
 		d.$wrapper.find(".read-only-checkbox").each(function () {
 			let col = $(this).data("column");
-			let is_virtual = $(this).data("virtual") == 1;
-			// Do not include matching fields — user may turn read-only off for those columns.
-			let should_force =
-				is_virtual || col === id_col || col === mod_ts_col || col === crt_ts_col;
+			let should_force = forced_set.has(col);
 
 			if (should_force) {
-				$(this).prop("checked", true).data("auto", 1).css({ opacity: "0.5" });
+				$(this)
+					.prop({ checked: true, disabled: true })
+					.data("auto", 1)
+					.css({ opacity: "0.5", cursor: "not-allowed" });
 			} else if ($(this).data("auto") == 1) {
-				// Was forced (e.g. previously ID/TS) but no longer — uncheck
-				$(this).prop("checked", false).data("auto", 0).css({ opacity: "" });
+				// Was forced (e.g. previously ID/TS/Auto) but no longer — uncheck and re-enable
+				$(this)
+					.prop({ checked: false, disabled: false })
+					.data("auto", 0)
+					.css({ opacity: "", cursor: "" });
 			} else {
-				// Manual selection — leave as-is, restore opacity
-				$(this).css({ opacity: "" });
+				$(this).prop("disabled", false).css({ opacity: "", cursor: "" });
 			}
 		});
 
@@ -1425,7 +1466,7 @@ function show_preview_dialog(frm, preview_data, mode, new_table_name) {
 	d.$wrapper.on("change", ".matching-field-checkbox", _refresh_read_only_state);
 	d.$wrapper.on("change", ".mod-ts-radio", _refresh_read_only_state);
 	d.$wrapper.on("change", ".crt-ts-radio", _refresh_read_only_state);
-	d.$wrapper.on("change", ".auto-generated-checkbox", _render_desk_exhibit);
+	d.$wrapper.on("change", ".auto-generated-checkbox", _refresh_read_only_state);
 	d.$wrapper.on("change", ".read-only-checkbox", _render_desk_exhibit);
 
 	// Trigger on load
