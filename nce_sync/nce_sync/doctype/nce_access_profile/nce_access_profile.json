@@ -1,0 +1,83 @@
+{
+ "actions": [],
+ "autoname": "field:profile_name",
+ "creation": "2026-08-04 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "profile_name",
+  "role",
+  "disabled",
+  "description",
+  "access_section",
+  "table_access"
+ ],
+ "fields": [
+  {
+   "fieldname": "profile_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Profile Name",
+   "reqd": 1,
+   "unique": 1,
+   "description": "Short name for this access profile, e.g. \"Coach\". The underlying Role is auto-created as \"NCE {Profile Name}\"."
+  },
+  {
+   "fieldname": "role",
+   "fieldtype": "Link",
+   "label": "Linked Role",
+   "options": "Role",
+   "read_only": 1,
+   "description": "Auto-created and managed by this profile. Do not edit this Role's permissions directly in Role Permissions Manager — use the Table Access grid below and Apply Access, or your changes will be overwritten the next time this profile is saved."
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Disabled"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "access_section",
+   "fieldtype": "Section Break",
+   "label": "Table Access"
+  },
+  {
+   "fieldname": "table_access",
+   "fieldtype": "Table",
+   "label": "Table Access",
+   "options": "NCE Access Profile Table"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-04 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "NCE Sync",
+ "name": "NCE Access Profile",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
