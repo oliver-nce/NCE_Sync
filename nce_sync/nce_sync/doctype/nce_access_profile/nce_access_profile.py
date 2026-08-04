@@ -23,11 +23,20 @@ class NCEAccessProfile(Document):
 		instead, since apply_table_access() treats this profile as the sole
 		source of truth for the Role's permissions and will remove anything
 		it doesn't recognise.
+
+		Role-level settings (Home Page, Restrict To Domain, Desk Access,
+		Two Factor Authentication, Disabled) work the same way: this profile
+		is the single place to edit them. The first time a profile is saved
+		against a Role that already existed, its current settings are
+		pulled in rather than overwritten with blanks -- from then on,
+		whatever is set on this form is pushed onto the Role on every save.
 		"""
 		role_name = f"{ROLE_PREFIX}{(self.profile_name or '').strip()}".strip()
 		if not self.profile_name:
 			return
-		if not frappe.db.exists("Role", role_name):
+
+		role_existed = frappe.db.exists("Role", role_name)
+		if not role_existed:
 			frappe.get_doc(
 				{
 					"doctype": "Role",
@@ -35,7 +44,39 @@ class NCEAccessProfile(Document):
 					"desk_access": 1,
 				}
 			).insert(ignore_permissions=True)
+		elif self.is_new() or not self.role:
+			self._pull_role_fields(role_name)
+
 		self.role = role_name
+		self._push_role_fields(role_name)
+
+	def _pull_role_fields(self, role_name):
+		role_vals = frappe.db.get_value(
+			"Role",
+			role_name,
+			["home_page", "restrict_to_domain", "desk_access", "two_factor_auth", "disabled"],
+			as_dict=True,
+		)
+		if not role_vals:
+			return
+		self.home_page = role_vals.home_page
+		self.restrict_to_domain = role_vals.restrict_to_domain
+		self.desk_access = role_vals.desk_access
+		self.two_factor_auth = role_vals.two_factor_auth
+		self.disabled = role_vals.disabled
+
+	def _push_role_fields(self, role_name):
+		frappe.db.set_value(
+			"Role",
+			role_name,
+			{
+				"home_page": self.home_page,
+				"restrict_to_domain": self.restrict_to_domain,
+				"desk_access": 1 if self.desk_access else 0,
+				"two_factor_auth": 1 if self.two_factor_auth else 0,
+				"disabled": 1 if self.disabled else 0,
+			},
+		)
 
 	def _sync_wp_table_rows(self):
 		"""Make sure every WP Tables-registered DocType has a Table Access

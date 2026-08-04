@@ -9,6 +9,12 @@
   "role",
   "disabled",
   "description",
+  "role_settings_section",
+  "home_page",
+  "restrict_to_domain",
+  "column_break_role_settings",
+  "desk_access",
+  "two_factor_auth",
   "access_section",
   "table_access"
  ],
@@ -41,6 +47,40 @@
    "fieldname": "description",
    "fieldtype": "Small Text",
    "label": "Description"
+  },
+  {
+   "fieldname": "role_settings_section",
+   "fieldtype": "Section Break",
+   "label": "Role Settings"
+  },
+  {
+   "description": "Where users with only this role land after login. Example: /app/panel-page-mirrored",
+   "fieldname": "home_page",
+   "fieldtype": "Data",
+   "label": "Home Page"
+  },
+  {
+   "fieldname": "restrict_to_domain",
+   "fieldtype": "Link",
+   "label": "Restrict To Domain",
+   "options": "Domain"
+  },
+  {
+   "fieldname": "column_break_role_settings",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "description": "Required for anyone using panel pages, since those live under /app.",
+   "fieldname": "desk_access",
+   "fieldtype": "Check",
+   "label": "Desk Access"
+  },
+  {
+   "default": "0",
+   "fieldname": "two_factor_auth",
+   "fieldtype": "Check",
+   "label": "Two Factor Authentication"
   },
   {
    "fieldname": "access_section",
