@@ -136,6 +136,9 @@ doc_events = {
 		"after_insert": "nce_sync.utils.workspace_utils.on_doctype_change",
 		"on_trash": "nce_sync.utils.workspace_utils.on_doctype_change"
 	},
+	"WP Tables": {
+		"after_insert": "nce_sync.nce_sync.doctype.nce_access_profile.nce_access_profile.sync_new_wp_table_to_profiles",
+	},
 	"*": {
 		"before_insert": "nce_sync.utils.reverse_sync.assign_temp_name",
 		"validate": "nce_sync.utils.sync_gate.enforce_sync_gate",

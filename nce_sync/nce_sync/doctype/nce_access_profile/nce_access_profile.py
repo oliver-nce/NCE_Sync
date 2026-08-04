@@ -10,6 +10,7 @@ ROLE_PREFIX = "NCE "
 class NCEAccessProfile(Document):
 	def validate(self):
 		self._ensure_role()
+		self._sync_wp_table_rows()
 
 	def on_update(self):
 		self.apply_table_access()
@@ -35,6 +36,27 @@ class NCEAccessProfile(Document):
 				}
 			).insert(ignore_permissions=True)
 		self.role = role_name
+
+	def _sync_wp_table_rows(self):
+		"""Make sure every WP Tables-registered DocType has a Table Access
+		row on this profile, defaulting to no access (Read/Write both off),
+		so a newly mirrored WP table shows up here automatically instead of
+		silently being missing. Rows that already exist -- WP-table ones or
+		anything you've added by hand for other DocTypes -- are left
+		exactly as they are; this only ever adds missing rows, never
+		removes or changes existing ones.
+		"""
+		existing = {row.document_type for row in self.table_access if row.document_type}
+		for doctype_name in _wp_table_doctypes():
+			if doctype_name not in existing:
+				self.append(
+					"table_access",
+					{
+						"document_type": doctype_name,
+						"read": 0,
+						"write": 0,
+					},
+				)
 
 	def apply_table_access(self):
 		"""Sync this profile's Table Access rows into real DocType
@@ -94,6 +116,43 @@ class NCEAccessProfile(Document):
 				).insert(ignore_permissions=True)
 
 		frappe.clear_cache()
+
+
+def _wp_table_doctypes():
+	"""Every distinct Frappe DocType name registered in WP Tables (skips rows
+	where the mirrored doctype hasn't been set up yet)."""
+	rows = frappe.get_all(
+		"WP Tables",
+		filters={"frappe_doctype": ["is", "set"]},
+		fields=["frappe_doctype"],
+		distinct=True,
+	)
+	return [r.frappe_doctype for r in rows if r.frappe_doctype]
+
+
+def sync_new_wp_table_to_profiles(doc, method=None):
+	"""doc_event hook -- WP Tables after_insert (see hooks.py). Pushes a new,
+	no-access Table Access row for this WP table's frappe_doctype onto every
+	existing NCE Access Profile, so profiles pick up newly mirrored tables
+	without needing to be manually reopened and re-saved.
+	"""
+	frappe_doctype = doc.get("frappe_doctype")
+	if not frappe_doctype:
+		return
+	for profile_name in frappe.get_all("NCE Access Profile", pluck="name"):
+		profile = frappe.get_doc("NCE Access Profile", profile_name)
+		if any(row.document_type == frappe_doctype for row in profile.table_access):
+			continue
+		profile.append(
+			"table_access",
+			{
+				"document_type": frappe_doctype,
+				"read": 0,
+				"write": 0,
+			},
+		)
+		profile.flags.ignore_permissions = True
+		profile.save()
 
 
 @frappe.whitelist()
