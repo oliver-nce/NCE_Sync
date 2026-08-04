@@ -24,8 +24,8 @@ class NCEAccessProfile(Document):
 		source of truth for the Role's permissions and will remove anything
 		it doesn't recognise.
 
-		Role-level settings (Home Page, Restrict To Domain, Desk Access,
-		Two Factor Authentication, Disabled) work the same way: this profile
+		Role-level settings (Home Page, Desk Access, Two Factor
+		Authentication, Disabled) work the same way: this profile
 		is the single place to edit them. The first time a profile is saved
 		against a Role that already existed, its current settings are
 		pulled in rather than overwritten with blanks -- from then on,
@@ -54,13 +54,12 @@ class NCEAccessProfile(Document):
 		role_vals = frappe.db.get_value(
 			"Role",
 			role_name,
-			["home_page", "restrict_to_domain", "desk_access", "two_factor_auth", "disabled"],
+			["home_page", "desk_access", "two_factor_auth", "disabled"],
 			as_dict=True,
 		)
 		if not role_vals:
 			return
 		self.home_page = role_vals.home_page
-		self.restrict_to_domain = role_vals.restrict_to_domain
 		self.desk_access = role_vals.desk_access
 		self.two_factor_auth = role_vals.two_factor_auth
 		self.disabled = role_vals.disabled
@@ -71,7 +70,6 @@ class NCEAccessProfile(Document):
 			role_name,
 			{
 				"home_page": self.home_page,
-				"restrict_to_domain": self.restrict_to_domain,
 				"desk_access": 1 if self.desk_access else 0,
 				"two_factor_auth": 1 if self.two_factor_auth else 0,
 				"disabled": 1 if self.disabled else 0,

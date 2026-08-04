@@ -11,7 +11,6 @@
   "description",
   "role_settings_section",
   "home_page",
-  "restrict_to_domain",
   "column_break_role_settings",
   "desk_access",
   "two_factor_auth",
@@ -58,12 +57,6 @@
    "fieldname": "home_page",
    "fieldtype": "Data",
    "label": "Home Page"
-  },
-  {
-   "fieldname": "restrict_to_domain",
-   "fieldtype": "Link",
-   "label": "Restrict To Domain",
-   "options": "Domain"
   },
   {
    "fieldname": "column_break_role_settings",
