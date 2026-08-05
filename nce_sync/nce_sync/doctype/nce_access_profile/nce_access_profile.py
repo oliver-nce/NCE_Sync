@@ -390,12 +390,9 @@ def remove_user_from_profile(name, user):
 	user_doc.flags.ignore_permissions = True
 	user_doc.save()
 
-	remaining = [r.role for r in user_doc.roles if r.role not in ("All", "Guest")]
-	disabled = False
-	if not remaining and user_doc.enabled:
-		frappe.db.set_value("User", user, "enabled", 0)
-		disabled = True
-	return {"ok": True, "disabled": disabled}
+	# Only strip the role; leave the account enabled. Disabling is a separate,
+	# deliberate action -- auto-disabling here silently hid users from pickers.
+	return {"ok": True, "disabled": False}
 
 
 @frappe.whitelist()
