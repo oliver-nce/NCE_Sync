@@ -55,6 +55,10 @@ function show_manage_fields_dialog(document_type) {
 					"Checking a field here marks it Restricted (Permission Level 1) for every role in the app, not just this profile. A role only sees Restricted fields if it has base Read on this DocType, and can only edit them if its Table Access row has \"Write Restricted Fields\" checked."
 				)}</p>`,
 			},
+			{ fieldtype: "Button", fieldname: "restrict_all_btn", label: __("Restrict All") },
+			{ fieldtype: "Column Break" },
+			{ fieldtype: "Button", fieldname: "unrestrict_all_btn", label: __("Unrestrict All") },
+			{ fieldtype: "Section Break" },
 			{ fieldtype: "HTML", fieldname: "fields_html" },
 		],
 	});
@@ -106,6 +110,28 @@ function show_manage_fields_dialog(document_type) {
 						},
 					});
 				});
+			},
+		});
+	}
+
+	d.fields_dict.restrict_all_btn.$input.on("click", () => bulk_set(1));
+	d.fields_dict.unrestrict_all_btn.$input.on("click", () => bulk_set(0));
+
+	function bulk_set(restricted) {
+		frappe.call({
+			method:
+				"nce_sync.nce_sync.doctype.nce_access_profile.nce_access_profile.set_all_fields_restricted",
+			args: { doctype: document_type, restricted },
+			freeze: true,
+			freeze_message: restricted ? __("Restricting all fields...") : __("Unrestricting all fields..."),
+			callback() {
+				frappe.show_alert({
+					message: restricted
+						? __("All fields on {0} marked Restricted", [document_type])
+						: __("All fields on {0} unrestricted", [document_type]),
+					indicator: restricted ? "orange" : "green",
+				});
+				render();
 			},
 		});
 	}

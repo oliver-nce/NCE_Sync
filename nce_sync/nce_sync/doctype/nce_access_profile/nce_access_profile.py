@@ -277,6 +277,32 @@ def set_field_restricted(doctype, fieldname, restricted):
 
 
 @frappe.whitelist()
+def set_all_fields_restricted(doctype, restricted):
+	"""Bulk version of set_field_restricted -- Restrict All / Unrestrict All
+	in the Manage Fields dialog. Same Property Setter mechanism, applied to
+	every restrictable field on the DocType in one call.
+	"""
+	frappe.only_for("System Manager")
+	restricted = frappe.utils.cint(restricted)
+	meta = frappe.get_meta(doctype)
+	changed = []
+	for f in meta.fields:
+		if f.fieldtype in _NON_RESTRICTABLE_FIELDTYPES:
+			continue
+		make_property_setter(
+			doctype,
+			f.fieldname,
+			"permlevel",
+			1 if restricted else 0,
+			"Int",
+			for_doctype=False,
+		)
+		changed.append(f.fieldname)
+	frappe.clear_cache(doctype=doctype)
+	return {"ok": True, "fields": changed}
+
+
+@frappe.whitelist()
 def get_profile_users(name):
 	frappe.only_for("System Manager")
 	role = frappe.db.get_value("NCE Access Profile", name, "role")
