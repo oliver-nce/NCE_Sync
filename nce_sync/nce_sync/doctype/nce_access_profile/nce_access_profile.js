@@ -3,6 +3,8 @@
 
 frappe.ui.form.on("NCE Access Profile", {
 	refresh(frm) {
+		setup_table_access_manage_fields_buttons(frm);
+
 		if (frm.is_new()) {
 			return;
 		}
@@ -61,6 +63,51 @@ frappe.ui.form.on("NCE Access Profile Table", {
 		show_manage_fields_dialog(row.document_type);
 	},
 });
+
+function setup_table_access_manage_fields_buttons(frm) {
+	const grid = frm.fields_dict.table_access?.grid;
+	if (!grid || !grid.wrapper) {
+		return;
+	}
+
+	const refreshCells = () => refresh_table_access_manage_fields_cells(grid);
+
+	if (!grid._nce_manage_fields_bound) {
+		grid._nce_manage_fields_bound = true;
+		grid.wrapper.on("grid-row-render.nce_manage_fields", refreshCells);
+		grid.wrapper.on("grid-row-added.nce_manage_fields", refreshCells);
+		grid.wrapper.on("grid-row-removed.nce_manage_fields", refreshCells);
+	}
+	refreshCells();
+}
+
+function refresh_table_access_manage_fields_cells(grid) {
+	(grid.grid_rows || []).forEach((gridRow) => {
+		const doc = gridRow.doc || {};
+		const $cell =
+			gridRow.columns?.manage_fields?.$wrapper ||
+			(gridRow.row ? $(gridRow.row).find('[data-fieldname="manage_fields"]') : null);
+		if (!$cell || !$cell.length) {
+			return;
+		}
+
+		$cell.find(".nce-manage-fields-btn").remove();
+		if (!doc.restrict_write || !doc.document_type) {
+			return;
+		}
+
+		const $btn = $(
+			'<button type="button" class="btn btn-default btn-xs nce-manage-fields-btn"></button>',
+		)
+			.text(__("Manage Fields"))
+			.on("click", (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				show_manage_fields_dialog(doc.document_type);
+			});
+		$cell.empty().append($btn);
+	});
+}
 
 function show_manage_fields_dialog(document_type) {
 	const d = new frappe.ui.Dialog({
