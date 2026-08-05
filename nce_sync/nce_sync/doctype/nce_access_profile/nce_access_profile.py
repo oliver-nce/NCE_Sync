@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from frappe.custom.doctype.property_setter.property_setter import make_property_setter
 from frappe.model.document import Document
 
 ROLE_PREFIX = "NCE "
@@ -99,10 +100,18 @@ class NCEAccessProfile(Document):
 
 	def apply_table_access(self):
 		"""Sync this profile's Table Access rows into real DocType
-		permissions (Custom DocPerm, permlevel 0) for the linked Role, and
-		remove permission on any DocType no longer listed. This is what
-		actually enforces "no access to anything else" -- it's not just a
-		suggestion, rows missing from the grid get their permission deleted.
+		permissions for the linked Role, and remove permission on any
+		DocType no longer listed. This is what actually enforces "no access
+		to anything else" -- it's not just a suggestion, rows missing from
+		the grid get their permission deleted.
+
+		Two permission levels are managed per row:
+		- Level 0 (ordinary fields): follows the row's Read/Write checkboxes
+		  directly, same as always.
+		- Level 1 (fields marked Restricted via Manage Fields, app-wide):
+		  Read is granted automatically whenever the row has any base
+		  access, so Restricted fields stay visible -- Write is granted only
+		  if the row's "Write Restricted Fields" checkbox is on.
 		"""
 		if not self.role:
 			return
@@ -111,48 +120,56 @@ class NCEAccessProfile(Document):
 		for row in self.table_access:
 			if not row.document_type:
 				continue
+			has_base_access = bool(row.read or row.write)
 			wanted[row.document_type] = {
-				"read": 1 if (row.read or row.write) else 0,
-				"write": 1 if row.write else 0,
+				0: {
+					"read": 1 if has_base_access else 0,
+					"write": 1 if row.write else 0,
+				},
+				1: {
+					"read": 1 if has_base_access else 0,
+					"write": 1 if (has_base_access and row.restrict_write) else 0,
+				},
 			}
 
 		existing = frappe.get_all(
 			"Custom DocPerm",
-			filters={"role": self.role, "permlevel": 0},
-			fields=["name", "parent", "read", "write"],
+			filters={"role": self.role, "permlevel": ["in", [0, 1]]},
+			fields=["name", "parent", "permlevel", "read", "write"],
 		)
-		existing_by_doctype = {e.parent: e for e in existing}
+		existing_by_key = {(e.parent, e.permlevel): e for e in existing}
 
 		# Remove permission on anything no longer in the list.
-		for doctype_name, perm in existing_by_doctype.items():
+		for (doctype_name, permlevel), perm in existing_by_key.items():
 			if doctype_name not in wanted:
 				frappe.delete_doc(
 					"Custom DocPerm", perm.name, ignore_permissions=True, force=True
 				)
 
-		# Add or update everything that should be there.
-		for doctype_name, flags in wanted.items():
-			perm = existing_by_doctype.get(doctype_name)
-			if perm:
-				if perm.read != flags["read"] or perm.write != flags["write"]:
-					frappe.db.set_value(
-						"Custom DocPerm",
-						perm.name,
-						{"read": flags["read"], "write": flags["write"]},
-					)
-			else:
-				frappe.get_doc(
-					{
-						"doctype": "Custom DocPerm",
-						"parent": doctype_name,
-						"parenttype": "DocType",
-						"parentfield": "permissions",
-						"role": self.role,
-						"permlevel": 0,
-						"read": flags["read"],
-						"write": flags["write"],
-					}
-				).insert(ignore_permissions=True)
+		# Add or update everything that should be there, at both levels.
+		for doctype_name, levels in wanted.items():
+			for permlevel, flags in levels.items():
+				perm = existing_by_key.get((doctype_name, permlevel))
+				if perm:
+					if perm.read != flags["read"] or perm.write != flags["write"]:
+						frappe.db.set_value(
+							"Custom DocPerm",
+							perm.name,
+							{"read": flags["read"], "write": flags["write"]},
+						)
+				elif flags["read"] or flags["write"]:
+					frappe.get_doc(
+						{
+							"doctype": "Custom DocPerm",
+							"parent": doctype_name,
+							"parenttype": "DocType",
+							"parentfield": "permissions",
+							"role": self.role,
+							"permlevel": permlevel,
+							"read": flags["read"],
+							"write": flags["write"],
+						}
+					).insert(ignore_permissions=True)
 
 		frappe.clear_cache()
 
@@ -199,6 +216,63 @@ def apply_access(name):
 	frappe.only_for("System Manager")
 	doc = frappe.get_doc("NCE Access Profile", name)
 	doc.apply_table_access()
+	return {"ok": True}
+
+
+# Layout-only fieldtypes -- not real data fields, nothing meaningful to
+# restrict.
+_NON_RESTRICTABLE_FIELDTYPES = frozenset(
+	[
+		"Section Break",
+		"Column Break",
+		"Tab Break",
+		"HTML",
+		"Button",
+		"Fold",
+		"Heading",
+	]
+)
+
+
+@frappe.whitelist()
+def get_doctype_fields(doctype):
+	frappe.only_for("System Manager")
+	meta = frappe.get_meta(doctype)
+	fields = []
+	for f in meta.fields:
+		if f.fieldtype in _NON_RESTRICTABLE_FIELDTYPES:
+			continue
+		fields.append(
+			{
+				"fieldname": f.fieldname,
+				"label": f.label or f.fieldname,
+				"fieldtype": f.fieldtype,
+				"permlevel": f.permlevel or 0,
+			}
+		)
+	return fields
+
+
+@frappe.whitelist()
+def set_field_restricted(doctype, fieldname, restricted):
+	"""Mark a field Restricted (Permission Level 1) or ordinary (Level 0)
+	app-wide, via a Property Setter -- the same mechanism Customize Form
+	uses, so this doesn't require a code deploy and applies immediately.
+	Restricted is a schema-level flag shared by every role; whether a given
+	role can actually WRITE a Restricted field is controlled per-profile by
+	each Table Access row's "Write Restricted Fields" checkbox.
+	"""
+	frappe.only_for("System Manager")
+	restricted = frappe.utils.cint(restricted)
+	make_property_setter(
+		doctype,
+		fieldname,
+		"permlevel",
+		1 if restricted else 0,
+		"Int",
+		for_doctype=False,
+	)
+	frappe.clear_cache(doctype=doctype)
 	return {"ok": True}
 
 
