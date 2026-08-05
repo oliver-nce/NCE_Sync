@@ -33,10 +33,29 @@ frappe.ui.form.on("NCE Access Profile", {
 // in the parent's script (which does load, since Apply Access / Manage Users
 // above already work), is what actually gets it registered.
 frappe.ui.form.on("NCE Access Profile Table", {
+	write(frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		if (row.write) {
+			frappe.model.set_value(cdt, cdn, "restrict_write", 0);
+		}
+	},
+	restrict_write(frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		if (row.restrict_write) {
+			frappe.model.set_value(cdt, cdn, "write", 0);
+			if (!row.read) {
+				frappe.model.set_value(cdt, cdn, "read", 1);
+			}
+		}
+	},
 	manage_fields(frm, cdt, cdn) {
 		const row = locals[cdt][cdn];
 		if (!row.document_type) {
 			frappe.msgprint(__("Pick a Document Type on this row first."));
+			return;
+		}
+		if (!row.restrict_write) {
+			frappe.msgprint(__("Manage Fields is available when Restricted Write is checked."));
 			return;
 		}
 		show_manage_fields_dialog(row.document_type);
@@ -52,7 +71,7 @@ function show_manage_fields_dialog(document_type) {
 				fieldtype: "HTML",
 				fieldname: "help_html",
 				options: `<p class="text-muted">${__(
-					"Checking a field here marks it Restricted (Permission Level 1) for every role in the app, not just this profile. A role only sees Restricted fields if it has base Read on this DocType, and can only edit them if its Table Access row has \"Write Restricted Fields\" checked."
+					"Restricted fields cannot be edited when a profile row uses Restricted Write. Full Write allows editing Restricted fields too. Restricted is app-wide on this DocType. Fields that are read-only in the DocType schema are locked here and always non-editable."
 				)}</p>`,
 			},
 			{ fieldtype: "Button", fieldname: "restrict_all_btn", label: __("Restrict All") },
@@ -77,13 +96,20 @@ function show_manage_fields_dialog(document_type) {
 						"Restricted"
 					)}</th></tr></thead><tbody>`;
 				fields.forEach((f) => {
+					const locked = f.locked || f.read_only;
+					const restricted = (f.permlevel || 0) > 0 || locked;
+					const lockNote = locked
+						? ` <span class="text-muted">(${__("locked — read only in schema")})</span>`
+						: "";
 					html +=
 						"<tr>" +
-						`<td>${frappe.utils.escape_html(f.label || f.fieldname)}</td>` +
+						`<td>${frappe.utils.escape_html(f.label || f.fieldname)}${lockNote}</td>` +
 						`<td><code>${frappe.utils.escape_html(f.fieldname)}</code></td>` +
 						`<td><input type="checkbox" class="field-restrict-toggle" data-fieldname="${frappe.utils.escape_html(
 							f.fieldname
-						)}" ${f.permlevel > 0 ? "checked" : ""}></td>` +
+						)}" data-locked="${locked ? "1" : "0"}" ${restricted ? "checked" : ""}${
+							locked ? " disabled" : ""
+						}></td>` +
 						"</tr>";
 				});
 				html += "</tbody></table>";
@@ -94,6 +120,9 @@ function show_manage_fields_dialog(document_type) {
 				}
 				d.fields_dict.fields_html.$wrapper.html(html);
 				d.fields_dict.fields_html.$wrapper.find(".field-restrict-toggle").on("change", function () {
+					if ($(this).data("locked")) {
+						return;
+					}
 					const fieldname = $(this).data("fieldname");
 					const restricted = $(this).is(":checked");
 					frappe.call({

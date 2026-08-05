@@ -37,18 +37,18 @@
   },
   {
    "default": "0",
-   "depends_on": "eval:doc.write",
-   "description": "Off by default: this role can view Restricted fields (marked via Manage Fields) but not edit them. Check this to also let this role write to Restricted fields.",
+   "description": "Partial write: can edit ordinary fields only. Fields marked Restricted in Manage Fields cannot be edited. Mutually exclusive with Write.",
    "fieldname": "restrict_write",
    "fieldtype": "Check",
-   "label": "Write Restricted Fields"
+   "in_list_view": 1,
+   "label": "Restricted Write"
   },
   {
-   "depends_on": "eval:doc.document_type",
+   "depends_on": "eval:doc.restrict_write",
    "fieldname": "manage_fields",
    "fieldtype": "Button",
    "in_list_view": 1,
-   "label": "Manage Fields..."
+   "label": "Manage Fields"
   }
  ],
  "index_web_pages_for_search": 0,

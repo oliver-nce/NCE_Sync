@@ -12,6 +12,7 @@ class NCEAccessProfile(Document):
 	def validate(self):
 		self._ensure_role()
 		self._sync_wp_table_rows()
+		self._validate_table_access_rows()
 
 	def on_update(self):
 		self.apply_table_access()
@@ -77,6 +78,17 @@ class NCEAccessProfile(Document):
 			},
 		)
 
+	def _validate_table_access_rows(self):
+		for row in self.table_access:
+			if row.write and row.restrict_write:
+				frappe.throw(
+					frappe._(
+						"Row for {0}: Write and Restricted Write cannot both be checked."
+					).format(row.document_type or frappe._("(no DocType)"))
+				)
+			if row.restrict_write and not row.read:
+				row.read = 1
+
 	def _sync_wp_table_rows(self):
 		"""Make sure every WP Tables-registered DocType has a Table Access
 		row on this profile, defaulting to no access (Read/Write both off),
@@ -106,12 +118,12 @@ class NCEAccessProfile(Document):
 		the grid get their permission deleted.
 
 		Two permission levels are managed per row:
-		- Level 0 (ordinary fields): follows the row's Read/Write checkboxes
-		  directly, same as always.
+		- Level 0 (ordinary fields): Read/Write follow the row checkboxes.
 		- Level 1 (fields marked Restricted via Manage Fields, app-wide):
-		  Read is granted automatically whenever the row has any base
-		  access, so Restricted fields stay visible -- Write is granted only
-		  if the row's "Write Restricted Fields" checkbox is on.
+		  visible when the row has read access. Write on level 1 is granted
+		  only for full Write — Restricted Write keeps level 1 read-only so
+		  Restricted fields cannot be edited. Schema read-only fields are
+		  always non-editable via field metadata regardless of perm level.
 		"""
 		if not self.role:
 			return
@@ -120,17 +132,27 @@ class NCEAccessProfile(Document):
 		for row in self.table_access:
 			if not row.document_type:
 				continue
-			has_base_access = bool(row.read or row.write)
-			wanted[row.document_type] = {
-				0: {
-					"read": 1 if has_base_access else 0,
-					"write": 1 if row.write else 0,
-				},
-				1: {
-					"read": 1 if has_base_access else 0,
-					"write": 1 if (has_base_access and row.restrict_write) else 0,
-				},
-			}
+			if row.write and row.restrict_write:
+				continue
+			has_access = bool(row.read or row.write or row.restrict_write)
+			if not has_access:
+				continue
+
+			if row.write:
+				wanted[row.document_type] = {
+					0: {"read": 1, "write": 1},
+					1: {"read": 1, "write": 1},
+				}
+			elif row.restrict_write:
+				wanted[row.document_type] = {
+					0: {"read": 1, "write": 1},
+					1: {"read": 1, "write": 0},
+				}
+			else:
+				wanted[row.document_type] = {
+					0: {"read": 1 if row.read else 0, "write": 0},
+					1: {"read": 1 if row.read else 0, "write": 0},
+				}
 
 		existing = frappe.get_all(
 			"Custom DocPerm",
@@ -234,6 +256,16 @@ _NON_RESTRICTABLE_FIELDTYPES = frozenset(
 )
 
 
+def _field_locked_in_schema(doctype, fieldname):
+	"""True when the DocType schema marks the field read-only (always non-editable)."""
+	schema_read_only = frappe.db.get_value(
+		"DocField",
+		{"parent": doctype, "fieldname": fieldname},
+		"read_only",
+	)
+	return bool(frappe.utils.cint(schema_read_only))
+
+
 @frappe.whitelist()
 def get_doctype_fields(doctype):
 	frappe.only_for("System Manager")
@@ -242,12 +274,14 @@ def get_doctype_fields(doctype):
 	for f in meta.fields:
 		if f.fieldtype in _NON_RESTRICTABLE_FIELDTYPES:
 			continue
+		locked = _field_locked_in_schema(doctype, f.fieldname)
 		fields.append(
 			{
 				"fieldname": f.fieldname,
 				"label": f.label or f.fieldname,
 				"fieldtype": f.fieldtype,
 				"permlevel": f.permlevel or 0,
+				"locked": locked,
 			}
 		)
 	return fields
@@ -258,11 +292,17 @@ def set_field_restricted(doctype, fieldname, restricted):
 	"""Mark a field Restricted (Permission Level 1) or ordinary (Level 0)
 	app-wide, via a Property Setter -- the same mechanism Customize Form
 	uses, so this doesn't require a code deploy and applies immediately.
-	Restricted is a schema-level flag shared by every role; whether a given
-	role can actually WRITE a Restricted field is controlled per-profile by
-	each Table Access row's "Write Restricted Fields" checkbox.
+	Restricted is a schema-level flag shared by every role. Full Write on a
+	Table Access row allows editing Restricted fields; Restricted Write does
+	not. Schema read-only fields are always locked and cannot be toggled here.
 	"""
 	frappe.only_for("System Manager")
+	if _field_locked_in_schema(doctype, fieldname):
+		frappe.throw(
+			frappe._("{0} is read-only in the {1} schema and cannot be changed here.").format(
+				fieldname, doctype
+			)
+		)
 	restricted = frappe.utils.cint(restricted)
 	make_property_setter(
 		doctype,
@@ -288,6 +328,8 @@ def set_all_fields_restricted(doctype, restricted):
 	changed = []
 	for f in meta.fields:
 		if f.fieldtype in _NON_RESTRICTABLE_FIELDTYPES:
+			continue
+		if _field_locked_in_schema(doctype, f.fieldname):
 			continue
 		make_property_setter(
 			doctype,
