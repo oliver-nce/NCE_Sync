@@ -1,12 +1,12 @@
 {
   "_meta": {
     "description": "Machine-readable index of every module in the NCE Sync (Tables) Frappe app. Read this file FIRST before exploring the codebase — it tells you exactly where to look for any given concern.",
-    "generated": "2026-04-03",
-    "usage": "Find the module whose 'purpose' matches your task, then read only that file and its 'depends_on' entries."
+    "generated": "2026-08-06",
+    "generator": "scripts/build_code_index.py",
+    "usage": "Find the module whose 'purpose' matches your task, then read only that file and its 'depends_on' entries. Run `python scripts/build_code_index.py --write` to regenerate CODE_INDEX.json after editing this file or after adding/renaming/deleting source files."
   },
-
   "architecture": {
-    "overview": "NCE Sync (app_title: Tables) synchronises WordPress database tables to Frappe custom doctypes. It mirrors WordPress table schemas as Frappe doctypes, then syncs data bidirectionally. Also provides a Table Links page for managing cross-table relationships. Used as a dependency by NCE Events.",
+    "overview": "NCE Sync (app_title: Tables) synchronises WordPress database tables to Frappe custom doctypes. It mirrors WordPress table schemas as Frappe doctypes, then syncs data bidirectionally. Also provides a Table Links page for managing cross-table relationships and an NCE Access Profile doctype that maps a linked Role to per-DocType read/write via Custom DocPerm. Used as a dependency by NCE Events.",
     "data_flow": "WordPress MySQL → schema_mirror.py (introspect + create/update Frappe doctype) → data_sync.py (pull WP rows → upsert Frappe records) | Frappe doc events → live_sync.py → write_back_dispatch.run_write_back_for_doc (SQL Direct only) → push_record_to_wp → WordPress; reverse_sync.py for bulk Frappe→WP",
     "key_patterns": [
       "WP_Tables doctype is the central config record per synced table (connection, column mapping, matching keys, field overrides, write_back_mode, listen_for_changes)",
@@ -15,101 +15,109 @@
       "live_sync.py hooks into Frappe doc events; enqueues run_write_back_for_doc on the default queue; uses frappe.flags.in_sync during WP→Frappe saves to avoid feedback loops",
       "write_back_dispatch.run_write_back_for_doc runs SQL Direct write-back only (lazy import of push_record_to_wp); custom API flows use Client Script on the target DocType",
       "reverse_sync.py handles full Frappe-to-WP push with temp name management",
+      "NCE Access Profile: Table Access grid (read/write/restrict_write per DocType) is synced to Custom DocPerm for the linked role on Save / Apply Access; that role's permissions are managed ONLY via this profile, not hand-edited in Role Permission Manager",
       "API Connector stores credentials (base_url, auth_pattern, credential_config JSON)",
       "Job queuing: scheduled sync, manual sync (WP Tables / Sync Manager), Excel export API, and live write-back all use frappe.enqueue(..., queue=\"default\") so a single worker processes jobs in order"
     ]
   },
-
   "backend": {
-    "nce_sync/hooks.py": {
-      "purpose": "App config: metadata, CSS/JS includes, apps screen registration (title: Tables, route: /app/tables)",
-      "exports": [
-        "app_name",
-        "add_to_apps_screen",
-        "app_include_css",
-        "app_include_js"
-      ],
-      "depends_on": [],
-      "sections": ["App Metadata", "Global CSS/JS", "Apps Screen"]
+    "nce_sync/__init__.py": {
+      "purpose": "TODO: describe in CODE_INDEX.manual.json"
     },
     "nce_sync/api.py": {
-      "purpose": "Whitelisted endpoints: toggle auto-sync, table links grid, Excel export; sync_doctype_rows / sync_linked_doctype_rows enqueue WP sync jobs (job_id, optional debug_trace → step log + copyable dialog and logger nce_sync.sync_trace)",
       "exports": [
-        "toggle_auto_sync",
-        "get_table_links_grid_data",
         "apply_table_link_changes",
         "export_all_to_excel",
+        "get_table_links_grid_data",
         "sync_doctype_rows",
-        "sync_linked_doctype_rows"
+        "sync_linked_doctype_rows",
+        "toggle_auto_sync"
       ],
+      "whitelist_endpoints": [
+        "apply_table_link_changes",
+        "export_all_to_excel",
+        "get_table_links_grid_data",
+        "sync_doctype_rows",
+        "sync_linked_doctype_rows",
+        "toggle_auto_sync"
+      ],
+      "purpose": "Whitelisted endpoints: toggle auto-sync, table links grid, Excel export; sync_doctype_rows / sync_linked_doctype_rows enqueue WP sync jobs (job_id, optional debug_trace → step log + copyable dialog and logger nce_sync.sync_trace)",
       "depends_on": [
         "nce_sync/nce_sync/doctype/wp_tables/",
         "nce_sync/utils/data_sync.py"
       ],
-      "sections": ["Auto-sync toggle", "Table links grid", "Excel export"]
+      "sections": [
+        "Auto-sync toggle",
+        "Table links grid",
+        "Excel export"
+      ]
+    },
+    "nce_sync/hooks.py": {
+      "purpose": "App config: metadata, CSS/JS includes, apps screen registration (title: Tables, route: /app/tables)",
+      "depends_on": [],
+      "sections": [
+        "App Metadata",
+        "Global CSS/JS",
+        "Apps Screen"
+      ]
     },
     "nce_sync/overrides.py": {
+      "exports": [
+        "get_desktop_page"
+      ],
+      "whitelist_endpoints": [
+        "get_desktop_page"
+      ],
       "purpose": "Frappe lifecycle override hooks injected via hooks.py",
-      "exports": [],
       "depends_on": [],
-      "sections": ["DocType override hooks"]
+      "sections": [
+        "DocType override hooks"
+      ]
+    }
+  },
+  "utils": {
+    "nce_sync/utils/__init__.py": {
+      "purpose": "TODO: describe in CODE_INDEX.manual.json"
     },
-    "nce_sync/utils/schema_mirror.py": {
-      "purpose": "WordPress schema introspection and Frappe doctype mirroring: connect to WP MySQL, discover tables/views, map MariaDB types to Frappe types, create or update Frappe custom doctype with matching field configuration. Remap/update preserves hand-built form layout (Tab/Section/Column breaks); new WP columns append under shared New fields tab. Preview syncs column_mapping flags from live DocType before Remap dialog. Supports read_only, bold, pick_list, virtual/generated columns via sql_to_python.",
+    "nce_sync/utils/column_mapper.py": {
       "exports": [
-        "sanitize_fieldname",
-        "resolve_fieldname",
-        "get_matching_fields_list",
-        "build_frappe_field",
+        "build_reverse_mapping",
+        "build_wp_row",
+        "get_auto_generated_columns",
+        "get_frappe_fieldname",
+        "get_name_wp_column",
+        "load_column_mapping"
+      ],
+      "purpose": "Column mapping helpers between WP table columns and Frappe doctype fields."
+    },
+    "nce_sync/utils/connections.py": {
+      "exports": [
         "get_wp_connection",
-        "discover_tables_and_views",
-        "detect_timestamp_fields",
-        "get_table_schema",
-        "map_mariadb_to_frappe_type",
-        "preview_table_schema",
-        "mirror_table_schema",
-        "create_custom_doctype",
-        "update_existing_doctype"
+        "wp_connection"
       ],
-      "depends_on": [
-        "nce_sync/nce_sync/doctype/wordpress_connection/",
-        "nce_sync/nce_sync/doctype/wp_tables/",
-        "nce_sync/utils/sql_to_python.py"
-      ],
-      "sections": [
-        "Field name helpers",
-        "WP connection",
-        "Schema discovery",
-        "Type mapping",
-        "Preview",
-        "DocType creation/update",
-        "Virtual field handling",
-        "Pick list (Select with DISTINCT values)"
-      ]
+      "purpose": "WordPress/MySQL connection helpers — resolve a WP Connection doc into a live DB handle."
     },
-    "nce_sync/utils/sql_to_python.py": {
-      "purpose": "Translate MySQL/MariaDB GENERATION_EXPRESSION SQL into Python expressions for Frappe virtual DocField options. Output must use ONLY Frappe safe_eval allowed names (int, float, round, attribute access, operators, string methods, None/True/False). Handles CONCAT, CONCAT_WS, IFNULL/COALESCE, UPPER/LOWER, TRIM, LEFT/RIGHT, YEAR/MONTH, ROUND, and arithmetic. Uses (x or '') for None-safe string coercion — str()/cstr()/getattr() are NOT available in the sandbox.",
-      "exports": [
-        "sql_generation_to_python"
-      ],
-      "depends_on": [
-        "nce_sync/utils/schema_mirror.py"
-      ],
-      "sections": [
-        "SQL function translators",
-        "Expression parser",
-        "Public API"
-      ]
+    "nce_sync/utils/constants.py": {
+      "purpose": "Shared constants for NCE Sync (fieldtype maps, skip sets, defaults)."
     },
     "nce_sync/utils/data_sync.py": {
-      "purpose": "WP-to-Frappe incremental data sync: fetch changed rows since last sync timestamp, upsert Frappe records, publish progress events. Uses per-row savepoints in batch upsert and truncate-replace so validation/DB errors on one row roll back only that row; remaining rows commit. Sets frappe.flags.in_sync while saving mirrored docs so live_sync does not enqueue write-back during inbound sync. _convert_row skips virtual/generated columns (no Frappe DB column).",
       "exports": [
-        "sync_table",
-        "get_frappe_fieldname",
-        "build_reverse_mapping",
+        "SyncContext",
+        "convert_frappe_ts_to_wp_tz",
+        "get_timezone",
+        "preview_sync_counts",
+        "refresh_frappe_doc_from_wp_after_sql_push",
+        "run_scheduled_syncs",
         "run_sync_doctype_rows_job",
-        "run_sync_linked_doctype_rows_job"
+        "run_sync_for_table",
+        "run_sync_linked_doctype_rows_job",
+        "run_test_sync_for_table",
+        "sync_table"
       ],
+      "whitelist_endpoints": [
+        "run_test_sync_for_table"
+      ],
+      "purpose": "WP-to-Frappe incremental data sync: fetch changed rows since last sync timestamp, upsert Frappe records, publish progress events. Uses per-row savepoints in batch upsert and truncate-replace so validation/DB errors on one row roll back only that row; remaining rows commit. Sets frappe.flags.in_sync while saving mirrored docs so live_sync does not enqueue write-back during inbound sync. _convert_row skips virtual/generated columns (no Frappe DB column).",
       "private_helpers": [
         "_get_cutoff_timestamp",
         "_fetch_changed_rows",
@@ -135,22 +143,21 @@
         "Per-row failure isolation (savepoints)"
       ]
     },
-    "nce_sync/utils/sync_trace.py": {
-      "purpose": "Optional PerfTrace for queued sync jobs when API debug is truthy; logs logger nce_sync.sync_trace and pushes copyable Desk msgprint (wide pre)",
+    "nce_sync/utils/derived_column_sql.py": {
       "exports": [
-        "SyncTrace",
-        "truthy_debug"
+        "sql_generation_to_frappe_bare_sql"
       ],
-      "depends_on": [],
-      "sections": []
+      "purpose": "Build SQL for derived/generated columns used in schema mirroring and sync."
     },
     "nce_sync/utils/live_sync.py": {
-      "purpose": "Real-time Frappe→WordPress write-back entry point: wildcard on_update/after_insert handler. If frappe.flags.in_sync, returns (WP→Frappe sync in progress). Else if DocType is in listen map, enqueues run_write_back_for_doc on queue default. Implements push_record_to_wp for SQL Direct path (used via lazy import from write_back_dispatch).",
       "exports": [
+        "clear_sql_direct_cache",
+        "delete_record_from_wp",
         "on_record_change",
-        "push_record_to_wp",
-        "clear_sql_direct_cache"
+        "on_record_delete",
+        "push_record_to_wp"
       ],
+      "purpose": "Real-time Frappe→WordPress write-back entry point: wildcard on_update/after_insert handler. If frappe.flags.in_sync, returns (WP→Frappe sync in progress). Else if DocType is in listen map, enqueues run_write_back_for_doc on queue default. Implements push_record_to_wp for SQL Direct path (used via lazy import from write_back_dispatch).",
       "private_helpers": [
         "_get_listen_map",
         "_get_auto_generated_columns",
@@ -169,28 +176,23 @@
         "Default queue coordination with data_sync jobs"
       ]
     },
-    "nce_sync/utils/write_back_dispatch.py": {
-      "purpose": "Background job target: if WP Tables has listen_for_changes and write_back_mode SQL Direct, lazy-imports push_record_to_wp from live_sync (avoids circular import).",
+    "nce_sync/utils/lock_check.py": {
       "exports": [
-        "run_write_back_for_doc"
+        "check_locks",
+        "format_report_html",
+        "has_blockers",
+        "preflight"
       ],
-      "private_helpers": [],
-      "depends_on": [
-        "nce_sync/nce_sync/doctype/wp_tables/",
-        "nce_sync/utils/live_sync.py (lazy)"
-      ],
-      "sections": [
-        "SQL Direct write-back only"
-      ]
+      "purpose": "Pre-flight lock checks before long-running sync jobs (detect blocker threads / abort safely)."
     },
     "nce_sync/utils/reverse_sync.py": {
-      "purpose": "Full Frappe-to-WP bulk sync: inserts new records and updates existing ones in WP, handles temp name assignment for new Frappe records before WP ID is known",
       "exports": [
-        "sync_frappe_to_wp",
         "assign_temp_name",
         "insert_record_to_wp",
+        "sync_frappe_to_wp",
         "update_record_in_wp"
       ],
+      "purpose": "Full Frappe-to-WP bulk sync: inserts new records and updates existing ones in WP, handles temp name assignment for new Frappe records before WP ID is known",
       "private_helpers": [
         "_next_temp_name",
         "_is_mirrored_doctype",
@@ -208,15 +210,265 @@
         "Full sync loop"
       ]
     },
-    "nce_sync/utils/workspace_utils.py": {
-      "purpose": "Frappe Workspace creation/management utilities for NCE Sync",
-      "exports": [],
+    "nce_sync/utils/schema_mirror.py": {
+      "exports": [
+        "apply_column_defaults_to_mapping",
+        "apply_field_settings",
+        "build_frappe_field",
+        "create_custom_doctype",
+        "detect_timestamp_fields",
+        "discover_tables_and_views",
+        "get_matching_fields_list",
+        "get_table_schema",
+        "map_mariadb_to_frappe_type",
+        "mirror_table_schema",
+        "preview_table_schema",
+        "resolve_fieldname",
+        "restore_doctype_layout",
+        "sanitize_fieldname",
+        "save_doctype_layout",
+        "sync_mirrored_doctype_with_wordpress",
+        "update_existing_doctype"
+      ],
+      "purpose": "WordPress schema introspection and Frappe doctype mirroring: connect to WP MySQL, discover tables/views, map MariaDB types to Frappe types, create or update Frappe custom doctype with matching field configuration. Remap/update preserves hand-built form layout (Tab/Section/Column breaks); new WP columns append under shared New fields tab. Preview syncs column_mapping flags from live DocType before Remap dialog. Supports read_only, bold, pick_list, virtual/generated columns via sql_to_python.",
+      "depends_on": [
+        "nce_sync/nce_sync/doctype/wordpress_connection/",
+        "nce_sync/nce_sync/doctype/wp_tables/",
+        "nce_sync/utils/sql_to_python.py"
+      ],
+      "sections": [
+        "Field name helpers",
+        "WP connection",
+        "Schema discovery",
+        "Type mapping",
+        "Preview",
+        "DocType creation/update",
+        "Virtual field handling",
+        "Pick list (Select with DISTINCT values)"
+      ]
+    },
+    "nce_sync/utils/script_default_validation.py": {
+      "exports": [
+        "validate_and_normalize_script_default"
+      ],
+      "purpose": "Validate script default values for DocType fields (safe_eval constraints)."
+    },
+    "nce_sync/utils/sql_to_python.py": {
+      "exports": [
+        "sql_generation_to_python"
+      ],
+      "purpose": "Translate MySQL/MariaDB GENERATION_EXPRESSION SQL into Python expressions for Frappe virtual DocField options. Output must use ONLY Frappe safe_eval allowed names (int, float, round, attribute access, operators, string methods, None/True/False). Handles CONCAT, CONCAT_WS, IFNULL/COALESCE, UPPER/LOWER, TRIM, LEFT/RIGHT, YEAR/MONTH, ROUND, and arithmetic. Uses (x or '') for None-safe string coercion — str()/cstr()/getattr() are NOT available in the sandbox.",
+      "depends_on": [
+        "nce_sync/utils/schema_mirror.py"
+      ],
+      "sections": [
+        "SQL function translators",
+        "Expression parser",
+        "Public API"
+      ]
+    },
+    "nce_sync/utils/sync_gate.py": {
+      "exports": [
+        "clear_doctype_syncing",
+        "enforce_sync_gate",
+        "is_doctype_syncing",
+        "mark_doctype_syncing"
+      ],
+      "purpose": "Sync gate flag helpers (is_doctype_syncing) used to suppress live write-back during inbound sync."
+    },
+    "nce_sync/utils/sync_trace.py": {
+      "exports": [
+        "SyncTrace",
+        "truthy_debug"
+      ],
+      "purpose": "Optional PerfTrace for queued sync jobs when API debug is truthy; logs logger nce_sync.sync_trace and pushes copyable Desk msgprint (wide pre)",
       "depends_on": [],
-      "sections": ["Workspace helpers"]
+      "sections": []
+    },
+    "nce_sync/utils/workspace_utils.py": {
+      "exports": [
+        "add_report_to_workspace",
+        "add_to_workspace",
+        "cleanup_orphaned_shortcuts",
+        "is_in_workspace",
+        "on_doctype_change",
+        "remove_from_workspace",
+        "sync_tables_workspace_shortcuts"
+      ],
+      "whitelist_endpoints": [
+        "cleanup_orphaned_shortcuts",
+        "is_in_workspace"
+      ],
+      "purpose": "Frappe Workspace creation/management utilities for NCE Sync",
+      "depends_on": [],
+      "sections": [
+        "Workspace helpers"
+      ]
+    },
+    "nce_sync/utils/write_back_dispatch.py": {
+      "exports": [
+        "run_write_back_for_doc"
+      ],
+      "purpose": "Background job target: if WP Tables has listen_for_changes and write_back_mode SQL Direct, lazy-imports push_record_to_wp from live_sync (avoids circular import).",
+      "depends_on": [
+        "nce_sync/nce_sync/doctype/wp_tables/",
+        "nce_sync/utils/live_sync.py (lazy)"
+      ],
+      "sections": [
+        "SQL Direct write-back only"
+      ]
     }
   },
-
+  "tests": {
+    "nce_sync/tests/__init__.py": {
+      "purpose": "TODO: describe in CODE_INDEX.manual.json"
+    },
+    "nce_sync/tests/test_derived_column_sql.py": {
+      "exports": [
+        "TestBuildColumnMappingDerived",
+        "TestSqlGenerationFrappeSql"
+      ],
+      "purpose": "Unit tests for derived/generated column SQL building."
+    },
+    "nce_sync/tests/test_forced_read_only.py": {
+      "exports": [
+        "TestForcedReadOnly"
+      ],
+      "purpose": "Unit tests for forced read-only field handling in schema mirror / sync."
+    },
+    "nce_sync/tests/test_live_sync_delete.py": {
+      "exports": [
+        "TestDeleteRecordFromWp",
+        "TestOnRecordDelete",
+        "TestOnTrashHookRegistered"
+      ],
+      "purpose": "Unit tests for live_sync on_record_delete behaviour (Frappe→WP delete propagation)."
+    },
+    "nce_sync/tests/test_remap_layout_preservation.py": {
+      "exports": [
+        "test_break_types_include_tab_section_column",
+        "test_new_fields_tab_insert_index_after_existing_tab_fields",
+        "test_new_fields_tab_insert_index_when_tab_missing",
+        "test_prune_keeps_layout_breaks_and_expected_data_fields"
+      ],
+      "purpose": "Unit tests that schema Remap preserves hand-built form layout (Tab/Section/Column breaks)."
+    },
+    "nce_sync/tests/test_script_default_validation.py": {
+      "exports": [
+        "test_check_normalized",
+        "test_data_passthrough",
+        "test_date_invalid",
+        "test_date_sql",
+        "test_datetime_sql",
+        "test_int",
+        "test_json_invalid",
+        "test_json_valid",
+        "test_rating",
+        "test_time_24h",
+        "test_time_invalid"
+      ],
+      "purpose": "Unit tests for script default value validation."
+    }
+  },
+  "frontend": {
+    "nce_sync/public/js/list_auto_size.js": {
+      "purpose": "Global JS — auto-sizes list view columns for better readability",
+      "depends_on": []
+    }
+  },
   "doctypes": {
+    "nce_sync/nce_sync/doctype/api_connector/": {
+      "purpose": "External API connector config: base_url, auth_pattern, credential_config (JSON). Used by NCE Events for credentials.py lookup.",
+      "key_fields": [
+        "connector_name",
+        "base_url",
+        "auth_pattern",
+        "credential_config"
+      ],
+      "client_js": [
+        "api_connector.js",
+        "api_connector_list.js"
+      ],
+      "depends_on": []
+    },
+    "nce_sync/nce_sync/doctype/api_connector_endpoint/": {
+      "purpose": "Individual API endpoint definition linked to an API Connector",
+      "key_fields": [
+        "endpoint_name",
+        "method",
+        "path",
+        "parent_connector"
+      ],
+      "depends_on": [
+        "api_connector"
+      ]
+    },
+    "nce_sync/nce_sync/doctype/nce_access_profile/": {
+      "purpose": "Maps a profile name to a linked Role (NCE {profile}) and a Table Access grid of per-DocType read/write/restrict_write. Save/Apply Access syncs the grid to Custom DocPerm for that role and clears cache. Manage Fields toggles per-field Restricted (permlevel 1) app-wide via Property Setter; Manage Users invites/assigns/removes users on the role. Whitelisted: apply_access, get_doctype_fields, set_field_restricted, set_all_fields_restricted, get_profile_users, add_user_to_profile, remove_user_from_profile, invite_user_to_profile.",
+      "key_fields": [
+        "profile_name",
+        "role",
+        "home_page",
+        "desk_access",
+        "two_factor_auth",
+        "disabled"
+      ],
+      "client_js": [
+        "nce_access_profile.js (Apply Access + Manage Users buttons, Manage Fields grid cells)"
+      ],
+      "depends_on": []
+    },
+    "nce_sync/nce_sync/doctype/nce_access_profile_table/": {
+      "purpose": "Child table of NCE Access Profile — one row per DocType: document_type, read, write, restrict_write, manage_fields.",
+      "key_fields": [
+        "document_type",
+        "read",
+        "write",
+        "restrict_write"
+      ],
+      "depends_on": [
+        "nce_access_profile"
+      ]
+    },
+    "nce_sync/nce_sync/doctype/sync_log/": {
+      "purpose": "Log of each sync run: table, rows processed, errors, status",
+      "key_fields": [
+        "wp_table",
+        "rows_synced",
+        "status",
+        "error_message"
+      ],
+      "depends_on": []
+    },
+    "nce_sync/nce_sync/doctype/sync_log_row_error/": {
+      "purpose": "Child table of Sync Log — one row per failed row in a sync batch (row hint + error).",
+      "depends_on": [
+        "sync_log"
+      ]
+    },
+    "nce_sync/nce_sync/doctype/sync_manager/": {
+      "purpose": "Batch sync manager — trigger and monitor sync across multiple WP Tables; enqueues one run_sync_for_table job per table on queue default",
+      "client_js": [
+        "sync_manager.js"
+      ],
+      "depends_on": [
+        "wp_tables"
+      ]
+    },
+    "nce_sync/nce_sync/doctype/wordpress_connection/": {
+      "purpose": "WordPress MySQL connection config: host, port, database, user, password. Test connection button in form.",
+      "key_fields": [
+        "host",
+        "port",
+        "database",
+        "username",
+        "password"
+      ],
+      "client_js": [
+        "wordpress_connection.js"
+      ],
+      "depends_on": []
+    },
     "nce_sync/nce_sync/doctype/wp_tables/": {
       "purpose": "Central config per synced WordPress table: WP connection, table name, Frappe doctype name, column mapping, matching keys, field overrides, timestamp fields, auto-sync, listen_for_changes, write_back_mode. Schema preview dialog + main form Field Reference tab show mandatory/read-only/data type and write-back exclusion per column. sync_now enqueues run_sync_for_table on queue default.",
       "key_fields": [
@@ -235,43 +487,11 @@
         "wp_tables.js (form actions, Field Reference tab on main form, schema preview dialog tabs, resizable 95vw modal)",
         "wp_tables_list.js (list view actions)"
       ],
-      "depends_on": ["wordpress_connection"]
-    },
-    "nce_sync/nce_sync/doctype/wordpress_connection/": {
-      "purpose": "WordPress MySQL connection config: host, port, database, user, password. Test connection button in form.",
-      "key_fields": ["host", "port", "database", "username", "password"],
-      "client_js": ["wordpress_connection.js"],
-      "depends_on": []
-    },
-    "nce_sync/nce_sync/doctype/api_connector/": {
-      "purpose": "External API connector config: base_url, auth_pattern, credential_config (JSON). Used by NCE Events for credentials.py lookup.",
-      "key_fields": [
-        "connector_name",
-        "base_url",
-        "auth_pattern",
-        "credential_config"
-      ],
-      "client_js": ["api_connector.js", "api_connector_list.js"],
-      "depends_on": []
-    },
-    "nce_sync/nce_sync/doctype/api_connector_endpoint/": {
-      "purpose": "Individual API endpoint definition linked to an API Connector",
-      "key_fields": ["endpoint_name", "method", "path", "parent_connector"],
-      "depends_on": ["api_connector"]
-    },
-    "nce_sync/nce_sync/doctype/sync_manager/": {
-      "purpose": "Batch sync manager — trigger and monitor sync across multiple WP Tables; enqueues one run_sync_for_table job per table on queue default",
-      "key_fields": [],
-      "client_js": ["sync_manager.js"],
-      "depends_on": ["wp_tables"]
-    },
-    "nce_sync/nce_sync/doctype/sync_log/": {
-      "purpose": "Log of each sync run: table, rows processed, errors, status",
-      "key_fields": ["wp_table", "rows_synced", "status", "error_message"],
-      "depends_on": []
+      "depends_on": [
+        "wordpress_connection"
+      ]
     }
   },
-
   "pages": {
     "nce_sync/nce_sync/page/nce_sync/": {
       "purpose": "Main NCE Sync dashboard page — table list, sync triggers, status display",
@@ -281,14 +501,6 @@
     "nce_sync/nce_sync/page/table_links/": {
       "purpose": "Table Links page — visual grid for managing cross-table relationships (which WP tables are linked to which Frappe doctypes)",
       "client_js": "table_links.js",
-      "depends_on": []
-    }
-  },
-
-  "frontend_public": {
-    "nce_sync/public/js/list_auto_size.js": {
-      "purpose": "Global JS — auto-sizes list view columns for better readability",
-      "exports": [],
       "depends_on": []
     }
   }
