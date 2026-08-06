@@ -7,6 +7,14 @@ from frappe.model.document import Document
 
 ROLE_PREFIX = "NCE "
 
+# Roles allowed to use the NCE Access Profile tools themselves (Apply Access,
+# Manage Fields, Manage Users, invite/remove users, create/edit profiles).
+# This is deliberately a short, explicit list -- these tools can grant or
+# revoke access to every table in the system, so add to it only when a role
+# is meant to administer access, not merely to have a lot of table access
+# itself.
+MANAGER_ROLES = ("System Manager", "NCE Manager")
+
 
 class NCEAccessProfile(Document):
 	def validate(self):
@@ -235,7 +243,7 @@ def sync_new_wp_table_to_profiles(doc, method=None):
 
 @frappe.whitelist()
 def apply_access(name):
-	frappe.only_for("System Manager")
+	frappe.only_for(MANAGER_ROLES)
 	doc = frappe.get_doc("NCE Access Profile", name)
 	doc.apply_table_access()
 	return {"ok": True}
@@ -268,7 +276,7 @@ def _field_locked_in_schema(doctype, fieldname):
 
 @frappe.whitelist()
 def get_doctype_fields(doctype):
-	frappe.only_for("System Manager")
+	frappe.only_for(MANAGER_ROLES)
 	meta = frappe.get_meta(doctype)
 	fields = []
 	for f in meta.fields:
@@ -296,7 +304,7 @@ def set_field_restricted(doctype, fieldname, restricted):
 	Table Access row allows editing Restricted fields; Restricted Write does
 	not. Schema read-only fields are always locked and cannot be toggled here.
 	"""
-	frappe.only_for("System Manager")
+	frappe.only_for(MANAGER_ROLES)
 	if _field_locked_in_schema(doctype, fieldname):
 		frappe.throw(
 			frappe._("{0} is read-only in the {1} schema and cannot be changed here.").format(
@@ -322,7 +330,7 @@ def set_all_fields_restricted(doctype, restricted):
 	in the Manage Fields dialog. Same Property Setter mechanism, applied to
 	every restrictable field on the DocType in one call.
 	"""
-	frappe.only_for("System Manager")
+	frappe.only_for(MANAGER_ROLES)
 	restricted = frappe.utils.cint(restricted)
 	meta = frappe.get_meta(doctype)
 	changed = []
@@ -346,7 +354,7 @@ def set_all_fields_restricted(doctype, restricted):
 
 @frappe.whitelist()
 def get_profile_users(name):
-	frappe.only_for("System Manager")
+	frappe.only_for(MANAGER_ROLES)
 	role = frappe.db.get_value("NCE Access Profile", name, "role")
 	if not role:
 		return []
@@ -367,7 +375,7 @@ def get_profile_users(name):
 
 @frappe.whitelist()
 def add_user_to_profile(name, user):
-	frappe.only_for("System Manager")
+	frappe.only_for(MANAGER_ROLES)
 	role = frappe.db.get_value("NCE Access Profile", name, "role")
 	if not role:
 		frappe.throw(frappe._("This profile has no linked Role yet — save it first."))
@@ -381,7 +389,7 @@ def add_user_to_profile(name, user):
 
 @frappe.whitelist()
 def remove_user_from_profile(name, user):
-	frappe.only_for("System Manager")
+	frappe.only_for(MANAGER_ROLES)
 	role = frappe.db.get_value("NCE Access Profile", name, "role")
 	if not role:
 		return {"ok": True}
@@ -397,7 +405,7 @@ def remove_user_from_profile(name, user):
 
 @frappe.whitelist()
 def invite_user_to_profile(name, email, full_name):
-	frappe.only_for("System Manager")
+	frappe.only_for(MANAGER_ROLES)
 	role = frappe.db.get_value("NCE Access Profile", name, "role")
 	if not role:
 		frappe.throw(frappe._("This profile has no linked Role yet — save it first."))
