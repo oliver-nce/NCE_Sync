@@ -1606,6 +1606,22 @@ function show_sync_progress_dialog(frm) {
 
 	d.show();
 
+	// Debug console bridge — the worker emits `nce_sync_debug` events only when
+	// the sync was started via this Sync Now button. Log each to the JS console.
+	let _debug_handler = function (data) {
+		console.log(
+			"%c[NCE Sync]%c " + (data && data.stage ? data.stage : ""),
+			"color:#8b5cf6;font-weight:bold;",
+			"color:inherit;",
+			data,
+		);
+	};
+	frappe.realtime.on("nce_sync_debug", _debug_handler);
+	d.onhide = function () {
+		_stop_poll();
+		frappe.realtime.off("nce_sync_debug", _debug_handler);
+	};
+
 	function _append(text, color) {
 		let $box = d.$wrapper.find("#sync-log-box");
 		let ts = new Date().toLocaleTimeString();

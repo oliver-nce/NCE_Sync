@@ -68,6 +68,9 @@ class SyncContext:
 		row_limit: If set, cap how many WP rows are processed (Test Sync).
 		is_test: True when invoked from Test Sync. Skips orphan-delete,
 			reverse-sync, and the last_synced watermark update.
+		debug: True when the sync was triggered by the "Sync Now" form button.
+			When set, helpers push structured ``nce_sync_debug`` realtime events
+			to the triggering user's browser console (via _emit_debug).
 	"""
 
 	conn: Any
@@ -87,6 +90,7 @@ class SyncContext:
 	literal_datetimes: bool = False
 	row_limit: Optional[int] = None
 	is_test: bool = False
+	debug: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +242,30 @@ def sync_table(wp_table_doc):
 			literal_datetimes=bool(getattr(wp_table_doc, "literal_datetime_values", 0)),
 			row_limit=getattr(wp_table_doc, "_sync_row_limit", None),
 			is_test=bool(getattr(wp_table_doc, "_sync_is_test", False)),
+			debug=bool(getattr(wp_table_doc, "_sync_debug", False)),
 		)
+
+		if ctx.debug:
+			live_count = None
+			try:
+				dc = conn.cursor()
+				dc.execute(f"SELECT COUNT(*) AS c FROM `{ctx.table_name}`")
+				crow = dc.fetchone()
+				dc.close()
+				live_count = crow.get("c") if isinstance(crow, dict) else (crow[0] if crow else None)
+			except Exception as e:
+				live_count = f"count error: {e}"
+			_emit_debug(
+				ctx,
+				"connect",
+				host=getattr(wp_conn_doc, "host", None),
+				database=getattr(wp_conn_doc, "database", None),
+				port=getattr(wp_conn_doc, "port", None) or 3306,
+				table_name=ctx.table_name,
+				sync_method=sync_method,
+				matching_keys=list(ctx.matching_keys),
+				wp_live_count=live_count,
+			)
 
 		strategy = SYNC_STRATEGIES.get(sync_method)
 		if not strategy:
@@ -380,6 +407,15 @@ def _get_wp_key_set(ctx):
 		key_tuple = tuple(_normalize_key_value(converted_row.get(k)) for k in ctx.matching_keys)
 		wp_key_set.add(key_tuple)
 
+	_emit_debug(
+		ctx,
+		"wp_key_set",
+		key_columns=[c.strip("`") for c in wp_key_columns],
+		wp_rows_fetched=len(wp_rows),
+		wp_key_set_size=len(wp_key_set),
+		sample_keys=[list(k) for k in list(wp_key_set)[:5]],
+	)
+
 	return wp_key_set
 
 
@@ -461,6 +497,24 @@ def _publish_sync_progress(table_name, rows_processed, total_rows, user=None, ph
 		update_modified=False,
 	)
 	frappe.db.commit()
+
+
+def _emit_debug(ctx, stage, **data):
+	"""Push a structured debug event to the triggering user's browser console.
+
+	Only fires when ``ctx.debug`` is True (i.e. the sync was started via the
+	"Sync Now" button on the WP Tables form — not the scheduler or Sync Manager).
+	Received client-side by wp_tables.js through ``frappe.realtime.on("nce_sync_debug")``.
+	Never raises: instrumentation must not break a sync.
+	"""
+	if not getattr(ctx, "debug", False):
+		return
+	try:
+		payload = {"stage": stage, "table": getattr(ctx.wp_table_doc, "name", None)}
+		payload.update(data)
+		frappe.publish_realtime("nce_sync_debug", payload, user=ctx.sync_user)
+	except Exception:
+		pass
 
 
 def _build_ts_expr(ts_field, create_ts_field):
@@ -638,6 +692,17 @@ def _batch_process_rows(rows, row_processor, ctx, total_to_sync):
 		ctx.wp_table_doc.name, rows_processed, total_to_sync, user=ctx.sync_user,
 	)
 
+	_emit_debug(
+		ctx,
+		"batch",
+		input_rows=len(rows),
+		total_to_sync=total_to_sync,
+		rows_processed=rows_processed,
+		rows_inserted=rows_inserted,
+		rows_skipped=rows_skipped,
+		skip_errors=skip_errors[:5],
+	)
+
 	return {
 		"rows_processed": rows_processed,
 		"rows_inserted": rows_inserted,
@@ -742,6 +807,18 @@ def _collect_rows_to_sync(ctx, wp_key_set, frappe_key_set):
 			missing_rows = _fetch_rows_by_keys(ctx, limited)
 	else:
 		missing_rows = _fetch_rows_by_keys(ctx, missing_keys_only)
+
+	_emit_debug(
+		ctx,
+		"collect",
+		cutoff=str(cutoff) if cutoff else None,
+		changed_rows=len(changed_rows),
+		frappe_key_set_size=len(frappe_key_set),
+		wp_key_set_size=len(wp_key_set),
+		missing_keys=len(missing_keys),
+		missing_keys_after_dedup=len(missing_keys_only),
+		missing_rows_fetched=len(missing_rows),
+	)
 
 	return changed_rows, missing_rows
 
@@ -1326,7 +1403,7 @@ def _cleanup_old_sync_logs(keep_count=20):
 		frappe.db.commit()
 
 
-def run_sync_for_table(wp_table_name, user=None):
+def run_sync_for_table(wp_table_name, user=None, debug=False):
 	"""
 	Background-job entry point: load the WP Tables doc by name and sync it.
 	Sends toast notifications on completion or error to the user who triggered it.
@@ -1334,9 +1411,12 @@ def run_sync_for_table(wp_table_name, user=None):
 	Args:
 		wp_table_name: Name (primary key) of the WP Tables document
 		user: Username to receive progress toasts (from frappe.session.user when enqueued)
+		debug: When True (set only by the "Sync Now" form button), the sync emits
+			``nce_sync_debug`` realtime events to the user's browser console.
 	"""
 	wp_table_doc = frappe.get_doc("WP Tables", wp_table_name)
 	wp_table_doc._sync_user = user or frappe.session.user
+	wp_table_doc._sync_debug = bool(debug)
 	label = wp_table_doc.nce_name or wp_table_doc.table_name
 
 	try:

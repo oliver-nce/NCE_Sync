@@ -1004,6 +1004,7 @@ class WPTables(Document):
 			timeout=3600,
 			wp_table_name=self.name,
 			user=frappe.session.user,
+			debug=True,
 		)
 
 		frappe.msgprint(
