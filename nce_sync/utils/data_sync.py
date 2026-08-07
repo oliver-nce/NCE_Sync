@@ -9,6 +9,7 @@ Reverse direction: Frappe → WordPress (INSERT new records, UPDATE existing).
 """
 
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -28,6 +29,7 @@ from nce_sync.utils.constants import (
 	DELETE_BATCH_SIZE,
 	KEEP_SYNC_LOG_COUNT,
 	MAX_ROW_ERROR_MESSAGES,
+	SYNC_COUNT_DRIFT_TOLERANCE,
 	SYNC_FREQUENCY_MAP,
 	UPSERT_BATCH_SIZE,
 	WHERE_IN_BATCH_SIZE,
@@ -198,7 +200,10 @@ def sync_table(wp_table_doc):
 	if not wp_table_doc.frappe_doctype:
 		frappe.throw(_("No Frappe DocType associated with this table"))
 
-	# Get WordPress connection
+	# Get WordPress connection.
+	# A1 (anti-stale): drop any cached copy first so a long-lived worker cannot
+	# reuse an outdated WordPress Connection (host / database / credentials).
+	frappe.clear_document_cache("WordPress Connection", "WordPress Connection")
 	wp_conn_doc = frappe.get_single("WordPress Connection")
 	if not wp_conn_doc:
 		frappe.throw(_("WordPress Connection not configured"))
@@ -275,6 +280,30 @@ def sync_table(wp_table_doc):
 				)
 			)
 		result = strategy(ctx)
+		# B1 (proof of exchange): reaching this line means the WP connection
+		# opened and the strategy's WP queries ran without raising.
+		result["wp_exchange_ok"] = True
+
+	# A2 (audit): record exactly what this run connected to and which worker
+	# executed it, so the Sync Log / Error Log can prove the target.
+	result["wp_host"] = getattr(wp_conn_doc, "host", None)
+	result["wp_database"] = getattr(wp_conn_doc, "database", None)
+	result["worker_pid"] = os.getpid()
+
+	# A3 (independent recount): re-count WP rows from a *fresh* connection after
+	# the sync, so a stale/partial read shows up as drift against what we saw.
+	try:
+		with wp_connection(wp_conn_doc) as verify_conn:
+			vc = verify_conn.cursor()
+			vc.execute(f"SELECT COUNT(*) AS c FROM `{wp_table_doc.table_name}`")
+			vrow = vc.fetchone()
+			vc.close()
+			result["wp_recount"] = (
+				vrow.get("c") if isinstance(vrow, dict) else (vrow[0] if vrow else None)
+			)
+	except Exception as recount_err:
+		result["wp_recount"] = None
+		result["wp_recount_error"] = str(recount_err)
 
 	# Reverse sync: push Frappe-created records back to WordPress
 	# Only runs when direction is explicitly "Both" and the WP PK maps to Frappe name
@@ -2015,41 +2044,91 @@ def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 					)
 					return
 
-			# Check for anomaly: WP has rows but Frappe table is empty after sync
-			total_wp_rows = result.get("total_wp_rows", 0) or result.get("rows_inserted", 0)
+			# ── Truthful status via reconciliation (Rules A2/A3 + B1/B2/B3) ──────
+			# Authority for "how many rows WordPress really has" is the fresh
+			# end-of-run recount (A3); fall back to what the sync saw only if the
+			# recount could not run.
+			wp_seen = int(result.get("total_wp_rows") or 0)
+			wp_recount = result.get("wp_recount")
+			wp_authority = int(wp_recount) if wp_recount is not None else wp_seen
+			rows_skipped = int(result.get("rows_skipped") or 0)
+			exchange_ok = bool(result.get("wp_exchange_ok"))
+			is_full_mirror = getattr(wp_table_doc, "mirror_status", None) == "Mirrored"
 
-			if total_wp_rows > 0 and frappe_count == 0:
-				wp_table_doc.last_sync_status = "Warning"
-				wp_table_doc.last_sync_log = (
-					f"ANOMALY: WP has {total_wp_rows} rows but Frappe table is empty. "
-					f"last_synced NOT updated - next sync will do full pull. "
-					f"Check matching keys and column mapping."
-				)
-				wp_table_doc.save()
-				_create_sync_log(
-					wp_table_doc.name, sync_method, sync_started,
-					status="Partial", error_message=wp_table_doc.last_sync_log,
-				)
-				return
+			# A2: connection/target audit recorded on every run.
+			audit = (
+				f"host={result.get('wp_host')} db={result.get('wp_database')} "
+				f"pid={result.get('worker_pid')} wp_seen={wp_seen} "
+				f"wp_recount={wp_recount} frappe={frappe_count} skipped={rows_skipped}"
+			)
 
-			# Build summary and update status
+			# B2: collect every reason this run is NOT a clean success.
+			problems = []
+			if not exchange_ok:
+				problems.append("WordPress exchange did not run")
+			if result.get("wp_recount_error"):
+				problems.append(f"WP recount failed: {result.get('wp_recount_error')}")
+			if rows_skipped > 0:
+				problems.append(f"{rows_skipped} row(s) skipped (see Error Log)")
+			if (
+				is_full_mirror
+				and wp_authority > 0
+				and frappe_count < (wp_authority - SYNC_COUNT_DRIFT_TOLERANCE)
+			):
+				problems.append(
+					f"Mirror incomplete: Frappe has {frappe_count} row(s) but "
+					f"WordPress has {wp_authority}"
+				)
+
 			summary = _build_sync_summary(result, frappe_count)
 
-			if not getattr(wp_table_doc, "_sync_is_test", False):
-				wp_table_doc.last_synced = now_datetime()
-			wp_table_doc.last_sync_status = "Success"
-			wp_table_doc.last_sync_log = summary["log_message"]
-			wp_table_doc.save()
-			frappe.db.commit()
+			if not exchange_ok:
+				status, log_status = "Error", "Failed"
+			elif problems:
+				status, log_status = "Warning", "Partial"
+			else:
+				status, log_status = "Success", "Success"
 
-			if summary["has_changes"]:
+			if status == "Success":
+				# Only a clean, reconciled run advances last_synced.
+				if not getattr(wp_table_doc, "_sync_is_test", False):
+					wp_table_doc.last_synced = now_datetime()
+				wp_table_doc.last_sync_status = "Success"
+				wp_table_doc.last_sync_log = f"{summary['log_message']} | {audit}"[:500]
+				wp_table_doc.save()
+				frappe.db.commit()
+
+				if summary["has_changes"]:
+					_create_sync_log(
+						wp_table_doc.name, sync_method, sync_started,
+						status="Success",
+						records_synced=summary["records_synced"],
+						records_created=summary["records_created"],
+						records_updated=summary["records_updated"],
+						records_deleted=summary["rows_deleted"],
+					)
+			else:
+				# B3: not a clean success — do NOT advance last_synced (next run
+				# retries), and always leave an auditable trail.
+				problem_msg = "; ".join(problems)
+				wp_table_doc.last_sync_status = status
+				wp_table_doc.last_sync_log = f"{status}: {problem_msg} | {audit}"[:500]
+				wp_table_doc.save()
+				frappe.db.commit()
+
 				_create_sync_log(
 					wp_table_doc.name, sync_method, sync_started,
-					status="Success",
+					status=log_status,
 					records_synced=summary["records_synced"],
 					records_created=summary["records_created"],
 					records_updated=summary["records_updated"],
 					records_deleted=summary["rows_deleted"],
+					error_message=f"{status}: {problem_msg}"[:500],
+					error_traceback=audit,
+				)
+				frappe.log_error(
+					title=f"Sync {status}: {wp_table_doc.table_name}",
+					message=f"{problem_msg}\n{audit}",
 				)
 
 		except Exception as e:

@@ -31,6 +31,12 @@ MAX_ROW_ERROR_MESSAGES = 10
 #: Number of Sync Log records kept after each scheduled run (oldest pruned).
 KEEP_SYNC_LOG_COUNT = 20
 
+#: Allowed difference between the Frappe row count and the fresh WordPress
+#: recount before a full-mirror sync is downgraded from Success to Warning.
+#: 0 = exact match required. Raise via site config if a table legitimately
+#: changes rows mid-sync often enough to cause noise.
+SYNC_COUNT_DRIFT_TOLERANCE = 0
+
 # ---------------------------------------------------------------------------
 # Scheduled sync frequency map
 # ---------------------------------------------------------------------------
