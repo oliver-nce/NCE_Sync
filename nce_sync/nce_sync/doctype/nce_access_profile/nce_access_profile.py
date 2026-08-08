@@ -20,11 +20,22 @@ INVITE_EMAIL_CC = "john@ncesoccer.com"
 INVITE_EMAIL_SIGNATURE = "John Curtis"
 
 
+def _make_registration_link(user_doc):
+	"""Build update-password URL for a new user (same logic as Frappe User welcome mail)."""
+	from frappe.utils import get_url, now_datetime
+	from frappe.utils.data import sha256_hash
+
+	key = frappe.generate_hash()
+	user_doc.db_set("reset_password_key", sha256_hash(key))
+	user_doc.db_set("last_reset_password_key_generated_on", now_datetime())
+	return get_url("/update-password?key=" + key, allow_header_override=False)
+
+
 def _send_nce_invite_email(user_doc):
 	"""Send NCE-branded welcome mail for newly invited users."""
 	from frappe.utils import escape_html, get_url
 
-	link = user_doc._reset_password()
+	link = _make_registration_link(user_doc)
 	site_url = get_url()
 	display_name = user_doc.get_fullname() or user_doc.first_name
 	subject = frappe._("Complete Registration")
