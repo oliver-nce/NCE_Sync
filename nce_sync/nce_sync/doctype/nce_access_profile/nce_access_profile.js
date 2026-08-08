@@ -227,7 +227,8 @@ function show_manage_users_dialog(frm) {
 			{ fieldtype: "Button", fieldname: "add_user_btn", label: __("Add") },
 			{ fieldtype: "Section Break", label: __("Invite New User") },
 			{ fieldtype: "Data", fieldname: "invite_email", label: __("Email") },
-			{ fieldtype: "Data", fieldname: "invite_name", label: __("Full Name") },
+			{ fieldtype: "Data", fieldname: "invite_first_name", label: __("First Name"), reqd: 1 },
+			{ fieldtype: "Data", fieldname: "invite_last_name", label: __("Last Name") },
 			{ fieldtype: "Button", fieldname: "invite_btn", label: __("Send Invitation") },
 		],
 	});
@@ -302,21 +303,23 @@ function show_manage_users_dialog(frm) {
 
 	d.fields_dict.invite_btn.$input.on("click", () => {
 		const email = d.get_value("invite_email");
-		const full_name = d.get_value("invite_name");
-		if (!email || !full_name) {
-			frappe.msgprint(__("Enter both email and full name."));
+		const first_name = (d.get_value("invite_first_name") || "").trim();
+		const last_name = (d.get_value("invite_last_name") || "").trim();
+		if (!email || !first_name) {
+			frappe.msgprint(__("Enter email and first name."));
 			return;
 		}
 		frappe.call({
 			method:
 				"nce_sync.nce_sync.doctype.nce_access_profile.nce_access_profile.invite_user_to_profile",
-			args: { name: frm.doc.name, email, full_name },
+			args: { name: frm.doc.name, email, first_name, last_name },
 			freeze: true,
 			freeze_message: __("Sending invitation..."),
 			callback() {
 				frappe.show_alert({ message: __("Invitation sent to {0}", [email]), indicator: "green" });
 				d.set_value("invite_email", "");
-				d.set_value("invite_name", "");
+				d.set_value("invite_first_name", "");
+				d.set_value("invite_last_name", "");
 				render_users();
 			},
 		});

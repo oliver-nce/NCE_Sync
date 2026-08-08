@@ -404,11 +404,16 @@ def remove_user_from_profile(name, user):
 
 
 @frappe.whitelist()
-def invite_user_to_profile(name, email, full_name):
+def invite_user_to_profile(name, email, first_name, last_name=None):
 	frappe.only_for(MANAGER_ROLES)
 	role = frappe.db.get_value("NCE Access Profile", name, "role")
 	if not role:
 		frappe.throw(frappe._("This profile has no linked Role yet — save it first."))
+
+	first_name = (first_name or "").strip()
+	if not first_name:
+		frappe.throw(frappe._("First Name is required."))
+	last_name = (last_name or "").strip()
 
 	if frappe.db.exists("User", email):
 		user_doc = frappe.get_doc("User", email)
@@ -423,7 +428,8 @@ def invite_user_to_profile(name, email, full_name):
 		{
 			"doctype": "User",
 			"email": email,
-			"full_name": full_name,
+			"first_name": first_name,
+			"last_name": last_name,
 			"send_welcome_email": 1,
 			"user_type": "System User",
 			"roles": [{"role": role}],
