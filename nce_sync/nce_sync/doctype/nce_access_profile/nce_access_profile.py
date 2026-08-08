@@ -15,6 +15,51 @@ ROLE_PREFIX = "NCE "
 # itself.
 MANAGER_ROLES = ("System Manager", "NCE Manager")
 
+INVITE_EMAIL_SENDER = "john@ncesoccer.com"
+INVITE_EMAIL_CC = "john@ncesoccer.com"
+INVITE_EMAIL_SIGNATURE = "John Curtis"
+
+
+def _send_nce_invite_email(user_doc):
+	"""Send NCE-branded welcome mail for newly invited users."""
+	from frappe.utils import escape_html, get_url
+
+	link = user_doc._reset_password()
+	site_url = get_url()
+	display_name = user_doc.get_fullname() or user_doc.first_name
+	subject = frappe._("Complete Registration")
+
+	message = f"""
+<p>{frappe._("Hello")} {escape_html(display_name)},</p>
+<p>{frappe._("A new account has been created for you at")} <a href="{site_url}">{site_url}</a>.</p>
+<p>This is a web application that helps NCE staff manage operations.</p>
+<p>{frappe._("Your login id is")}: <b>{escape_html(user_doc.email)}</b></p>
+<p>{frappe._("Click on the link below to complete your registration and set a new password")}.</p>
+<p style="margin: 15px 0px;">
+	<a href="{link}" rel="nofollow" class="btn btn-primary">{frappe._("Complete Registration")}</a>
+</p>
+<p style="margin-top: 15px">
+	{frappe._("Thanks")},<br>
+	{escape_html(INVITE_EMAIL_SIGNATURE)}
+</p>
+<br>
+<p>
+	{frappe._("You can also copy-paste following link in your browser")}<br>
+	<a href="{link}">{link}</a>
+</p>
+"""
+
+	frappe.sendmail(
+		recipients=[user_doc.email],
+		sender=INVITE_EMAIL_SENDER,
+		cc=[INVITE_EMAIL_CC],
+		subject=subject,
+		message=message,
+		header=[subject, "green"],
+		delayed=False,
+		retry=3,
+	)
+
 
 class NCEAccessProfile(Document):
 	def validate(self):
@@ -430,11 +475,12 @@ def invite_user_to_profile(name, email, first_name, last_name=None):
 			"email": email,
 			"first_name": first_name,
 			"last_name": last_name,
-			"send_welcome_email": 1,
+			"send_welcome_email": 0,
 			"user_type": "System User",
 			"roles": [{"role": role}],
 		}
 	)
 	user_doc.flags.ignore_permissions = True
 	user_doc.insert()
+	_send_nce_invite_email(user_doc)
 	return {"ok": True, "created": True}
