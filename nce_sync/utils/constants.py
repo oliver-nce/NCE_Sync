@@ -38,6 +38,27 @@ KEEP_SYNC_LOG_COUNT = 20
 SYNC_COUNT_DRIFT_TOLERANCE = 0
 
 # ---------------------------------------------------------------------------
+# Stuck-task guard + hard runtime cap
+# ---------------------------------------------------------------------------
+
+#: Hard cap (seconds) for a single WP-exchange background job. Used both as the
+#: RQ ``timeout`` on enqueue and as the runtime the stuck-task guard reaps past.
+#: 300 = 5 minutes. Orchestrators (scheduled batch) and exports are exempt from
+#: the guard's runtime reap (they are only reaped when their worker is dead).
+MAX_SYNC_JOB_RUNTIME_SEC = 300
+
+#: A started job whose owning RQ worker has not sent a heartbeat within this many
+#: seconds is treated as an orphan/zombie (worker hung or died) and reaped.
+WORKER_STALE_SEC = 120
+
+#: PyMySQL socket timeouts (seconds) for the WordPress connection. connect is
+#: short (fail fast if RDS is unreachable); read/write match the job cap so a
+#: hung socket dies at ~5 min instead of blocking a worker indefinitely.
+WP_CONNECT_TIMEOUT_SEC = 10
+WP_READ_TIMEOUT_SEC = 300
+WP_WRITE_TIMEOUT_SEC = 300
+
+# ---------------------------------------------------------------------------
 # Scheduled sync frequency map
 # ---------------------------------------------------------------------------
 

@@ -10,6 +10,7 @@ class SyncManager(Document):
 	@frappe.whitelist()
 	def run_sync_now(self):
 		"""Enqueue an immediate sync for all enabled mirrored tables."""
+		from nce_sync.utils.constants import MAX_SYNC_JOB_RUNTIME_SEC
 		from nce_sync.utils.data_sync import run_sync_for_table
 
 		tables = frappe.get_all(
@@ -29,6 +30,7 @@ class SyncManager(Document):
 				wp_table_name=table_name,
 				user=user,
 				queue="default",
+				timeout=MAX_SYNC_JOB_RUNTIME_SEC,
 				is_async=True,
 			)
 

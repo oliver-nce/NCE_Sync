@@ -24,6 +24,12 @@ from contextlib import contextmanager
 import frappe
 import pymysql
 
+from nce_sync.utils.constants import (
+	WP_CONNECT_TIMEOUT_SEC,
+	WP_READ_TIMEOUT_SEC,
+	WP_WRITE_TIMEOUT_SEC,
+)
+
 
 def get_wp_connection(wp_conn_doc):
 	"""
@@ -49,6 +55,11 @@ def get_wp_connection(wp_conn_doc):
 			charset="utf8mb4",
 			cursorclass=pymysql.cursors.DictCursor,
 			autocommit=True,
+			# Socket timeouts so a network blip to the WP DB fails fast instead
+			# of blocking a worker indefinitely (the "stuck for hours" case).
+			connect_timeout=WP_CONNECT_TIMEOUT_SEC,
+			read_timeout=WP_READ_TIMEOUT_SEC,
+			write_timeout=WP_WRITE_TIMEOUT_SEC,
 		)
 		return conn
 	except Exception as e:

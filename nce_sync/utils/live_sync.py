@@ -34,7 +34,7 @@ from frappe.utils import cint
 
 from nce_sync.utils.column_mapper import build_wp_row, load_column_mapping
 from nce_sync.utils.connections import wp_connection
-from nce_sync.utils.constants import CACHE_KEY_LISTEN_TABLES
+from nce_sync.utils.constants import CACHE_KEY_LISTEN_TABLES, MAX_SYNC_JOB_RUNTIME_SEC
 from nce_sync.utils.write_back_dispatch import run_write_back_for_doc
 
 
@@ -111,6 +111,7 @@ def on_record_change(doc, method):
 		docname=doc.name,
 		queue="default",
 		job_id=job_id,
+		timeout=MAX_SYNC_JOB_RUNTIME_SEC,
 		enqueue_after_commit=True,
 	)
 	if not hasattr(frappe.local, "nce_sync_queued_job_ids"):

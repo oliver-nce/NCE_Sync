@@ -7,6 +7,8 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from nce_sync.utils.constants import MAX_SYNC_JOB_RUNTIME_SEC
+
 # Core Frappe DocType names - never drop these tables (safety guard)
 _NEVER_DROP_DOCTYPES = frozenset(
 	{
@@ -1001,7 +1003,7 @@ class WPTables(Document):
 		frappe.enqueue(
 			"nce_sync.utils.data_sync.run_sync_for_table",
 			queue="default",
-			timeout=3600,
+			timeout=MAX_SYNC_JOB_RUNTIME_SEC,
 			wp_table_name=self.name,
 			user=frappe.session.user,
 			debug=True,
@@ -1046,7 +1048,7 @@ class WPTables(Document):
 		frappe.enqueue(
 			"nce_sync.utils.data_sync.run_test_sync_for_table",
 			queue="default",
-			timeout=1800,
+			timeout=MAX_SYNC_JOB_RUNTIME_SEC,
 			wp_table_name=self.name,
 			row_limit=row_limit,
 			user=frappe.session.user,

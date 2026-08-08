@@ -1307,6 +1307,12 @@ def run_scheduled_syncs():
 	Uses global sync frequency from Sync Manager.
 	Also updates Sync Manager status and cleans up old Sync Log records.
 	"""
+	# First step of every sync: reap any stuck task so a hung worker cannot
+	# silently starve the scheduled batch.
+	from nce_sync.utils.stuck_task_guard import guard_preflight
+
+	guard_preflight()
+
 	# Check if syncing is globally enabled
 	try:
 		sync_manager = frappe.get_single("Sync Manager")
@@ -1443,6 +1449,10 @@ def run_sync_for_table(wp_table_name, user=None, debug=False):
 		debug: When True (set only by the "Sync Now" form button), the sync emits
 			``nce_sync_debug`` realtime events to the user's browser console.
 	"""
+	from nce_sync.utils.stuck_task_guard import guard_preflight
+
+	guard_preflight()
+
 	wp_table_doc = frappe.get_doc("WP Tables", wp_table_name)
 	wp_table_doc._sync_user = user or frappe.session.user
 	wp_table_doc._sync_debug = bool(debug)
@@ -1504,8 +1514,11 @@ def run_sync_doctype_rows_job(doctype, names, user=None, debug=False):
 		user: Recipient for completion toasts (from ``frappe.session.user`` when enqueued).
 		debug: If true, emit step timings to logger ``nce_sync.sync_trace`` and a copyable Desk dialog.
 	"""
+	from nce_sync.utils.stuck_task_guard import guard_preflight
 	from nce_sync.utils.sync_gate import clear_doctype_syncing, mark_doctype_syncing
 	from nce_sync.utils.sync_trace import SyncTrace, truthy_debug
+
+	guard_preflight()
 
 	user = user or frappe.session.user
 	tr = SyncTrace(truthy_debug(debug), "run_sync_doctype_rows_job", doctype)
@@ -1690,8 +1703,11 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None,
 		user: User to receive completion toasts.
 		debug: If true, emit step timings to logger ``nce_sync.sync_trace`` and a copyable Desk dialog.
 	"""
+	from nce_sync.utils.stuck_task_guard import guard_preflight
 	from nce_sync.utils.sync_gate import clear_doctype_syncing, mark_doctype_syncing
 	from nce_sync.utils.sync_trace import SyncTrace, truthy_debug
+
+	guard_preflight()
 
 	user = user or frappe.session.user
 	tr = SyncTrace(truthy_debug(debug), "run_sync_linked_doctype_rows_job", doctype)
@@ -2198,7 +2214,10 @@ def run_test_sync_for_table(wp_table_name, row_limit, user=None):
 	orphan-delete and reverse-sync. Refuses if a real sync is already
 	running for the same DocType.
 	"""
+	from nce_sync.utils.stuck_task_guard import guard_preflight
 	from nce_sync.utils.sync_gate import is_doctype_syncing
+
+	guard_preflight()
 
 	row_limit = int(row_limit)
 	if not (1 <= row_limit <= 2999):
