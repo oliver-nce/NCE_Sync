@@ -8,7 +8,7 @@ API endpoints for NCE Sync app.
 import frappe
 from frappe import _
 
-from nce_sync.utils.sync_trace import truthy_debug
+from nce_sync.utils.constants import MAX_SYNC_JOB_RUNTIME_SEC
 
 
 @frappe.whitelist()
@@ -237,21 +237,8 @@ def export_all_to_excel(doctype):
 	return total
 
 
-def _enqueue_nce_sync_job(method: str, **kwargs):
-	"""Return a stable RQ job id for polling (e.g. ``get_job_status`` on the same site).
-
-	``job_id`` is passed to ``frappe.enqueue``; Frappe stores it namespaced per site.
-	Use ``frappe.utils.background_jobs.get_job_status(job_id)`` or Desk Background Jobs / RQ Job.
-	"""
-	from uuid import uuid4
-
-	job_id = str(uuid4())
-	frappe.enqueue(method, queue="default", timeout=3600, job_id=job_id, **kwargs)
-	return job_id
-
-
 @frappe.whitelist()
-def sync_doctype_rows(doctype, names, debug=False):
+def sync_doctype_rows(doctype, names):
 	"""
 	Queue a job to fetch listed rows from WordPress and upsert into Frappe.
 
@@ -260,10 +247,9 @@ def sync_doctype_rows(doctype, names, debug=False):
 	Args:
 		doctype (str): Frappe DocType name.
 		names (list | str): List of ``name`` values or JSON-encoded list.
-		debug: If truthy (``1``, ``"true"``), worker logs each step and shows a copyable trace dialog.
 
 	Returns:
-		dict: ``queued``, ``doctype``, ``row_count``, ``job_id``, ``debug_trace``, ``message``.
+		dict: ``queued``, ``doctype``, ``row_count``, and a short ``message``.
 	"""
 	import json
 
@@ -307,13 +293,13 @@ def sync_doctype_rows(doctype, names, debug=False):
 	if not wp_conn.host:
 		frappe.throw(_("WordPress Connection not configured"))
 
-	debug_trace = truthy_debug(debug)
-	job_id = _enqueue_nce_sync_job(
+	frappe.enqueue(
 		"nce_sync.utils.data_sync.run_sync_doctype_rows_job",
+		queue="default",
+		timeout=MAX_SYNC_JOB_RUNTIME_SEC,
 		doctype=doctype,
 		names=list(raw_names),
 		user=frappe.session.user,
-		debug=debug_trace,
 	)
 
 	frappe.msgprint(
@@ -329,14 +315,12 @@ def sync_doctype_rows(doctype, names, debug=False):
 		"queued": True,
 		"doctype": doctype,
 		"row_count": len(raw_names),
-		"job_id": job_id,
-		"debug_trace": debug_trace,
 		"message": _("Queued on default worker queue"),
 	}
 
 
 @frappe.whitelist()
-def sync_linked_doctype_rows(doctype, link_field, link_value, debug=False):
+def sync_linked_doctype_rows(doctype, link_field, link_value):
 	"""
 	Queue a job: delete existing Frappe rows for a Link filter, then re-insert from WordPress.
 
@@ -344,12 +328,6 @@ def sync_linked_doctype_rows(doctype, link_field, link_value, debug=False):
 	mapped column for ``link_field`` equals ``link_value`` are then pulled and upserted.
 
 	Requires a **Link** DocField on ``doctype`` with a matching column in WP Tables mapping.
-
-	Args:
-		debug: If truthy (``1``, ``"true"``), worker logs each step and shows a copyable trace dialog.
-
-	Returns:
-		dict: ``queued``, ``doctype``, ``link_field``, ``link_value``, ``job_id``, ``debug_trace``, ``message``.
 	"""
 	from frappe.utils import cstr
 
@@ -408,14 +386,14 @@ def sync_linked_doctype_rows(doctype, link_field, link_value, debug=False):
 			)
 		)
 
-	debug_trace = truthy_debug(debug)
-	job_id = _enqueue_nce_sync_job(
+	frappe.enqueue(
 		"nce_sync.utils.data_sync.run_sync_linked_doctype_rows_job",
+		queue="default",
+		timeout=MAX_SYNC_JOB_RUNTIME_SEC,
 		doctype=doctype,
 		link_field=link_field,
 		link_value=link_value,
 		user=frappe.session.user,
-		debug=debug_trace,
 	)
 
 	frappe.msgprint(
@@ -431,8 +409,6 @@ def sync_linked_doctype_rows(doctype, link_field, link_value, debug=False):
 		"doctype": doctype,
 		"link_field": link_field,
 		"link_value": link_value,
-		"job_id": job_id,
-		"debug_trace": debug_trace,
 		"message": _("Queued on default worker queue"),
 	}
 
