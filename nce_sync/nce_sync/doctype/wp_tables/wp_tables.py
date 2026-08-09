@@ -990,13 +990,21 @@ class WPTables(Document):
 		if not self.frappe_doctype:
 			frappe.throw(_("No Frappe DocType associated with this table"))
 
-		from nce_sync.utils.sync_gate import is_doctype_syncing
+		from nce_sync.utils.sync_gate import is_crud_locked, is_doctype_syncing
 
 		if is_doctype_syncing(self.frappe_doctype):
 			frappe.msgprint(
 				_("Sync already running — no need to start another."),
 				title=_("Sync in progress"),
 				indicator="blue",
+			)
+			return
+
+		if is_crud_locked(self.frappe_doctype):
+			frappe.msgprint(
+				_("A live edit is in progress — please try again in a minute."),
+				title=_("Edit in progress"),
+				indicator="orange",
 			)
 			return
 
@@ -1024,7 +1032,7 @@ class WPTables(Document):
 		`row_limit` WordPress rows (capped at 2999). Does not move
 		last_synced. Refuses if a real sync is already running.
 		"""
-		from nce_sync.utils.sync_gate import is_doctype_syncing
+		from nce_sync.utils.sync_gate import is_crud_locked, is_doctype_syncing
 
 		if self.mirror_status != "Mirrored":
 			frappe.throw(_("Table must be mirrored before syncing"))
@@ -1041,6 +1049,13 @@ class WPTables(Document):
 		if is_doctype_syncing(self.frappe_doctype):
 			frappe.throw(
 				_("A sync is in progress for {0} — wait for it to finish, then try again.").format(
+					self.frappe_doctype
+				)
+			)
+
+		if is_crud_locked(self.frappe_doctype):
+			frappe.throw(
+				_("A live edit is in progress for {0} — wait a minute, then try again.").format(
 					self.frappe_doctype
 				)
 			)

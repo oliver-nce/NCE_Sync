@@ -1339,7 +1339,7 @@ def run_scheduled_syncs():
 	tables_failed = 0
 	log_messages = []
 
-	from nce_sync.utils.sync_gate import is_doctype_syncing
+	from nce_sync.utils.sync_gate import is_crud_locked, is_doctype_syncing
 
 	for table_info in tables:
 		try:
@@ -1356,6 +1356,12 @@ def run_scheduled_syncs():
 			# Skip if a sync is already running for this DocType (prevents lock pileup)
 			if is_doctype_syncing(table_info.frappe_doctype):
 				log_messages.append(f"⏭ {table_info.table_name}: already syncing, skipped")
+				continue
+
+			# Skip if a live dialog edit (CRUD) holds this DocType — it will just
+			# run on the next cycle, ~5 min later. Never fight a user's edit.
+			if is_crud_locked(table_info.frappe_doctype):
+				log_messages.append(f"⏭ {table_info.table_name}: live edit in progress, deferred")
 				continue
 
 			# Sync is due - run it
@@ -1696,6 +1702,9 @@ def run_sync_linked_doctype_rows_job(doctype, link_field, link_value, user=None,
 
 	Serializes on ``queue="default"`` and uses the same sync-busy gate as other WP→Frappe jobs.
 
+	This job is the dialog read-back's own work, so it deliberately does NOT consult the
+	edit-lock (``is_crud_locked``): it is part of the edit, not a scheduled sync to hold off.
+
 	Args:
 		doctype: Mirrored Frappe DocType name.
 		link_field: DocField name on ``doctype`` with fieldtype **Link** (stores linked doc ``name``).
@@ -1950,6 +1959,24 @@ def _build_sync_summary(result, frappe_count):
 	}
 
 
+def _bow_out_for_crud(wp_table_doc, frappe_dt):
+	"""
+	Record that a sync stood down because a live dialog edit (CRUD-lock) holds
+	the table. Leaves ``last_synced`` untouched so the table stays 'due' and the
+	next cycle retries. Never raises.
+	"""
+	try:
+		wp_table_doc.last_sync_status = "Warning"
+		wp_table_doc.last_sync_log = (
+			f"Skipped: '{frappe_dt}' is locked by a live edit (CRUD). "
+			"Will retry on the next cycle."
+		)[:500]
+		wp_table_doc.save(ignore_permissions=True)
+		frappe.db.commit()
+	except Exception:
+		frappe.db.rollback()
+
+
 def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 	"""
 	Run sync and update status fields on the WP Tables document.
@@ -1962,7 +1989,11 @@ def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 	import traceback
 
 	from nce_sync.utils.lock_check import preflight
-	from nce_sync.utils.sync_gate import clear_doctype_syncing, mark_doctype_syncing
+	from nce_sync.utils.sync_gate import (
+		clear_doctype_syncing,
+		is_crud_locked,
+		mark_doctype_syncing,
+	)
 
 	frappe_dt = wp_table_doc.frappe_doctype
 
@@ -2004,7 +2035,18 @@ def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 
 	gate_armed = bool(frappe_dt and wp_table_doc.mirror_status in ("Mirrored", "Linked"))
 	if gate_armed:
+		# Stand down if a live dialog edit (CRUD) holds this table. We claim the
+		# sync-busy gate first, then re-check the CRUD-lock: the dialog does the
+		# mirror (claim CRUD-lock, then re-check sync-busy), so the two can never
+		# both proceed — whoever loses the race releases and bows out.
+		if is_crud_locked(frappe_dt):
+			_bow_out_for_crud(wp_table_doc, frappe_dt)
+			return
 		mark_doctype_syncing(frappe_dt)
+		if is_crud_locked(frappe_dt):
+			clear_doctype_syncing(frappe_dt)
+			_bow_out_for_crud(wp_table_doc, frappe_dt)
+			return
 
 	try:
 		# Set status to Running
@@ -2215,7 +2257,7 @@ def run_test_sync_for_table(wp_table_name, row_limit, user=None):
 	running for the same DocType.
 	"""
 	from nce_sync.utils.stuck_task_guard import guard_preflight
-	from nce_sync.utils.sync_gate import is_doctype_syncing
+	from nce_sync.utils.sync_gate import is_crud_locked, is_doctype_syncing
 
 	guard_preflight()
 
@@ -2227,6 +2269,12 @@ def run_test_sync_for_table(wp_table_name, row_limit, user=None):
 	if is_doctype_syncing(wp_table_doc.frappe_doctype):
 		frappe.throw(
 			_("A sync is already running for {0}. Wait for it to finish, then try again.").format(
+				wp_table_doc.frappe_doctype
+			)
+		)
+	if is_crud_locked(wp_table_doc.frappe_doctype):
+		frappe.throw(
+			_("A live edit is in progress for {0}. Wait a minute, then try again.").format(
 				wp_table_doc.frappe_doctype
 			)
 		)

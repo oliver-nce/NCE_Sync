@@ -51,6 +51,13 @@ MAX_SYNC_JOB_RUNTIME_SEC = 300
 #: seconds is treated as an orphan/zombie (worker hung or died) and reaped.
 WORKER_STALE_SEC = 120
 
+#: How long a dialog CRUD-lock survives without an explicit release, in seconds.
+#: Normal ops release the moment they finish; this TTL is purely the "nobody
+#: released it — free the tables automatically" backstop for a crashed op /
+#: closed browser. 600 = 10 minutes (comfortably longer than any single op,
+#: given the 5-min per-job cap), keeping post-crash recovery reasonably quick.
+CRUD_LOCK_TTL_SEC = 600
+
 #: PyMySQL socket timeouts (seconds) for the WordPress connection. connect is
 #: short (fail fast if RDS is unreachable); read/write match the job cap so a
 #: hung socket dies at ~5 min instead of blocking a worker indefinitely.
