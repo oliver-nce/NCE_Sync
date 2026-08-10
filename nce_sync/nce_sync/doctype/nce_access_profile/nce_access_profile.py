@@ -45,18 +45,11 @@ def _send_nce_invite_email(user_doc):
 <p>{frappe._("A new account has been created for you at")} <a href="{site_url}">{site_url}</a>.</p>
 <p>This is a web application that helps NCE staff manage operations.</p>
 <p>{frappe._("Your login id is")}: <b>{escape_html(user_doc.email)}</b></p>
-<p>{frappe._("Click on the link below to complete your registration and set a new password")}.</p>
-<p style="margin: 15px 0px;">
-	<a href="{link}" rel="nofollow" class="btn btn-primary">{frappe._("Complete Registration")}</a>
-</p>
+<p>{frappe._("To complete your registration and set a new password, copy and paste this link into your browser")}:</p>
+<p><code>{escape_html(link)}</code></p>
 <p style="margin-top: 15px">
 	{frappe._("Thanks")},<br>
 	{escape_html(INVITE_EMAIL_SIGNATURE)}
-</p>
-<br>
-<p>
-	{frappe._("You can also copy-paste following link in your browser")}<br>
-	<a href="{link}">{link}</a>
 </p>
 """
 
