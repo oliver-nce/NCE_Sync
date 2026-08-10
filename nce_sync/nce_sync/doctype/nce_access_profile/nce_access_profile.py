@@ -20,6 +20,13 @@ INVITE_EMAIL_CC = "john@ncesoccer.com"
 INVITE_EMAIL_SIGNATURE = "John Curtis"
 
 
+def _title_case_name(value):
+	"""Normalize a person's name to title case, e.g. 'john' -> 'John'."""
+	if not value:
+		return ""
+	return str(value).strip().title()
+
+
 def _make_registration_link(user_doc):
 	"""Build update-password URL for a new user (same logic as Frappe User welcome mail)."""
 	from frappe.utils import get_url, now_datetime
@@ -459,10 +466,18 @@ def invite_user_to_profile(name, email, first_name, last_name=None):
 	if not role:
 		frappe.throw(frappe._("This profile has no linked Role yet — save it first."))
 
-	first_name = (first_name or "").strip()
+	email = (email or "").strip().lower()
+	if not email:
+		frappe.throw(frappe._("Email is required."))
+
+	from frappe.utils import validate_email_address
+
+	validate_email_address(email, throw=True)
+
+	first_name = _title_case_name(first_name)
 	if not first_name:
 		frappe.throw(frappe._("First Name is required."))
-	last_name = (last_name or "").strip()
+	last_name = _title_case_name(last_name)
 
 	if frappe.db.exists("User", email):
 		user_doc = frappe.get_doc("User", email)

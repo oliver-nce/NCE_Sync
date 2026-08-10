@@ -315,12 +315,16 @@ function show_manage_users_dialog(frm) {
 			args: { name: frm.doc.name, email, first_name, last_name },
 			freeze: true,
 			freeze_message: __("Sending invitation..."),
-			callback() {
-				frappe.show_alert({ message: __("Invitation sent to {0}", [email]), indicator: "green" });
-				d.set_value("invite_email", "");
-				d.set_value("invite_first_name", "");
-				d.set_value("invite_last_name", "");
-				render_users();
+			callback(r) {
+				if (r.exc) {
+					return;
+				}
+				const message =
+					r.message && r.message.created
+						? __("Invitation sent to {0}", [email])
+						: __("User {0} added to this profile", [email]);
+				frappe.show_alert({ message, indicator: "green" });
+				d.hide();
 			},
 		});
 	});
