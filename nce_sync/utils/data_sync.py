@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 import frappe
 import pytz
 from frappe import _
-from frappe.utils import cstr, now_datetime
+from frappe.utils import cint, cstr, now_datetime
 
 from nce_sync.utils.column_mapper import (
 	build_reverse_mapping,
@@ -1291,6 +1291,9 @@ def _get_sync_frequency_minutes():
 	"""
 	try:
 		sync_manager = frappe.get_single("Sync Manager")
+		if sync_manager.sync_frequency == "Other":
+			mins = cint(sync_manager.custom_sync_interval_minutes)
+			return mins if mins >= 1 else 60
 		return SYNC_FREQUENCY_MAP.get(sync_manager.sync_frequency, 60)
 	except Exception:
 		return 60  # Default to hourly

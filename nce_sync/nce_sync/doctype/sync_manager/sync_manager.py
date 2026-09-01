@@ -4,9 +4,14 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import cint
 
 
 class SyncManager(Document):
+	def validate(self):
+		if self.sync_frequency == "Other" and cint(self.custom_sync_interval_minutes) < 1:
+			frappe.throw(_("Enter a custom interval of at least 1 minute."))
+
 	@frappe.whitelist()
 	def run_sync_now(self):
 		"""Enqueue an immediate sync for all enabled mirrored tables."""
