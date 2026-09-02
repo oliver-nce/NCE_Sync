@@ -157,6 +157,12 @@
       "purpose": "Global JS — auto-sizes list view columns for better readability",
       "depends_on": []
     },
+    "nce_sync/public/js/table_links_self_link_fix.js": {
+      "purpose": "Desk-wide patch that replaces Table Links diagonal dash cells with Link/checkmark buttons when a cached page script still draws the old self-link lockout.",
+      "depends_on": [
+        "nce_sync/nce_sync/page/table_links/"
+      ]
+    },
     "nce_sync/tests/test_derived_column_sql.py": {
       "purpose": "Unit tests for derived/generated column SQL building."
     },

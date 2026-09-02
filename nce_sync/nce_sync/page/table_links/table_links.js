@@ -203,6 +203,14 @@ function render_grid($container, data) {
 	});
 }
 
+frappe.pages["table-links"].on_page_show = function () {
+	const $grid = $(".nce-table-links-page .nce-table-links-grid");
+	if (!$grid.length) return;
+	load_data(function (data) {
+		render_grid($grid, data);
+	});
+};
+
 // ─── Visualize Tab: Mermaid ERD ─────────────────────────────────────────────
 
 let mermaidLoaded = false;
