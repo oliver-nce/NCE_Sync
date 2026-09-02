@@ -240,7 +240,7 @@
       "depends_on": []
     },
     "nce_sync/nce_sync/page/table_links/": {
-      "purpose": "Table Links page — visual grid for managing cross-table relationships (which WP tables are linked to which Frappe doctypes)",
+      "purpose": "Table Links page \u2014 visual grid for managing Link relationships between WP Tables DocTypes, including same-table (self) relations on the diagonal",
       "client_js": "table_links.js",
       "depends_on": []
     }

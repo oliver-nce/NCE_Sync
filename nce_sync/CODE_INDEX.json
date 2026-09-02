@@ -1,7 +1,7 @@
 {
   "_meta": {
     "description": "Machine-readable index of every module in the NCE Sync (Tables) Frappe app. Read this file FIRST before exploring the codebase — it tells you exactly where to look for any given concern.",
-    "generated": "2026-08-06",
+    "generated": "2026-09-02",
     "generator": "scripts/build_code_index.py",
     "usage": "Find the module whose 'purpose' matches your task, then read only that file and its 'depends_on' entries. Run `python scripts/build_code_index.py --write` to regenerate CODE_INDEX.json after editing this file or after adding/renaming/deleting source files."
   },
@@ -267,12 +267,28 @@
         "Public API"
       ]
     },
+    "nce_sync/utils/stuck_task_guard.py": {
+      "exports": [
+        "find_stuck_jobs",
+        "guard_preflight",
+        "reap_stuck_jobs",
+        "scan_stuck_jobs"
+      ],
+      "whitelist_endpoints": [
+        "scan_stuck_jobs"
+      ],
+      "purpose": "TODO: describe in CODE_INDEX.manual.json"
+    },
     "nce_sync/utils/sync_gate.py": {
       "exports": [
+        "acquire_crud_lock",
         "clear_doctype_syncing",
+        "crud_lock_holder",
         "enforce_sync_gate",
+        "is_crud_locked",
         "is_doctype_syncing",
-        "mark_doctype_syncing"
+        "mark_doctype_syncing",
+        "release_crud_lock"
       ],
       "purpose": "Sync gate flag helpers (is_doctype_syncing) used to suppress live write-back during inbound sync."
     },
@@ -499,7 +515,7 @@
       "depends_on": []
     },
     "nce_sync/nce_sync/page/table_links/": {
-      "purpose": "Table Links page — visual grid for managing cross-table relationships (which WP tables are linked to which Frappe doctypes)",
+      "purpose": "Table Links page — visual grid for managing Link relationships between WP Tables DocTypes, including same-table (self) relations on the diagonal",
       "client_js": "table_links.js",
       "depends_on": []
     }

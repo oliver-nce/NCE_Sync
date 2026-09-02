@@ -87,7 +87,7 @@ def get_table_links_grid_data():
 		label = row.get("nce_name") or row.get("table_name") or dt
 		doctypes.append({"doctype": dt, "label": label})
 
-	# Scan each DocType's meta for Link fields pointing to other mirrored tables
+	# Scan each DocType's meta for Link fields pointing at mirrored tables (including self).
 	mirrored_set = {d["doctype"] for d in doctypes}
 	links = {}  # source_doctype -> { target_doctype -> [{"field", "label"}, ...] }
 
@@ -102,7 +102,7 @@ def get_table_links_grid_data():
 			if df.fieldtype != "Link" or not df.options:
 				continue
 			target = df.options
-			if target not in mirrored_set or target == source:
+			if target not in mirrored_set:
 				continue
 
 			if source not in links:
@@ -117,7 +117,10 @@ def get_table_links_grid_data():
 				}
 			)
 
-			# Also record in the reverse direction so the grid cell works both ways
+			# Reverse direction so the grid cell works both ways.
+			# Self-links already sit on the diagonal — do not double-count.
+			if target == source:
+				continue
 			if target not in links:
 				links[target] = {}
 			if source not in links[target]:

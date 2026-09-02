@@ -12,7 +12,6 @@ frappe.pages["table-links"].on_page_load = function (wrapper) {
 
 	page.main.append(
 		"<style>" +
-			".nce-grid-diagonal{background:#f5f5f5!important;color:#999;text-align:center}" +
 			".nce-grid-cell{text-align:center;vertical-align:middle}" +
 			".nce-grid-row-label{background:#fafafa}" +
 			".nce-links-grid td,.nce-links-grid th{padding:8px 12px}" +
@@ -134,22 +133,16 @@ function render_grid($container, data) {
 	});
 	html += "</tr></thead><tbody>";
 
-	tables.forEach(function (sourceRow, rowIdx) {
+	tables.forEach(function (sourceRow) {
 		html += "<tr>";
 		html +=
 			'<td class="nce-grid-row-label"><strong>' +
 			frappe.utils.escape_html(sourceRow.label) +
 			"</strong></td>";
 
-		tables.forEach(function (targetCol, colIdx) {
-			const isDiagonal = rowIdx === colIdx;
+		tables.forEach(function (targetCol) {
 			const sourceDt = sourceRow.doctype;
 			const targetDt = targetCol.doctype;
-
-			if (isDiagonal) {
-				html += '<td class="nce-grid-cell nce-grid-diagonal">—</td>';
-				return;
-			}
 
 			const cellLinks = (links[sourceDt] && links[sourceDt][targetDt]) || [];
 			const count = cellLinks.length;
@@ -504,7 +497,9 @@ function show_link_dialog(opts, $gridContainer) {
 			'<label class="control-label">' + __("Many side (gets the Link field)") + "</label>";
 		html += '<select class="form-control form-control-sm nce-dlg-many-select">';
 		html += '<option value="' + esc(source) + '">' + esc(sourceLabel) + "</option>";
-		html += '<option value="' + esc(target) + '">' + esc(targetLabel) + "</option>";
+		if (source !== target) {
+			html += '<option value="' + esc(target) + '">' + esc(targetLabel) + "</option>";
+		}
 		html += "</select>";
 		html += "</div>";
 		html += '<div class="col-sm-5">';
