@@ -2,10 +2,10 @@
 
 code-index:begin
 {
- "purpose": "Sync Manager DocType controller: validate config, load WP Tables, enqueue immediate sync.",
- "read_when": "Changing scheduled sync settings, run-sync-now, or tables_to_sync child table population.",
+ "purpose": "Sync Manager DocType controller: enqueue immediate syncs and load mirrored WP Tables into the child table.",
+ "read_when": "Changing scheduled sync triggers, Sync Manager form behaviour, or bulk sync enqueue logic.",
  "gotchas": [],
- "keywords": ["SyncManager", "run_sync_now", "load_wp_tables", "scheduled sync", "tables_to_sync", "validate"],
+ "keywords": ["Sync Manager", "run_sync_now", "load_wp_tables", "scheduled sync", "WP Tables", "enqueue", "data_sync", "mirrored tables"],
  "format": 1
 }
 code-index:end
