@@ -2,10 +2,10 @@
 
 code-index:begin
 {
- "purpose": "Tests for system-forced read-only column resolution during mirror and remap.",
- "read_when": "Changing forced read-only rules for virtual, auto-increment, or timestamp columns.",
+ "purpose": "Unit tests for system-forced read-only column resolution during mirror and remap operations.",
+ "read_when": "Changing forced read-only rules for virtual, auto-increment, name, or timestamp columns.",
  "gotchas": [],
- "keywords": ["forced read-only", "schema_mirror", "virtual column", "auto increment", "mirror", "remap"],
+ "keywords": ["forced read-only", "virtual column", "auto increment", "mirror", "remap", "schema_mirror", "read only"],
  "format": 1
 }
 code-index:end

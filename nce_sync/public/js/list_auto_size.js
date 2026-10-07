@@ -3,10 +3,10 @@
 //
 // code-index:begin
 // {
-//  "purpose": "Desk list view hook that auto-sizes visible columns to content width.",
-//  "read_when": "Changing list column auto-resize behaviour or the List View Auto-Size button.",
+//  "purpose": "Desk list view hook: auto-size visible columns with a toolbar button on supported DocType list views.",
+//  "read_when": "Changing list column auto-width behaviour or the resize button on mirrored table list views.",
 //  "gotchas": [],
-//  "keywords": ["list_auto_size", "list view", "column width", "frappe.listview_settings", "auto resize"],
+//  "keywords": ["list view", "auto size columns", "column width", "listview settings", "desk hook", "resize"],
 //  "format": 1
 // }
 // code-index:end

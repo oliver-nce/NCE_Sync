@@ -3,12 +3,12 @@
 //
 // code-index:begin
 // {
-//  "purpose": "WP Tables list view settings: custom indicators and list buttons for mirrored tables.",
-//  "read_when": "Changing list indicators, filters, or bulk actions on the WP Tables list view.",
+//  "purpose": "WP Tables list view client script: list buttons and toggles for mirrored tables that were never synced.",
+//  "read_when": "Changing WP Tables list view actions, auto-sync toggles, or list-level shortcuts.",
 //  "gotchas": [
-//   "Mirrored but never synced tables get a distinct list indicator."
+//   "Mirrored but never synced tables have dedicated list UI handling."
 //  ],
-//  "keywords": ["WP Tables", "list view", "frappe.listview_settings", "mirrored", "sync status", "indicator"],
+//  "keywords": ["WP Tables", "list view", "mirrored", "never synced", "list settings", "toggle", "desk list"],
 //  "format": 1
 // }
 // code-index:end

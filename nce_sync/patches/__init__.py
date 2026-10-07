@@ -2,10 +2,10 @@
 
 code-index:begin
 {
- "purpose": "Comment marker for the nce_sync Patches package used by Frappe migrate.",
- "read_when": "Locating the patches package before adding a new migrate patch module.",
+ "purpose": "Package marker for NCE Sync database migration patches under nce_sync/patches.",
+ "read_when": "Rarely needed; present so Python treats patches as a package.",
  "gotchas": [],
- "keywords": ["Patches", "nce_sync", "for"],
+ "keywords": ["patches", "migration", "nce_sync patches", "init"],
  "format": 1
 }
 code-index:end

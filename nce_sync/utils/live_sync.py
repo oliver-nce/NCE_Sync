@@ -27,14 +27,14 @@ finishes — no deferred queue or sync_in_progress flags needed.
 
 code-index:begin
 {
- "purpose": "Live Frappe to WordPress write-back via SQL Direct on doc_events insert, update, and trash.",
- "read_when": "Changing listen_for_changes map, push_record_to_wp, delete_record_from_wp, or write-back guards.",
+ "purpose": "Live Frappe-to-WordPress write-back: listen map cache, doc_events handlers, and SQL INSERT/UPDATE/DELETE push.",
+ "read_when": "Changing live write-back hooks, listen_for_changes gating, or push_record_to_wp background jobs.",
  "gotchas": [
-  "Auto-generated WordPress columns such as virtual or computed fields are never written.",
-  "Listen map is Redis-cached and cleared via clear_sql_direct_cache on WP Tables updates.",
-  "Never propagate deletes while the DocType is mid-sync (defense in depth)."
+  "Auto-generated WP columns are never written back to WordPress.",
+  "Defense in depth: never propagate while this doctype is mid-sync.",
+  "Listen map is Redis-cached; clear_sql_direct_cache invalidates on WP Tables toggle changes."
  ],
- "keywords": ["live_sync", "write-back", "SQL Direct", "listen_for_changes", "on_record_change", "on_record_delete", "push_record_to_wp"],
+ "keywords": ["live_sync", "write-back", "listen_for_changes", "on_record_change", "on_record_delete", "SQL Direct", "push_record_to_wp"],
  "format": 1
 }
 code-index:end

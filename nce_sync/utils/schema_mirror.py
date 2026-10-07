@@ -7,14 +7,14 @@ Handles WordPress database introspection and Frappe DocType generation.
 
 code-index:begin
 {
- "purpose": "Schema mirroring: WP introspection, DocType create/update, column mapping, remap, and layout restore.",
- "read_when": "Changing mirror_table_schema, forced read-only columns, pick lists, or layout-preserving remap.",
+ "purpose": "Schema mirroring utilities: introspect WordPress tables, build DocTypes, remap/prune fields, and preserve layouts.",
+ "read_when": "Changing mirror/remap schema logic, field type mapping, read-only resolution, or DocType layout snapshots.",
  "gotchas": [
-  "Multi-column UNIQUE in WordPress must not become per-field unique on Frappe DocFields.",
-  "Virtual and generated columns are always treated as read-only Data fields.",
-  "sync_mirrored_doctype_with_wordpress always fetches fresh schema from WordPress."
+  "WP columns that must always be read-only include virtual/generated and system timestamp fields.",
+  "Always fetches fresh schema from WordPress to detect column changes.",
+  "Multi-column UNIQUE in WordPress must not translate to per-field unique on Frappe."
  ],
- "keywords": ["schema_mirror", "mirror_table_schema", "column mapping", "read-only", "remap", "DocType", "pick list", "layout"],
+ "keywords": ["schema_mirror", "mirror_table_schema", "remap", "column mapping", "DocType", "read-only", "pick list", "layout restore"],
  "format": 1
 }
 code-index:end

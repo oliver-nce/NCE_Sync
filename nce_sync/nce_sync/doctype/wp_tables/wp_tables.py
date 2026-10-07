@@ -2,14 +2,14 @@
 
 code-index:begin
 {
- "purpose": "WP Tables DocType controller: mirror/remap schema, sync triggers, workspace links, and cascade delete.",
- "read_when": "Changing mirror lifecycle, sync_now, remap_schema, field exhibit, or trash cleanup for WP Tables.",
+ "purpose": "WP Tables DocType controller: mirror/remap schema, sync data, manage mirrored DocTypes, and cascade cleanup on trash.",
+ "read_when": "Changing mirror/remap/sync behaviour, DocType lifecycle, workspace shortcuts, or WP Tables validation rules.",
  "gotchas": [
-  "Core Frappe DocType names are never dropped (safety guard in _NEVER_DROP_DOCTYPES).",
-  "Frappe does not always drop the DB table on delete — mirror cleanup drops it explicitly.",
-  "Legacy write_back_mode option removed from form; treat as Never and use Client Script for API push."
+  "Core Frappe DocType names are never dropped (safety guard).",
+  "Always reconciles DocType metadata against the live WordPress schema.",
+  "Legacy write-back option removed from form — treat as Never."
  ],
- "keywords": ["WPTables", "mirror_schema", "remap_schema", "sync_now", "delete_mirror", "column_mapping", "workspace", "on_trash"],
+ "keywords": ["WP Tables", "mirror_schema", "remap_schema", "sync_now", "delete_mirror", "column mapping", "mirrored DocType", "workspace", "listen_for_changes"],
  "format": 1
 }
 code-index:end

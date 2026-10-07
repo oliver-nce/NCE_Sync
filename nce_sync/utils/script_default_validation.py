@@ -5,10 +5,10 @@
 
 code-index:begin
 {
- "purpose": "Validate and normalize optional script default values stored in WP Tables column_mapping.",
- "read_when": "Changing default-value rules for Date, Time, Datetime, JSON, Check, or Rating fieldtypes.",
+ "purpose": "Validate and normalise optional script default values stored in WP Tables column_mapping JSON.",
+ "read_when": "Changing default-value validation for Date, Time, Datetime, JSON, Int, Check, or Rating mirrored fields.",
  "gotchas": [],
- "keywords": ["script_default_validation", "validate_and_normalize_script_default", "column_mapping", "default value", "fieldtype"],
+ "keywords": ["script default", "validate_and_normalize_script_default", "column_mapping", "Date", "Time", "JSON", "Check", "Rating"],
  "format": 1
 }
 code-index:end

@@ -3,10 +3,10 @@
 //
 // code-index:begin
 // {
-//  "purpose": "Desk-wide script that fixes Table Links self-link cells drawn as a diagonal dash.",
-//  "read_when": "Self-link cells on Table Links still show dash after a cached page script update.",
+//  "purpose": "Table Links page fix: replace diagonal dash cells for self-links even when a cached page script still draws them.",
+//  "read_when": "Fixing self-link display on the Table Links grid after cached desk scripts render stale markup.",
 //  "gotchas": [],
-//  "keywords": ["Table Links", "links", "table", "page", "fix", "link", "self", "cached", "desk"],
+//  "keywords": ["Table Links", "self link", "diagonal dash", "cached page script", "grid fix", "desk"],
 //  "format": 1
 // }
 // code-index:end

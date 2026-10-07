@@ -2,10 +2,10 @@
 
 code-index:begin
 {
- "purpose": "WordPress Connection DocType controller: test DB link, discover tables, mirror all selected WP Tables.",
- "read_when": "Changing connection testing, table discovery, or bulk mirror from WordPress Connection.",
+ "purpose": "WordPress Connection DocType controller: test DB connection, discover tables/views, and mirror selected WP Tables.",
+ "read_when": "Changing WordPress connection testing, table discovery API, or mirror-all behaviour from a connection record.",
  "gotchas": [],
- "keywords": ["WordPressConnection", "test_connection", "discover_tables", "mirror_all", "PyMySQL", "schema_mirror"],
+ "keywords": ["WordPress Connection", "test_connection", "discover_tables", "mirror_all", "PyMySQL", "schema_mirror", "timezone"],
  "format": 1
 }
 code-index:end

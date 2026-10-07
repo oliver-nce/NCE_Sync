@@ -21,12 +21,12 @@ Mirrored DocTypes (dynamically created):
 
 code-index:begin
 {
- "purpose": "Tables workspace helpers: add/remove mirrored shortcuts, sync on load, and orphan cleanup.",
- "read_when": "Changing workspace shortcut cards, section headers, or sync_tables_workspace_shortcuts.",
+ "purpose": "Tables workspace utilities: add/remove mirrored DocType shortcuts, sync shortcuts, and cleanup orphans.",
+ "read_when": "Changing Tables workspace shortcut layout, section headers, or mirrored DocType card management.",
  "gotchas": [
-  "Core workspace items including DocTypes and the Table Links page are never removed."
+  "Core workspace items including Table Links page should never be removed."
  ],
- "keywords": ["workspace_utils", "Tables workspace", "add_to_workspace", "sync_tables_workspace_shortcuts", "shortcuts", "orphan cleanup"],
+ "keywords": ["workspace_utils", "Tables workspace", "shortcut", "add_to_workspace", "remove_from_workspace", "sync_tables_workspace_shortcuts"],
  "format": 1
 }
 code-index:end

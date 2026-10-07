@@ -17,10 +17,10 @@ Stdlib only — no third-party dependencies.
 
 code-index:begin
 {
- "purpose": "Build script that generates nce_sync/CODE_INDEX.json deterministically from the source tree.",
- "read_when": "Regenerating CODE_INDEX.json or changing export/whitelist discovery rules.",
+ "purpose": "Deterministic generator for nce_sync/CODE_INDEX.json by scanning exports and whitelist endpoints in the repo.",
+ "read_when": "Changing legacy CODE_INDEX.json generation, file grouping rules, or AST/regex export discovery.",
  "gotchas": [],
- "keywords": ["build_code_index", "CODE_INDEX.json", "discover_files", "whitelist", "exports", "doctype folders"],
+ "keywords": ["CODE_INDEX.json", "build_code_index", "export discovery", "whitelist endpoints", "AST scan", "doctype folders"],
  "format": 1
 }
 code-index:end

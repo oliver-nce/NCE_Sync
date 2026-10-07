@@ -3,14 +3,14 @@
 //
 // code-index:begin
 // {
-//  "purpose": "WP Tables form client script: column mapping UI, remap preview, sync progress, and field exhibit tab.",
-//  "read_when": "Changing mirror/remap dialog, matching fields, read-only rules, or sync preview UI on WP Tables.",
+//  "purpose": "Desk client script for WP Tables: data-mapping tabs, preview/remap dialogs, sync progress UI, and field exhibit rendering.",
+//  "read_when": "Changing WP Tables form UX, column mapping dialogs, sync preview, or desk field-reference exhibit.",
 //  "gotchas": [
-//   "For reserved columns like name, always include the label even if Frappe name is varchar.",
-//   "Tab 1 data mapping is always collected for remap; truncate row data only when Tab 1 changed.",
-//   "Match checkboxes stay enabled even when Frappe ID is selected as the name column."
+//   "For reserved columns (e.g. name), ALWAYS include the label even if Frappe name is varchar.",
+//   "Always reconcile DocType metadata; truncate row data only when Tab 1 changed.",
+//   "Match checkboxes are always enabled, even when Frappe ID is selected."
 //  ],
-//  "keywords": ["WP Tables", "column mapping", "remap", "mirror", "sync progress", "field exhibit", "matching fields", "preview dialog"],
+//  "keywords": ["WP Tables", "column mapping", "remap", "preview sync", "field exhibit", "data mapping tab", "mirror", "sync dialog", "desk form"],
 //  "format": 1
 // }
 // code-index:end

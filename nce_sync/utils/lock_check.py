@@ -18,10 +18,10 @@ an actionable "kill thread N on database X" instruction.
 
 code-index:begin
 {
- "purpose": "Pre-flight lock diagnostics on Frappe and WordPress for stale transactions and lock waits.",
- "read_when": "Adding sync preflight checks or formatting lock-wait HTML for desk msgprint dialogs.",
+ "purpose": "Pre-flight lock diagnostics on Frappe and WordPress databases before sync jobs run.",
+ "read_when": "Changing lock detection SQL, stale transaction thresholds, or preflight msgprint HTML reporting.",
  "gotchas": [],
- "keywords": ["lock_check", "preflight", "stale locks", "lock waits", "check_locks", "format_report_html"],
+ "keywords": ["lock check", "preflight", "stale locks", "transaction waits", "MySQL locks", "sync preflight", "has_blockers"],
  "format": 1
 }
 code-index:end

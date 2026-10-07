@@ -5,10 +5,10 @@
 
 code-index:begin
 {
- "purpose": "Optional step-timing trace for queued sync jobs with stderr logging and desk msgprint.",
- "read_when": "Adding debug timing steps to background sync jobs or publishing trace dialogs.",
+ "purpose": "Optional step-timing trace for queued NCE Sync WordPress jobs when debug flag is enabled.",
+ "read_when": "Adding sync job timing instrumentation or Desk msgprint debug output during sync traces.",
  "gotchas": [],
- "keywords": ["sync_trace", "SyncTrace", "debug flag", "step timing", "msgprint", "truthy_debug"],
+ "keywords": ["sync_trace", "SyncTrace", "debug timing", "step trace", "msgprint", "queued sync job"],
  "format": 1
 }
 code-index:end

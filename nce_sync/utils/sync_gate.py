@@ -14,12 +14,12 @@ Desk-specific JS is intentionally absent — frappe.throw renders natively in ev
 
 code-index:begin
 {
- "purpose": "Redis sync gate: block user saves during WP to Frappe sync and manage dialog CRUD locks.",
- "read_when": "Changing enforce_sync_gate validate hook or acquire_crud_lock / release_crud_lock behaviour.",
+ "purpose": "Sync gate and CRUD locks: block user saves on mirrored DocTypes during WP-to-Frappe sync and dialog edits.",
+ "read_when": "Changing sync busy flags, CRUD lock acquire/release, or enforce_sync_gate validate hook behaviour.",
  "gotchas": [
-  "Claim-then-recheck on both sides prevents sync and CRUD lock from both winning a start race."
+  "Claim-then-recheck on both sides prevents sync and CRUD lock from both being held."
  ],
- "keywords": ["sync_gate", "CRUD lock", "mark_doctype_syncing", "enforce_sync_gate", "Redis", "mirrored DocType"],
+ "keywords": ["sync_gate", "CRUD lock", "is_doctype_syncing", "enforce_sync_gate", "Redis busy flag", "mirrored DocType", "block saves"],
  "format": 1
 }
 code-index:end

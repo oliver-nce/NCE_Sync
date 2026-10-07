@@ -2,10 +2,10 @@
 
 code-index:begin
 {
- "purpose": "Pytest tests for validate_and_normalize_script_default across Frappe fieldtypes.",
- "read_when": "Changing script default validation for dates, times, JSON, Check, or Rating fields.",
+ "purpose": "Pytest coverage for validate_and_normalize_script_default across Date, Time, JSON, Int, Check, and Rating fieldtypes.",
+ "read_when": "Changing script default validation rules or normalisation for column_mapping defaults.",
  "gotchas": [],
- "keywords": ["script_default_validation", "pytest", "default value", "fieldtype", "normalize"],
+ "keywords": ["script default", "validation", "column_mapping", "Date", "Time", "JSON", "Check", "Rating", "pytest"],
  "format": 1
 }
 code-index:end

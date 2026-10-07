@@ -20,10 +20,10 @@ Usage::
 
 code-index:begin
 {
- "purpose": "WordPress database connection helpers using PyMySQL and WordPress Connection settings.",
- "read_when": "Changing WP DB connect timeouts, cursor usage, or the wp_connection context manager.",
+ "purpose": "WordPress database connection helpers: open PyMySQL connections from WordPress Connection DocType settings.",
+ "read_when": "Changing WordPress DB connection setup, timeouts, or the wp_connection context manager.",
  "gotchas": [],
- "keywords": ["connections", "get_wp_connection", "wp_connection", "PyMySQL", "WordPress Connection"],
+ "keywords": ["WordPress connection", "PyMySQL", "get_wp_connection", "wp_connection", "database", "context manager"],
  "format": 1
 }
 code-index:end

@@ -5,10 +5,10 @@
 
 code-index:begin
 {
- "purpose": "Unit tests for derived-column SQL mapping and GENERATION_EXPRESSION rewrite (no live DB).",
- "read_when": "Changing derived_column_sql or schema_mirror generated-column handling.",
+ "purpose": "Unit tests for derived/generated column SQL mapping and GENERATION_EXPRESSION rewrite (no live DB).",
+ "read_when": "Changing derived column SQL translation or build_column_mapping generated-column handling.",
  "gotchas": [],
- "keywords": ["derived column", "GENERATION_EXPRESSION", "sql_generation_to_frappe_bare_sql", "build_column_mapping", "unittest"],
+ "keywords": ["derived column", "GENERATION_EXPRESSION", "sql_generation_to_frappe_bare_sql", "generated column", "schema_mirror", "unit test"],
  "format": 1
 }
 code-index:end

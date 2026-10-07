@@ -24,10 +24,10 @@ show blank until a custom expression is provided).
 
 code-index:begin
 {
- "purpose": "Translate MySQL GENERATION_EXPRESSION SQL into Python for Frappe virtual DocField options.",
- "read_when": "Changing virtual-field Python generation from WordPress computed column expressions.",
+ "purpose": "Translate MySQL/MariaDB GENERATION_EXPRESSION SQL into Python expressions for Frappe virtual DocField options.",
+ "read_when": "Changing generated-column Python translation or SQL function mapping for virtual mirrored fields.",
  "gotchas": [],
- "keywords": ["sql_to_python", "GENERATION_EXPRESSION", "virtual field", "Python expression", "CONCAT", "IFNULL"],
+ "keywords": ["sql_to_python", "GENERATION_EXPRESSION", "virtual field", "Python expression", "CONCAT", "IFNULL", "generated column"],
  "format": 1
 }
 code-index:end

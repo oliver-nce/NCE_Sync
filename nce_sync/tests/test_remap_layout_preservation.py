@@ -4,10 +4,10 @@
 
 code-index:begin
 {
- "purpose": "Unit tests for layout-preserving remap helpers in schema_mirror.",
- "read_when": "Changing prune stale fields, New fields tab insert index, or layout break preservation.",
+ "purpose": "Unit tests for layout-preserving remap helpers: prune stale fields and insert new fields tab index logic.",
+ "read_when": "Changing remap layout preservation, New fields tab insertion, or prune_stale_fields behaviour.",
  "gotchas": [],
- "keywords": ["remap", "layout preservation", "schema_mirror", "prune", "tab break", "New fields tab"],
+ "keywords": ["remap", "layout preservation", "prune fields", "New fields tab", "schema_mirror", "Tab Break", "unit test"],
  "format": 1
 }
 code-index:end

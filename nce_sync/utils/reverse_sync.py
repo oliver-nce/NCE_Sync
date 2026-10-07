@@ -20,10 +20,10 @@ Responsibilities:
 
 code-index:begin
 {
- "purpose": "Reverse sync helpers: temp negative names, Frappe to WordPress INSERT/UPDATE, and bulk push.",
- "read_when": "Changing before_insert temp names, insert_record_to_wp, or sync_frappe_to_wp bulk push.",
+ "purpose": "Reverse sync utilities pushing Frappe document changes to WordPress with temp negative names and INSERT/UPDATE.",
+ "read_when": "Changing temp name assignment, Frappe-to-WP INSERT/UPDATE, or before_insert hook for mirrored DocTypes.",
  "gotchas": [],
- "keywords": ["reverse_sync", "temp name", "insert_record_to_wp", "sync_frappe_to_wp", "before_insert", "negative integer"],
+ "keywords": ["reverse_sync", "temp name", "insert_record_to_wp", "update_record_in_wp", "Frappe to WordPress", "before_insert", "negative name"],
  "format": 1
 }
 code-index:end

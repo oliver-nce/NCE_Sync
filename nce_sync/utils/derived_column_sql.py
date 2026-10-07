@@ -13,10 +13,10 @@ function coverage) but outputs SQL, not ``doc.``-style Python.
 
 code-index:begin
 {
- "purpose": "Rewrite MySQL GENERATION_EXPRESSION SQL to use Frappe fieldnames for derived columns.",
- "read_when": "Changing generated-column SQL translation or CONCAT/IFNULL function rewrites.",
+ "purpose": "Rewrite MySQL/MariaDB GENERATION_EXPRESSION SQL to bare Frappe fieldname SQL for derived column sync.",
+ "read_when": "Changing generated-column SQL translation or CONCAT/IFNULL function rewrite for mirror mapping.",
  "gotchas": [],
- "keywords": ["derived_column_sql", "GENERATION_EXPRESSION", "sql_generation_to_frappe_bare_sql", "MariaDB", "fieldnames"],
+ "keywords": ["derived column", "GENERATION_EXPRESSION", "sql_generation_to_frappe_bare_sql", "MariaDB", "Frappe fieldnames", "CONCAT"],
  "format": 1
 }
 code-index:end

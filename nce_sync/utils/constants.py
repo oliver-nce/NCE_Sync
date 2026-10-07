@@ -9,12 +9,12 @@ defaults live here so every module draws from a single source of truth.
 
 code-index:begin
 {
- "purpose": "Centralised NCE Sync constants: batch sizes, timeouts, sync frequency map, and system fields.",
- "read_when": "Tuning sync batch sizes, job runtime caps, Redis TTLs, or FRAPPE_SYSTEM_FIELDS write-back exclusions.",
+ "purpose": "Centralised NCE Sync constants: batch sizes, sync timeouts, frequency map, and Frappe system field exclusions.",
+ "read_when": "Tuning sync batch sizes, worker stale thresholds, CRUD lock TTL, or shared sync configuration values.",
  "gotchas": [
-  "FRAPPE_SYSTEM_FIELDS are never written back to WordPress."
+  "Frappe system fields are never written back to WordPress."
  ],
- "keywords": ["constants", "UPSERT_BATCH_SIZE", "SYNC_FREQUENCY_MAP", "CRUD_LOCK_TTL", "FRAPPE_SYSTEM_FIELDS", "timeouts"],
+ "keywords": ["constants", "UPSERT_BATCH_SIZE", "SYNC_FREQUENCY_MAP", "CRUD_LOCK_TTL", "FRAPPE_SYSTEM_FIELDS", "timeouts", "batch size"],
  "format": 1
 }
 code-index:end

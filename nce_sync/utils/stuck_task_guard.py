@@ -36,14 +36,13 @@ The guard never raises into the caller — a guard failure must not block a sync
 
 code-index:begin
 {
- "purpose": "Pre-flight guard that finds and reaps stuck RQ sync jobs before starting new work.",
- "read_when": "Changing stuck-job detection, worker heartbeat checks, or guard_preflight sync entry.",
+ "purpose": "Pre-flight stuck RQ job guard: detect and reap hung sync workers before new sync jobs start.",
+ "read_when": "Changing stuck job detection, worker heartbeat logic, or guard_preflight called at sync job start.",
  "gotchas": [
-  "The guard never raises into the caller; a guard failure must not block a sync.",
-  "Current job ID is excluded so the guard never reaps the job it is running inside.",
-  "When worker enumeration fails, callers must not treat it as a zombie signal."
+  "The guard never raises into the caller — a guard failure must not block a sync.",
+  "Never reap the current running job (uses _current_job_id)."
  ],
- "keywords": ["stuck_task_guard", "guard_preflight", "reap_stuck_jobs", "RQ", "worker heartbeat", "zombie job"],
+ "keywords": ["stuck task guard", "RQ jobs", "reap stuck jobs", "guard_preflight", "worker heartbeat", "zombie job", "sync guard"],
  "format": 1
 }
 code-index:end

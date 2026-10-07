@@ -5,10 +5,10 @@
 
 code-index:begin
 {
- "purpose": "Migration patch adding listen_for_changes column to tabWP Tables.",
- "read_when": "Understanding when listen_for_changes was added or debugging patch migrate failures.",
+ "purpose": "Migration patch adding the listen_for_changes column to the tabWP Tables database table.",
+ "read_when": "Debugging or extending schema migrations for WP Tables live-sync toggle storage.",
  "gotchas": [],
- "keywords": ["patch", "listen_for_changes", "WP Tables", "migrate", "ALTER TABLE"],
+ "keywords": ["patch", "listen_for_changes", "WP Tables", "migration", "ALTER TABLE", "schema"],
  "format": 1
 }
 code-index:end

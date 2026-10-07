@@ -9,14 +9,14 @@ Reverse direction: Frappe → WordPress (INSERT new records, UPDATE existing).
 
 code-index:begin
 {
- "purpose": "Core WP to Frappe data sync: strategies, upsert, orphan delete, scheduler, and background jobs.",
- "read_when": "Changing sync_table, matching keys, timestamp compare, truncate-replace, or scheduled sync entry points.",
+ "purpose": "Core WP to Frappe data sync engine: strategies, row upsert/delete, scheduling, logs, and preview counts.",
+ "read_when": "Changing sync strategies, incremental timestamp logic, orphan deletion, scheduled syncs, or sync job entry points.",
  "gotchas": [
-  "Debug instrumentation never raises; a sync must not fail because of tracing.",
-  "Sync stands down when a CRUD-lock holds the table; it retries on the next cycle.",
-  "Frappe name is always varchar — integer WordPress PKs are coerced to str for matching."
+  "Instrumentation never raises — a sync must not break on debug or progress helpers.",
+  "Never fight a user edit: bow out when a CRUD-lock holds the table.",
+  "Frappe name is always varchar — cast integer primary keys to str for matching."
  ],
- "keywords": ["data_sync", "sync_table", "upsert", "orphan delete", "run_scheduled_syncs", "matching keys", "timestamp sync"],
+ "keywords": ["data_sync", "sync_table", "run_scheduled_syncs", "truncate replace", "timestamp sync", "orphan delete", "Sync Log", "preview_sync_counts"],
  "format": 1
 }
 code-index:end
