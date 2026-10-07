@@ -602,101 +602,109 @@
 ]
 },
 "nce_sync/nce_sync/doctype/sync_manager/sync_manager.py": {
-"purpose": "Sync Manager DocType controller: validate config, load WP Tables, enqueue immediate sync.",
-"read_when": "Changing scheduled sync settings, run-sync-now, or tables_to_sync child table population.",
+"purpose": "Sync Manager DocType controller: enqueue immediate syncs and load mirrored WP Tables into the child table.",
+"read_when": "Changing scheduled sync triggers, Sync Manager form behaviour, or bulk sync enqueue logic.",
 "gotchas": [],
 "keywords": [
-"SyncManager",
+"Sync Manager",
 "run_sync_now",
 "load_wp_tables",
 "scheduled sync",
-"tables_to_sync",
-"validate"
+"WP Tables",
+"enqueue",
+"data_sync",
+"mirrored tables"
 ]
 },
 "nce_sync/nce_sync/doctype/wordpress_connection/__init__.py": {
 "purpose": ""
 },
 "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js": {
-"purpose": "Desk client script for WordPress Connection: table discovery dialog and WP Tables add/remove.",
-"read_when": "Changing discovery UI, add-table buttons, or WordPress Connection form behaviour.",
+"purpose": "Desk client script for WordPress Connection: table discovery dialog, add/remove WP Tables, and connection UI actions.",
+"read_when": "Changing WordPress table discovery UX, connection form buttons, or WP Tables creation from a connection.",
 "gotchas": [],
 "keywords": [
 "WordPress Connection",
+"discover tables",
 "discovery dialog",
-"wp_tables",
-"add_table",
-"remove_table",
-"frappe.ui.form"
+"WP Tables",
+"add table",
+"remove table",
+"desk form",
+"frappe.ui"
 ]
 },
 "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.py": {
-"purpose": "WordPress Connection DocType controller: test DB link, discover tables, mirror all selected WP Tables.",
-"read_when": "Changing connection testing, table discovery, or bulk mirror from WordPress Connection.",
+"purpose": "WordPress Connection DocType controller: test DB connection, discover tables/views, and mirror selected WP Tables.",
+"read_when": "Changing WordPress connection testing, table discovery API, or mirror-all behaviour from a connection record.",
 "gotchas": [],
 "keywords": [
-"WordPressConnection",
+"WordPress Connection",
 "test_connection",
 "discover_tables",
 "mirror_all",
 "PyMySQL",
-"schema_mirror"
+"schema_mirror",
+"timezone"
 ]
 },
 "nce_sync/nce_sync/doctype/wp_tables/__init__.py": {
 "purpose": ""
 },
 "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js": {
-"purpose": "WP Tables form client script: column mapping UI, remap preview, sync progress, and field exhibit tab.",
-"read_when": "Changing mirror/remap dialog, matching fields, read-only rules, or sync preview UI on WP Tables.",
+"purpose": "Desk client script for WP Tables: data-mapping tabs, preview/remap dialogs, sync progress UI, and field exhibit rendering.",
+"read_when": "Changing WP Tables form UX, column mapping dialogs, sync preview, or desk field-reference exhibit.",
 "gotchas": [
-"For reserved columns like name, always include the label even if Frappe name is varchar.",
-"Tab 1 data mapping is always collected for remap; truncate row data only when Tab 1 changed.",
-"Match checkboxes stay enabled even when Frappe ID is selected as the name column."
+"For reserved columns (e.g. name), ALWAYS include the label even if Frappe name is varchar.",
+"Always reconcile DocType metadata; truncate row data only when Tab 1 changed.",
+"Match checkboxes are always enabled, even when Frappe ID is selected."
 ],
 "keywords": [
 "WP Tables",
 "column mapping",
 "remap",
-"mirror",
-"sync progress",
+"preview sync",
 "field exhibit",
-"matching fields",
-"preview dialog"
+"data mapping tab",
+"mirror",
+"sync dialog",
+"desk form"
 ]
 },
 "nce_sync/nce_sync/doctype/wp_tables/wp_tables.py": {
-"purpose": "WP Tables DocType controller: mirror/remap schema, sync triggers, workspace links, and cascade delete.",
-"read_when": "Changing mirror lifecycle, sync_now, remap_schema, field exhibit, or trash cleanup for WP Tables.",
+"purpose": "WP Tables DocType controller: mirror/remap schema, sync data, manage mirrored DocTypes, and cascade cleanup on trash.",
+"read_when": "Changing mirror/remap/sync behaviour, DocType lifecycle, workspace shortcuts, or WP Tables validation rules.",
 "gotchas": [
-"Core Frappe DocType names are never dropped (safety guard in _NEVER_DROP_DOCTYPES).",
-"Frappe does not always drop the DB table on delete — mirror cleanup drops it explicitly.",
-"Legacy write_back_mode option removed from form; treat as Never and use Client Script for API push."
+"Core Frappe DocType names are never dropped (safety guard).",
+"Always reconciles DocType metadata against the live WordPress schema.",
+"Legacy write-back option removed from form — treat as Never."
 ],
 "keywords": [
-"WPTables",
+"WP Tables",
 "mirror_schema",
 "remap_schema",
 "sync_now",
 "delete_mirror",
-"column_mapping",
+"column mapping",
+"mirrored DocType",
 "workspace",
-"on_trash"
+"listen_for_changes"
 ]
 },
 "nce_sync/nce_sync/doctype/wp_tables/wp_tables_list.js": {
-"purpose": "WP Tables list view settings: custom indicators and list buttons for mirrored tables.",
-"read_when": "Changing list indicators, filters, or bulk actions on the WP Tables list view.",
+"purpose": "WP Tables list view client script: list buttons and toggles for mirrored tables that were never synced.",
+"read_when": "Changing WP Tables list view actions, auto-sync toggles, or list-level shortcuts.",
 "gotchas": [
-"Mirrored but never synced tables get a distinct list indicator."
+"Mirrored but never synced tables have dedicated list UI handling."
 ],
 "keywords": [
 "WP Tables",
 "list view",
-"frappe.listview_settings",
 "mirrored",
-"sync status",
-"indicator"
+"never synced",
+"list settings",
+"toggle",
+"desk list"
 ]
 },
 "nce_sync/nce_sync/page/nce_sync/__init__.py": {
@@ -732,38 +740,40 @@
 ]
 },
 "nce_sync/overrides.py": {
-"purpose": "Override Frappe get_desktop_page to sync Tables workspace shortcuts and inject app version label.",
-"read_when": "Changing workspace shortcut sync on desk load or the Tables workspace version footer.",
+"purpose": "Frappe method overrides: sync Tables workspace shortcuts on desktop page load and inject NCE Sync version label.",
+"read_when": "Changing desk workspace bootstrap behaviour or the version footer on the Tables workspace.",
 "gotchas": [],
 "keywords": [
 "overrides",
 "get_desktop_page",
-"workspace",
-"Tables",
+"Tables workspace",
 "version label",
-"sync_tables_workspace_shortcuts"
+"workspace shortcuts",
+"desk bootstrap"
 ]
 },
 "nce_sync/patches/__init__.py": {
-"purpose": "Comment marker for the nce_sync Patches package used by Frappe migrate.",
-"read_when": "Locating the patches package before adding a new migrate patch module.",
+"purpose": "Package marker for NCE Sync database migration patches under nce_sync/patches.",
+"read_when": "Rarely needed; present so Python treats patches as a package.",
 "gotchas": [],
 "keywords": [
-"Patches",
-"nce_sync",
-"for"
+"patches",
+"migration",
+"nce_sync patches",
+"init"
 ]
 },
 "nce_sync/patches/add_listen_for_changes_to_wp_tables.py": {
-"purpose": "Migration patch adding listen_for_changes column to tabWP Tables.",
-"read_when": "Understanding when listen_for_changes was added or debugging patch migrate failures.",
+"purpose": "Migration patch adding the listen_for_changes column to the tabWP Tables database table.",
+"read_when": "Debugging or extending schema migrations for WP Tables live-sync toggle storage.",
 "gotchas": [],
 "keywords": [
 "patch",
 "listen_for_changes",
 "WP Tables",
-"migrate",
-"ALTER TABLE"
+"migration",
+"ALTER TABLE",
+"schema"
 ]
 },
 "nce_sync/patches/create_table_links_page.py": {
@@ -795,30 +805,28 @@
 ]
 },
 "nce_sync/public/js/list_auto_size.js": {
-"purpose": "Desk list view hook that auto-sizes visible columns to content width.",
-"read_when": "Changing list column auto-resize behaviour or the List View Auto-Size button.",
+"purpose": "Desk list view hook: auto-size visible columns with a toolbar button on supported DocType list views.",
+"read_when": "Changing list column auto-width behaviour or the resize button on mirrored table list views.",
 "gotchas": [],
 "keywords": [
-"list_auto_size",
 "list view",
+"auto size columns",
 "column width",
-"frappe.listview_settings",
-"auto resize"
+"listview settings",
+"desk hook",
+"resize"
 ]
 },
 "nce_sync/public/js/table_links_self_link_fix.js": {
-"purpose": "Desk-wide script that fixes Table Links self-link cells drawn as a diagonal dash.",
-"read_when": "Self-link cells on Table Links still show dash after a cached page script update.",
+"purpose": "Table Links page fix: replace diagonal dash cells for self-links even when a cached page script still draws them.",
+"read_when": "Fixing self-link display on the Table Links grid after cached desk scripts render stale markup.",
 "gotchas": [],
 "keywords": [
 "Table Links",
-"links",
-"table",
-"page",
-"fix",
-"link",
-"self",
-"cached",
+"self link",
+"diagonal dash",
+"cached page script",
+"grid fix",
 "desk"
 ]
 },
@@ -841,112 +849,121 @@
 ]
 },
 "nce_sync/tests/test_derived_column_sql.py": {
-"purpose": "Unit tests for derived-column SQL mapping and GENERATION_EXPRESSION rewrite (no live DB).",
-"read_when": "Changing derived_column_sql or schema_mirror generated-column handling.",
+"purpose": "Unit tests for derived/generated column SQL mapping and GENERATION_EXPRESSION rewrite (no live DB).",
+"read_when": "Changing derived column SQL translation or build_column_mapping generated-column handling.",
 "gotchas": [],
 "keywords": [
 "derived column",
 "GENERATION_EXPRESSION",
 "sql_generation_to_frappe_bare_sql",
-"build_column_mapping",
-"unittest"
+"generated column",
+"schema_mirror",
+"unit test"
 ]
 },
 "nce_sync/tests/test_forced_read_only.py": {
-"purpose": "Tests for system-forced read-only column resolution during mirror and remap.",
-"read_when": "Changing forced read-only rules for virtual, auto-increment, or timestamp columns.",
+"purpose": "Unit tests for system-forced read-only column resolution during mirror and remap operations.",
+"read_when": "Changing forced read-only rules for virtual, auto-increment, name, or timestamp columns.",
 "gotchas": [],
 "keywords": [
 "forced read-only",
-"schema_mirror",
 "virtual column",
 "auto increment",
 "mirror",
-"remap"
+"remap",
+"schema_mirror",
+"read only"
 ]
 },
 "nce_sync/tests/test_live_sync_delete.py": {
-"purpose": "Unit tests for live_sync delete propagation from Frappe on_trash to WordPress.",
-"read_when": "Changing delete_record_from_wp, on_record_delete, or listen-map skip logic.",
+"purpose": "Unit tests for live_sync delete propagation from Frappe on_trash to WordPress SQL DELETE.",
+"read_when": "Changing live write-back delete hooks, listen map gating, or delete_record_from_wp behaviour.",
 "gotchas": [],
 "keywords": [
-"live_sync",
-"delete",
+"live sync",
 "on_trash",
+"delete propagation",
+"WordPress DELETE",
+"listen map",
 "on_record_delete",
-"WordPress",
-"listen map"
+"unit test"
 ]
 },
 "nce_sync/tests/test_remap_layout_preservation.py": {
-"purpose": "Unit tests for layout-preserving remap helpers in schema_mirror.",
-"read_when": "Changing prune stale fields, New fields tab insert index, or layout break preservation.",
+"purpose": "Unit tests for layout-preserving remap helpers: prune stale fields and insert new fields tab index logic.",
+"read_when": "Changing remap layout preservation, New fields tab insertion, or prune_stale_fields behaviour.",
 "gotchas": [],
 "keywords": [
 "remap",
 "layout preservation",
+"prune fields",
+"New fields tab",
 "schema_mirror",
-"prune",
-"tab break",
-"New fields tab"
+"Tab Break",
+"unit test"
 ]
 },
 "nce_sync/tests/test_script_default_validation.py": {
-"purpose": "Pytest tests for validate_and_normalize_script_default across Frappe fieldtypes.",
-"read_when": "Changing script default validation for dates, times, JSON, Check, or Rating fields.",
+"purpose": "Pytest coverage for validate_and_normalize_script_default across Date, Time, JSON, Int, Check, and Rating fieldtypes.",
+"read_when": "Changing script default validation rules or normalisation for column_mapping defaults.",
 "gotchas": [],
 "keywords": [
-"script_default_validation",
-"pytest",
-"default value",
-"fieldtype",
-"normalize"
+"script default",
+"validation",
+"column_mapping",
+"Date",
+"Time",
+"JSON",
+"Check",
+"Rating",
+"pytest"
 ]
 },
 "nce_sync/utils/__init__.py": {
-"purpose": "Comment marker for the Utilities package under nce_sync.utils.",
-"read_when": "Locating the utils package before importing shared helper modules.",
+"purpose": "Package marker for NCE Sync utility modules under nce_sync/utils.",
+"read_when": "Rarely needed; present so Python treats utils as a package.",
 "gotchas": [],
 "keywords": [
-"Utilities",
-"package",
 "utils",
-"helpers"
+"nce_sync utils",
+"package",
+"init"
 ]
 },
 "nce_sync/utils/column_mapper.py": {
-"purpose": "Unified column-mapping helpers: parse mapping JSON, reverse map, and build WP write-back rows.",
-"read_when": "Changing column_mapping parsing, name column lookup, or build_wp_row write-back skips.",
+"purpose": "Unified column-mapping helpers: parse WP Tables mapping JSON, resolve fieldnames, and build WordPress write-back rows.",
+"read_when": "Changing column_mapping parsing, reverse mapping, auto-generated column detection, or build_wp_row skips.",
 "gotchas": [
-"load_column_mapping returns a dict that may be empty but never None.",
-"Callers should use these helpers instead of repeating defensive JSON parsing."
+"column_mapping dict may be empty but is never None after load_column_mapping."
 ],
 "keywords": [
 "column_mapper",
-"column_mapping",
+"column mapping",
 "build_wp_row",
 "reverse mapping",
 "is_name",
-"auto generated"
+"auto-generated",
+"write-back"
 ]
 },
 "nce_sync/utils/connections.py": {
-"purpose": "WordPress database connection helpers using PyMySQL and WordPress Connection settings.",
-"read_when": "Changing WP DB connect timeouts, cursor usage, or the wp_connection context manager.",
+"purpose": "WordPress database connection helpers: open PyMySQL connections from WordPress Connection DocType settings.",
+"read_when": "Changing WordPress DB connection setup, timeouts, or the wp_connection context manager.",
 "gotchas": [],
 "keywords": [
-"connections",
+"WordPress connection",
+"PyMySQL",
 "get_wp_connection",
 "wp_connection",
-"PyMySQL",
-"WordPress Connection"
+"database",
+"context manager"
 ]
 },
 "nce_sync/utils/constants.py": {
-"purpose": "Centralised NCE Sync constants: batch sizes, timeouts, sync frequency map, and system fields.",
-"read_when": "Tuning sync batch sizes, job runtime caps, Redis TTLs, or FRAPPE_SYSTEM_FIELDS write-back exclusions.",
+"purpose": "Centralised NCE Sync constants: batch sizes, sync timeouts, frequency map, and Frappe system field exclusions.",
+"read_when": "Tuning sync batch sizes, worker stale thresholds, CRUD lock TTL, or shared sync configuration values.",
 "gotchas": [
-"FRAPPE_SYSTEM_FIELDS are never written back to WordPress."
+"Frappe system fields are never written back to WordPress."
 ],
 "keywords": [
 "constants",
@@ -954,37 +971,40 @@
 "SYNC_FREQUENCY_MAP",
 "CRUD_LOCK_TTL",
 "FRAPPE_SYSTEM_FIELDS",
-"timeouts"
+"timeouts",
+"batch size"
 ]
 },
 "nce_sync/utils/data_sync.py": {
-"purpose": "Core WP to Frappe data sync: strategies, upsert, orphan delete, scheduler, and background jobs.",
-"read_when": "Changing sync_table, matching keys, timestamp compare, truncate-replace, or scheduled sync entry points.",
+"purpose": "Core WP to Frappe data sync engine: strategies, row upsert/delete, scheduling, logs, and preview counts.",
+"read_when": "Changing sync strategies, incremental timestamp logic, orphan deletion, scheduled syncs, or sync job entry points.",
 "gotchas": [
-"Debug instrumentation never raises; a sync must not fail because of tracing.",
-"Sync stands down when a CRUD-lock holds the table; it retries on the next cycle.",
-"Frappe name is always varchar — integer WordPress PKs are coerced to str for matching."
+"Instrumentation never raises — a sync must not break on debug or progress helpers.",
+"Never fight a user edit: bow out when a CRUD-lock holds the table.",
+"Frappe name is always varchar — cast integer primary keys to str for matching."
 ],
 "keywords": [
 "data_sync",
 "sync_table",
-"upsert",
-"orphan delete",
 "run_scheduled_syncs",
-"matching keys",
-"timestamp sync"
+"truncate replace",
+"timestamp sync",
+"orphan delete",
+"Sync Log",
+"preview_sync_counts"
 ]
 },
 "nce_sync/utils/derived_column_sql.py": {
-"purpose": "Rewrite MySQL GENERATION_EXPRESSION SQL to use Frappe fieldnames for derived columns.",
-"read_when": "Changing generated-column SQL translation or CONCAT/IFNULL function rewrites.",
+"purpose": "Rewrite MySQL/MariaDB GENERATION_EXPRESSION SQL to bare Frappe fieldname SQL for derived column sync.",
+"read_when": "Changing generated-column SQL translation or CONCAT/IFNULL function rewrite for mirror mapping.",
 "gotchas": [],
 "keywords": [
-"derived_column_sql",
+"derived column",
 "GENERATION_EXPRESSION",
 "sql_generation_to_frappe_bare_sql",
 "MariaDB",
-"fieldnames"
+"Frappe fieldnames",
+"CONCAT"
 ]
 },
 "nce_sync/utils/live_sync.py": {

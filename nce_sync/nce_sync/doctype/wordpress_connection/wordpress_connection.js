@@ -3,10 +3,10 @@
 //
 // code-index:begin
 // {
-//  "purpose": "Desk client script for WordPress Connection: table discovery dialog and WP Tables add/remove.",
-//  "read_when": "Changing discovery UI, add-table buttons, or WordPress Connection form behaviour.",
+//  "purpose": "Desk client script for WordPress Connection: table discovery dialog, add/remove WP Tables, and connection UI actions.",
+//  "read_when": "Changing WordPress table discovery UX, connection form buttons, or WP Tables creation from a connection.",
 //  "gotchas": [],
-//  "keywords": ["WordPress Connection", "discovery dialog", "wp_tables", "add_table", "remove_table", "frappe.ui.form"],
+//  "keywords": ["WordPress Connection", "discover tables", "discovery dialog", "WP Tables", "add table", "remove table", "desk form", "frappe.ui"],
 //  "format": 1
 // }
 // code-index:end
