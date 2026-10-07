@@ -1008,83 +1008,88 @@
 ]
 },
 "nce_sync/utils/live_sync.py": {
-"purpose": "Live Frappe to WordPress write-back via SQL Direct on doc_events insert, update, and trash.",
-"read_when": "Changing listen_for_changes map, push_record_to_wp, delete_record_from_wp, or write-back guards.",
+"purpose": "Live Frappe-to-WordPress write-back: listen map cache, doc_events handlers, and SQL INSERT/UPDATE/DELETE push.",
+"read_when": "Changing live write-back hooks, listen_for_changes gating, or push_record_to_wp background jobs.",
 "gotchas": [
-"Auto-generated WordPress columns such as virtual or computed fields are never written.",
-"Listen map is Redis-cached and cleared via clear_sql_direct_cache on WP Tables updates.",
-"Never propagate deletes while the DocType is mid-sync (defense in depth)."
+"Auto-generated WP columns are never written back to WordPress.",
+"Defense in depth: never propagate while this doctype is mid-sync.",
+"Listen map is Redis-cached; clear_sql_direct_cache invalidates on WP Tables toggle changes."
 ],
 "keywords": [
 "live_sync",
 "write-back",
-"SQL Direct",
 "listen_for_changes",
 "on_record_change",
 "on_record_delete",
+"SQL Direct",
 "push_record_to_wp"
 ]
 },
 "nce_sync/utils/lock_check.py": {
-"purpose": "Pre-flight lock diagnostics on Frappe and WordPress for stale transactions and lock waits.",
-"read_when": "Adding sync preflight checks or formatting lock-wait HTML for desk msgprint dialogs.",
+"purpose": "Pre-flight lock diagnostics on Frappe and WordPress databases before sync jobs run.",
+"read_when": "Changing lock detection SQL, stale transaction thresholds, or preflight msgprint HTML reporting.",
 "gotchas": [],
 "keywords": [
-"lock_check",
+"lock check",
 "preflight",
 "stale locks",
-"lock waits",
-"check_locks",
-"format_report_html"
+"transaction waits",
+"MySQL locks",
+"sync preflight",
+"has_blockers"
 ]
 },
 "nce_sync/utils/reverse_sync.py": {
-"purpose": "Reverse sync helpers: temp negative names, Frappe to WordPress INSERT/UPDATE, and bulk push.",
-"read_when": "Changing before_insert temp names, insert_record_to_wp, or sync_frappe_to_wp bulk push.",
+"purpose": "Reverse sync utilities pushing Frappe document changes to WordPress with temp negative names and INSERT/UPDATE.",
+"read_when": "Changing temp name assignment, Frappe-to-WP INSERT/UPDATE, or before_insert hook for mirrored DocTypes.",
 "gotchas": [],
 "keywords": [
 "reverse_sync",
 "temp name",
 "insert_record_to_wp",
-"sync_frappe_to_wp",
+"update_record_in_wp",
+"Frappe to WordPress",
 "before_insert",
-"negative integer"
+"negative name"
 ]
 },
 "nce_sync/utils/schema_mirror.py": {
-"purpose": "Schema mirroring: WP introspection, DocType create/update, column mapping, remap, and layout restore.",
-"read_when": "Changing mirror_table_schema, forced read-only columns, pick lists, or layout-preserving remap.",
+"purpose": "Schema mirroring utilities: introspect WordPress tables, build DocTypes, remap/prune fields, and preserve layouts.",
+"read_when": "Changing mirror/remap schema logic, field type mapping, read-only resolution, or DocType layout snapshots.",
 "gotchas": [
-"Multi-column UNIQUE in WordPress must not become per-field unique on Frappe DocFields.",
-"Virtual and generated columns are always treated as read-only Data fields.",
-"sync_mirrored_doctype_with_wordpress always fetches fresh schema from WordPress."
+"WP columns that must always be read-only include virtual/generated and system timestamp fields.",
+"Always fetches fresh schema from WordPress to detect column changes.",
+"Multi-column UNIQUE in WordPress must not translate to per-field unique on Frappe."
 ],
 "keywords": [
 "schema_mirror",
 "mirror_table_schema",
-"column mapping",
-"read-only",
 "remap",
+"column mapping",
 "DocType",
+"read-only",
 "pick list",
-"layout"
+"layout restore"
 ]
 },
 "nce_sync/utils/script_default_validation.py": {
-"purpose": "Validate and normalize optional script default values stored in WP Tables column_mapping.",
-"read_when": "Changing default-value rules for Date, Time, Datetime, JSON, Check, or Rating fieldtypes.",
+"purpose": "Validate and normalise optional script default values stored in WP Tables column_mapping JSON.",
+"read_when": "Changing default-value validation for Date, Time, Datetime, JSON, Int, Check, or Rating mirrored fields.",
 "gotchas": [],
 "keywords": [
-"script_default_validation",
+"script default",
 "validate_and_normalize_script_default",
 "column_mapping",
-"default value",
-"fieldtype"
+"Date",
+"Time",
+"JSON",
+"Check",
+"Rating"
 ]
 },
 "nce_sync/utils/sql_to_python.py": {
-"purpose": "Translate MySQL GENERATION_EXPRESSION SQL into Python for Frappe virtual DocField options.",
-"read_when": "Changing virtual-field Python generation from WordPress computed column expressions.",
+"purpose": "Translate MySQL/MariaDB GENERATION_EXPRESSION SQL into Python expressions for Frappe virtual DocField options.",
+"read_when": "Changing generated-column Python translation or SQL function mapping for virtual mirrored fields.",
 "gotchas": [],
 "keywords": [
 "sql_to_python",
@@ -1092,97 +1097,100 @@
 "virtual field",
 "Python expression",
 "CONCAT",
-"IFNULL"
+"IFNULL",
+"generated column"
 ]
 },
 "nce_sync/utils/stuck_task_guard.py": {
-"purpose": "Pre-flight guard that finds and reaps stuck RQ sync jobs before starting new work.",
-"read_when": "Changing stuck-job detection, worker heartbeat checks, or guard_preflight sync entry.",
+"purpose": "Pre-flight stuck RQ job guard: detect and reap hung sync workers before new sync jobs start.",
+"read_when": "Changing stuck job detection, worker heartbeat logic, or guard_preflight called at sync job start.",
 "gotchas": [
-"The guard never raises into the caller; a guard failure must not block a sync.",
-"Current job ID is excluded so the guard never reaps the job it is running inside.",
-"When worker enumeration fails, callers must not treat it as a zombie signal."
+"The guard never raises into the caller — a guard failure must not block a sync.",
+"Never reap the current running job (uses _current_job_id)."
 ],
 "keywords": [
-"stuck_task_guard",
+"stuck task guard",
+"RQ jobs",
+"reap stuck jobs",
 "guard_preflight",
-"reap_stuck_jobs",
-"RQ",
 "worker heartbeat",
-"zombie job"
+"zombie job",
+"sync guard"
 ]
 },
 "nce_sync/utils/sync_gate.py": {
-"purpose": "Redis sync gate: block user saves during WP to Frappe sync and manage dialog CRUD locks.",
-"read_when": "Changing enforce_sync_gate validate hook or acquire_crud_lock / release_crud_lock behaviour.",
+"purpose": "Sync gate and CRUD locks: block user saves on mirrored DocTypes during WP-to-Frappe sync and dialog edits.",
+"read_when": "Changing sync busy flags, CRUD lock acquire/release, or enforce_sync_gate validate hook behaviour.",
 "gotchas": [
-"Claim-then-recheck on both sides prevents sync and CRUD lock from both winning a start race."
+"Claim-then-recheck on both sides prevents sync and CRUD lock from both being held."
 ],
 "keywords": [
 "sync_gate",
 "CRUD lock",
-"mark_doctype_syncing",
+"is_doctype_syncing",
 "enforce_sync_gate",
-"Redis",
-"mirrored DocType"
+"Redis busy flag",
+"mirrored DocType",
+"block saves"
 ]
 },
 "nce_sync/utils/sync_trace.py": {
-"purpose": "Optional step-timing trace for queued sync jobs with stderr logging and desk msgprint.",
-"read_when": "Adding debug timing steps to background sync jobs or publishing trace dialogs.",
+"purpose": "Optional step-timing trace for queued NCE Sync WordPress jobs when debug flag is enabled.",
+"read_when": "Adding sync job timing instrumentation or Desk msgprint debug output during sync traces.",
 "gotchas": [],
 "keywords": [
 "sync_trace",
 "SyncTrace",
-"debug flag",
-"step timing",
+"debug timing",
+"step trace",
 "msgprint",
-"truthy_debug"
+"queued sync job"
 ]
 },
 "nce_sync/utils/workspace_utils.py": {
-"purpose": "Tables workspace helpers: add/remove mirrored shortcuts, sync on load, and orphan cleanup.",
-"read_when": "Changing workspace shortcut cards, section headers, or sync_tables_workspace_shortcuts.",
+"purpose": "Tables workspace utilities: add/remove mirrored DocType shortcuts, sync shortcuts, and cleanup orphans.",
+"read_when": "Changing Tables workspace shortcut layout, section headers, or mirrored DocType card management.",
 "gotchas": [
-"Core workspace items including DocTypes and the Table Links page are never removed."
+"Core workspace items including Table Links page should never be removed."
 ],
 "keywords": [
 "workspace_utils",
 "Tables workspace",
+"shortcut",
 "add_to_workspace",
-"sync_tables_workspace_shortcuts",
-"shortcuts",
-"orphan cleanup"
+"remove_from_workspace",
+"sync_tables_workspace_shortcuts"
 ]
 },
 "nce_sync/utils/write_back_dispatch.py": {
-"purpose": "Background job entry point that delegates Frappe to WordPress SQL write-back to live_sync.",
-"read_when": "Changing deferred write-back enqueue target or run_write_back_for_doc job wiring.",
+"purpose": "Background job entry point for deferred Frappe-to-WordPress SQL write-back dispatched from live_sync hooks.",
+"read_when": "Changing write-back job enqueue targets or the run_write_back_for_doc background handler.",
 "gotchas": [],
 "keywords": [
 "write_back_dispatch",
 "run_write_back_for_doc",
+"write-back",
 "background job",
 "live_sync",
-"SQL write-back"
+"SQL push"
 ]
 },
 "scripts/build_code_index.py": {
-"purpose": "Build script that generates nce_sync/CODE_INDEX.json deterministically from the source tree.",
-"read_when": "Regenerating CODE_INDEX.json or changing export/whitelist discovery rules.",
+"purpose": "Deterministic generator for nce_sync/CODE_INDEX.json by scanning exports and whitelist endpoints in the repo.",
+"read_when": "Changing legacy CODE_INDEX.json generation, file grouping rules, or AST/regex export discovery.",
 "gotchas": [],
 "keywords": [
-"build_code_index",
 "CODE_INDEX.json",
-"discover_files",
-"whitelist",
-"exports",
+"build_code_index",
+"export discovery",
+"whitelist endpoints",
+"AST scan",
 "doctype folders"
 ]
 },
 "write-back-deferred-dispatch-plan.md": {
-"purpose": "Coding plan for deferred Redis write-back queue and child-table dispatch registry.",
-"read_when": "Implementing multi-step API write-back, deferred enqueue, or write_back_handlers registry.",
+"purpose": "Coding plan for deferred write-back queue, child-table dispatch steps, and write_back_mode integration phases.",
+"read_when": "Implementing or reviewing the deferred write-back dispatcher design before changing live_sync write-back.",
 "gotchas": [
 "write_back_mode Never means no push.",
 "Never defer when frappe.flags.in_sync is set."
@@ -1190,11 +1198,11 @@
 "keywords": [
 "write-back",
 "deferred queue",
-"write_back_dispatch",
+"write_back_mode",
 "child table",
-"API connector",
+"dispatch plan",
 "listen_for_changes",
-"coding plan"
+"API Required"
 ]
 }
 },
