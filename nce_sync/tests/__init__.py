@@ -2,10 +2,10 @@
 
 code-index:begin
 {
- "purpose": "Package marker for NCE Sync unit and integration tests.",
- "read_when": "Locating the tests package or adding new test modules.",
+ "purpose": "Package marker for NCE Sync unit tests under nce_sync/tests.",
+ "read_when": "Rarely needed; present so Python treats tests as a package.",
  "gotchas": [],
- "keywords": ["tests", "package", "init", "nce_sync", "unittest"],
+ "keywords": ["tests", "package", "init", "nce_sync"],
  "format": 1
 }
 code-index:end

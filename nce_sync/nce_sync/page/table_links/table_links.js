@@ -3,10 +3,10 @@
 //
 // code-index:begin
 // {
-//  "purpose": "Table Links desk page: grid of DocType links, Mermaid ERD, and add-link dialog.",
-//  "read_when": "Changing table relationship grid, ERD rendering, or link creation on the Table Links page.",
+//  "purpose": "Table Links desk page: grid of DocType links, Mermaid ERD visualization, and add/edit link dialog.",
+//  "read_when": "Changing table relationship visualization, link grid UX, or Mermaid ERD rendering on the Table Links page.",
 //  "gotchas": [],
-//  "keywords": ["Table Links", "mermaid", "ERD", "link dialog", "desk page", "DocType links", "grid"],
+//  "keywords": ["Table Links", "Mermaid", "ERD", "links", "grid", "mermaid", "render", "load_data", "show_link_dialog"],
 //  "format": 1
 // }
 // code-index:end

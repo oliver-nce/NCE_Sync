@@ -5,10 +5,10 @@
 
 code-index:begin
 {
- "purpose": "Migration patch that creates the Table Links desk page if missing.",
- "read_when": "Understanding Table Links page bootstrap or debugging missing page after install.",
+ "purpose": "Migration patch that creates the Table Links desk page if it does not already exist.",
+ "read_when": "Debugging Table Links page bootstrap on upgrade or fresh installs missing the page record.",
  "gotchas": [],
- "keywords": ["Table Links", "create", "execute", "frappe", "page", "table", "links"],
+ "keywords": ["Table Links", "create", "execute", "frappe", "links", "page", "table"],
  "format": 1
 }
 code-index:end
