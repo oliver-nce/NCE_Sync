@@ -714,29 +714,31 @@
 "purpose": ""
 },
 "nce_sync/nce_sync/page/table_links/__init__.py": {
-"purpose": "Package marker for the Table Links desk page module.",
-"read_when": "Locating the table_links page package under nce_sync.",
-"gotchas": [],
-"keywords": [
-"table_links",
-"page",
-"package",
-"init",
-"nce_sync"
-]
-},
-"nce_sync/nce_sync/page/table_links/table_links.js": {
-"purpose": "Table Links desk page: grid of DocType links, Mermaid ERD, and add-link dialog.",
-"read_when": "Changing table relationship grid, ERD rendering, or link creation on the Table Links page.",
+"purpose": "Package marker for the Table Links desk page module under nce_sync/nce_sync/page/table_links.",
+"read_when": "Rarely needed; present so Python treats table_links as a package.",
 "gotchas": [],
 "keywords": [
 "Table Links",
-"mermaid",
+"table_links",
+"page",
+"package",
+"init"
+]
+},
+"nce_sync/nce_sync/page/table_links/table_links.js": {
+"purpose": "Table Links desk page: grid of DocType links, Mermaid ERD visualization, and add/edit link dialog.",
+"read_when": "Changing table relationship visualization, link grid UX, or Mermaid ERD rendering on the Table Links page.",
+"gotchas": [],
+"keywords": [
+"Table Links",
+"Mermaid",
 "ERD",
-"link dialog",
-"desk page",
-"DocType links",
-"grid"
+"links",
+"grid",
+"mermaid",
+"render",
+"load_data",
+"show_link_dialog"
 ]
 },
 "nce_sync/overrides.py": {
@@ -777,31 +779,30 @@
 ]
 },
 "nce_sync/patches/create_table_links_page.py": {
-"purpose": "Migration patch that creates the Table Links desk page if missing.",
-"read_when": "Understanding Table Links page bootstrap or debugging missing page after install.",
+"purpose": "Migration patch that creates the Table Links desk page if it does not already exist.",
+"read_when": "Debugging Table Links page bootstrap on upgrade or fresh installs missing the page record.",
 "gotchas": [],
 "keywords": [
 "Table Links",
 "create",
 "execute",
 "frappe",
+"links",
 "page",
-"table",
-"links"
+"table"
 ]
 },
 "nce_sync/public/css/nce_sync.css": {
-"purpose": "CSS styling for NCE Sync workspace shortcut tiles on the Tables desk.",
-"read_when": "Changing shortcut-widget-box appearance in the Tables workspace.",
+"purpose": "Desk CSS for NCE Sync workspace shortcut tile styling on the Tables workspace.",
+"read_when": "Changing workspace shortcut card appearance or Tables workspace visual styling.",
 "gotchas": [],
 "keywords": [
-"nce",
-"sync",
-"css",
+"NCE Sync",
+"workspace",
 "shortcut",
-"widget",
-"Workspace",
-"styling"
+"tile",
+"styling",
+"css"
 ]
 },
 "nce_sync/public/js/list_auto_size.js": {
@@ -837,15 +838,14 @@
 "purpose": ""
 },
 "nce_sync/tests/__init__.py": {
-"purpose": "Package marker for NCE Sync unit and integration tests.",
-"read_when": "Locating the tests package or adding new test modules.",
+"purpose": "Package marker for NCE Sync unit tests under nce_sync/tests.",
+"read_when": "Rarely needed; present so Python treats tests as a package.",
 "gotchas": [],
 "keywords": [
 "tests",
 "package",
 "init",
-"nce_sync",
-"unittest"
+"nce_sync"
 ]
 },
 "nce_sync/tests/test_derived_column_sql.py": {
@@ -6868,7 +6868,7 @@
 "name": "all",
 "qualname": "all",
 "sig": "",
-"hash": "0c99a46c66",
+"hash": "b41c44a824",
 "calls": [],
 "label": "nce_sync.css (the whole file)",
 "label_source": "title"
