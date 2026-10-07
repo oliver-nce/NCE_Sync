@@ -3,6 +3,16 @@
 
 """
 Override Frappe methods for NCE Sync.
+
+code-index:begin
+{
+ "purpose": "Override Frappe get_desktop_page to sync Tables workspace shortcuts and inject app version label.",
+ "read_when": "Changing workspace shortcut sync on desk load or the Tables workspace version footer.",
+ "gotchas": [],
+ "keywords": ["overrides", "get_desktop_page", "workspace", "Tables", "version label", "sync_tables_workspace_shortcuts"],
+ "format": 1
+}
+code-index:end
 """
 
 from json import dumps, loads

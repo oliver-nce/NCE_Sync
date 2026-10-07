@@ -1,3 +1,16 @@
+"""NCE Sync app init module patching Frappe email unsubscribe and validation for empty outgoing accounts.
+
+code-index:begin
+{
+ "purpose": "NCE Sync app init module patching Frappe email unsubscribe and validation for empty outgoing accounts.",
+ "read_when": "When debugging email queue errors or unsubscribe header behavior in NCE Sync sites.",
+ "gotchas": [],
+ "keywords": ["init", "email patch", "unsubscribe", "frappe", "outgoing account", "validate", "nce sync"],
+ "format": 1
+}
+code-index:end
+"""
+
 __version__ = "2.1.2"
 
 import frappe

@@ -1,3 +1,19 @@
+"""NCE Access Profile controller syncing roles, table permissions, field restrictions, and user invites.
+
+code-index:begin
+{
+ "purpose": "NCE Access Profile controller syncing roles, table permissions, field restrictions, and user invites.",
+ "read_when": "When changing profile role sync, table access permissions, field restrict levels, or invite emails.",
+ "gotchas": [
+  "Sync only adds missing table access rows; never removes existing rows.",
+  "Schema read-only fields are always locked and cannot be toggled in Manage Fields."
+ ],
+ "keywords": ["nce access profile", "table access", "role permissions", "field restricted", "invite user", "property setter"],
+ "format": 1
+}
+code-index:end
+"""
+
 # Copyright (c) 2026, Oliver Reid and contributors
 # For license information, please see license.txt
 

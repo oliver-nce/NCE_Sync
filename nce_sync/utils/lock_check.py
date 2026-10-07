@@ -15,6 +15,16 @@ or table locks, plus any active row-lock wait, is reported back to the
 user in a copyable msgprint dialog and the sync aborts before doing any
 work. This converts what was previously a confusing 1205 traceback into
 an actionable "kill thread N on database X" instruction.
+
+code-index:begin
+{
+ "purpose": "Pre-flight lock diagnostics on Frappe and WordPress for stale transactions and lock waits.",
+ "read_when": "Adding sync preflight checks or formatting lock-wait HTML for desk msgprint dialogs.",
+ "gotchas": [],
+ "keywords": ["lock_check", "preflight", "stale locks", "lock waits", "check_locks", "format_report_html"],
+ "format": 1
+}
+code-index:end
 """
 
 from __future__ import annotations

@@ -1,7 +1,18 @@
 # Copyright (c) 2026, Oliver Reid and contributors
 # For license information, please see license.txt
 
-"""Step timing trace for queued NCE_Sync WP jobs (optional ``debug`` flag)."""
+"""Step timing trace for queued NCE_Sync WP jobs (optional ``debug`` flag).
+
+code-index:begin
+{
+ "purpose": "Optional step-timing trace for queued sync jobs with stderr logging and desk msgprint.",
+ "read_when": "Adding debug timing steps to background sync jobs or publishing trace dialogs.",
+ "gotchas": [],
+ "keywords": ["sync_trace", "SyncTrace", "debug flag", "step timing", "msgprint", "truthy_debug"],
+ "format": 1
+}
+code-index:end
+"""
 
 from __future__ import annotations
 

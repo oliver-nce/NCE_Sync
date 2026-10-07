@@ -1,5 +1,15 @@
 // Copyright (c) 2026, Oliver Reid and contributors
 // For license information, please see license.txt
+//
+// code-index:begin
+// {
+//  "purpose": "Desk form script for API Connector with credential copy buttons and AI implementation guide popup.",
+//  "read_when": "When changing API Connector form buttons, credential labels, or implementation guide UI.",
+//  "gotchas": [],
+//  "keywords": ["api connector", "form script", "credentials", "copy button", "implementation guide", "desk"],
+//  "format": 1
+// }
+// code-index:end
 
 const CREDENTIAL_FIELDS = [
 	"api_key",

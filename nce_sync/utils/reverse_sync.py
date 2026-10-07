@@ -17,6 +17,16 @@ Responsibilities:
                             rename the Frappe document to the real WP ID.
                           • UPDATE  existing records (positive / real name),
                             skip auto-generated columns.
+
+code-index:begin
+{
+ "purpose": "Reverse sync helpers: temp negative names, Frappe to WordPress INSERT/UPDATE, and bulk push.",
+ "read_when": "Changing before_insert temp names, insert_record_to_wp, or sync_frappe_to_wp bulk push.",
+ "gotchas": [],
+ "keywords": ["reverse_sync", "temp name", "insert_record_to_wp", "sync_frappe_to_wp", "before_insert", "negative integer"],
+ "format": 1
+}
+code-index:end
 """
 
 import frappe

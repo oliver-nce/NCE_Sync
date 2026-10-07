@@ -1,0 +1,29 @@
+{
+ "format": 1,
+ "tool": "/Users/oliver3/Documents/_NCE_projects/_Project support files/code-index/codeindex.py",
+ "commands": [
+  "find",
+  "show",
+  "callers",
+  "notes"
+ ],
+ "code_extensions": [
+  ".py",
+  ".js",
+  ".mjs",
+  ".cjs",
+  ".jsx",
+  ".ts",
+  ".tsx",
+  ".mts",
+  ".cts",
+  ".vue",
+  ".php",
+  ".css",
+  ".yaml",
+  ".yml"
+ ],
+ "doc_extensions": [
+  ".md"
+ ]
+}

@@ -1,7 +1,18 @@
 # Copyright (c) 2026, Oliver Reid and contributors
 # For license information, please see license.txt
 
-"""Create the Table Links page if it does not exist."""
+"""Create the Table Links page if it does not exist.
+
+code-index:begin
+{
+ "purpose": "Migration patch that creates the Table Links desk page if missing.",
+ "read_when": "Understanding Table Links page bootstrap or debugging missing page after install.",
+ "gotchas": [],
+ "keywords": ["Table Links", "create", "execute", "frappe", "page", "table", "links"],
+ "format": 1
+}
+code-index:end
+"""
 
 import frappe
 

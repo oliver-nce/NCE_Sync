@@ -1,7 +1,18 @@
 # Copyright (c) 2026, Oliver Reid and contributors
 # For license information, please see license.txt
 
-"""Add listen_for_changes column to WP Tables table."""
+"""Add listen_for_changes column to WP Tables table.
+
+code-index:begin
+{
+ "purpose": "Migration patch adding listen_for_changes column to tabWP Tables.",
+ "read_when": "Understanding when listen_for_changes was added or debugging patch migrate failures.",
+ "gotchas": [],
+ "keywords": ["patch", "listen_for_changes", "WP Tables", "migrate", "ALTER TABLE"],
+ "format": 1
+}
+code-index:end
+"""
 
 import frappe
 

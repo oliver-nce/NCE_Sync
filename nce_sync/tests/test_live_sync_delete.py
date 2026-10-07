@@ -1,7 +1,18 @@
 # Copyright (c) 2026, Oliver Reid and contributors
 # For license information, please see license.txt
 
-"""Unit tests for live_sync delete propagation (on_trash → WordPress)."""
+"""Unit tests for live_sync delete propagation (on_trash → WordPress).
+
+code-index:begin
+{
+ "purpose": "Unit tests for live_sync delete propagation from Frappe on_trash to WordPress.",
+ "read_when": "Changing delete_record_from_wp, on_record_delete, or listen-map skip logic.",
+ "gotchas": [],
+ "keywords": ["live_sync", "delete", "on_trash", "on_record_delete", "WordPress", "listen map"],
+ "format": 1
+}
+code-index:end
+"""
 
 import importlib.util
 import sys

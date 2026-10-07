@@ -1,4 +1,15 @@
-/* NCE Sync — Workspace shortcut tile styling */
+/* NCE Sync — Workspace shortcut tile styling
+ *
+ * code-index:begin
+ * {
+ *  "purpose": "CSS styling for NCE Sync workspace shortcut tiles on the Tables desk.",
+ *  "read_when": "Changing shortcut-widget-box appearance in the Tables workspace.",
+ *  "gotchas": [],
+ *  "keywords": ["nce", "sync", "css", "shortcut", "widget", "Workspace", "styling"],
+ *  "format": 1
+ * }
+ * code-index:end
+ */
 
 .shortcut-widget-box {
 	background-color: var(--subtle-fg);

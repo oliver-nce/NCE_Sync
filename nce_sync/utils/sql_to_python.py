@@ -21,6 +21,16 @@ Use ``(x or '')`` for None-safe string coercion and ``.attr`` access directly.
 The translator handles the most common SQL patterns found in WordPress schemas.
 Unsupported expressions fall back to an empty string (the field will exist but
 show blank until a custom expression is provided).
+
+code-index:begin
+{
+ "purpose": "Translate MySQL GENERATION_EXPRESSION SQL into Python for Frappe virtual DocField options.",
+ "read_when": "Changing virtual-field Python generation from WordPress computed column expressions.",
+ "gotchas": [],
+ "keywords": ["sql_to_python", "GENERATION_EXPRESSION", "virtual field", "Python expression", "CONCAT", "IFNULL"],
+ "format": 1
+}
+code-index:end
 """
 
 import re

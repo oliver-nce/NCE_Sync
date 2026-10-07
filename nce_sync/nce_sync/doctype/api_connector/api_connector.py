@@ -1,3 +1,16 @@
+"""API Connector DocType controller with connection test, AI discover chat, and guide generation.
+
+code-index:begin
+{
+ "purpose": "API Connector DocType controller with connection test, AI discover chat, and guide generation.",
+ "read_when": "When changing connector validation, Anthropic AI flows, or credential decryption endpoints.",
+ "gotchas": [],
+ "keywords": ["api connector", "test connection", "ai discover", "anthropic", "credentials", "implementation guide"],
+ "format": 1
+}
+code-index:end
+"""
+
 # Copyright (c) 2026, Oliver Reid and contributors
 # For license information, please see license.txt
 

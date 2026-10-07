@@ -1,5 +1,19 @@
 // Copyright (c) 2026, Oliver Reid and contributors
 // For license information, please see license.txt
+//
+// code-index:begin
+// {
+//  "purpose": "WP Tables form client script: column mapping UI, remap preview, sync progress, and field exhibit tab.",
+//  "read_when": "Changing mirror/remap dialog, matching fields, read-only rules, or sync preview UI on WP Tables.",
+//  "gotchas": [
+//   "For reserved columns like name, always include the label even if Frappe name is varchar.",
+//   "Tab 1 data mapping is always collected for remap; truncate row data only when Tab 1 changed.",
+//   "Match checkboxes stay enabled even when Frappe ID is selected as the name column."
+//  ],
+//  "keywords": ["WP Tables", "column mapping", "remap", "mirror", "sync progress", "field exhibit", "matching fields", "preview dialog"],
+//  "format": 1
+// }
+// code-index:end
 
 // Available Frappe field types for the dropdown
 const FRAPPE_FIELD_TYPES = [

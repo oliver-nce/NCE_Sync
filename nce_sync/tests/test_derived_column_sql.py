@@ -1,7 +1,18 @@
 # Copyright (c) 2026, Oliver Reid and contributors
 # For license information, please see license.txt
 
-"""Unit tests for derived (generated) column SQL mapping (no live DB)."""
+"""Unit tests for derived (generated) column SQL mapping (no live DB).
+
+code-index:begin
+{
+ "purpose": "Unit tests for derived-column SQL mapping and GENERATION_EXPRESSION rewrite (no live DB).",
+ "read_when": "Changing derived_column_sql or schema_mirror generated-column handling.",
+ "gotchas": [],
+ "keywords": ["derived column", "GENERATION_EXPRESSION", "sql_generation_to_frappe_bare_sql", "build_column_mapping", "unittest"],
+ "format": 1
+}
+code-index:end
+"""
 
 import unittest
 

@@ -1,3 +1,17 @@
+<!--
+Base app README with bench installation, contributing guidelines, and CI overview for NCE Sync.
+
+code-index:begin
+{
+ "purpose": "Base app README with bench installation, contributing guidelines, and CI overview for NCE Sync.",
+ "read_when": "When installing the app on bench or understanding repo contribution and CI setup.",
+ "gotchas": [],
+ "keywords": ["readme", "installation", "bench", "frappe", "contributing", "ci", "nce sync", "pre-commit"],
+ "format": 1
+}
+code-index:end
+-->
+
 ### Base App
 
 bare bnoes starter app

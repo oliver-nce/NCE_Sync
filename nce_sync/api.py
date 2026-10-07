@@ -3,6 +3,16 @@
 
 """
 API endpoints for NCE Sync app.
+
+code-index:begin
+{
+ "purpose": "Whitelisted API endpoints for auto-sync toggle, table links grid, Excel export, and row sync jobs.",
+ "read_when": "When adding or changing desk-callable sync APIs, link field batch updates, or export jobs.",
+ "gotchas": [],
+ "keywords": ["api", "toggle auto sync", "table links", "excel export", "sync rows", "whitelisted", "frappe"],
+ "format": 1
+}
+code-index:end
 """
 
 import frappe

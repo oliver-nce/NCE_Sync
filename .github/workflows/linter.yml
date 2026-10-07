@@ -1,3 +1,15 @@
+# GitHub Actions linter workflow for code quality checks on NCE Sync pull requests.
+#
+# code-index:begin
+# {
+#  "purpose": "GitHub Actions linter workflow for code quality checks on NCE Sync pull requests.",
+#  "read_when": "When updating lint rules, permissions, or linter job configuration in CI.",
+#  "gotchas": [],
+#  "keywords": ["linter", "github actions", "workflow", "permissions", "concurrency", "ci", "code quality"],
+#  "format": 1
+# }
+# code-index:end
+
 name: Linters
 
 on:

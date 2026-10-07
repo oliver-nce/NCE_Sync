@@ -1,5 +1,15 @@
 // Table Links: replace diagonal "—" cells even if a cached page script still draws them.
 // Loaded on every Desk page via app_include_js; no-ops unless the Table Links grid is present.
+//
+// code-index:begin
+// {
+//  "purpose": "Desk-wide script that fixes Table Links self-link cells drawn as a diagonal dash.",
+//  "read_when": "Self-link cells on Table Links still show dash after a cached page script update.",
+//  "gotchas": [],
+//  "keywords": ["Table Links", "links", "table", "page", "fix", "link", "self", "cached", "desk"],
+//  "format": 1
+// }
+// code-index:end
 
 (function () {
 	"use strict";

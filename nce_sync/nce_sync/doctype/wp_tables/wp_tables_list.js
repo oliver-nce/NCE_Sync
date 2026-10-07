@@ -1,5 +1,17 @@
 // Copyright (c) 2026, Oliver Reid and contributors
 // For license information, please see license.txt
+//
+// code-index:begin
+// {
+//  "purpose": "WP Tables list view settings: custom indicators and list buttons for mirrored tables.",
+//  "read_when": "Changing list indicators, filters, or bulk actions on the WP Tables list view.",
+//  "gotchas": [
+//   "Mirrored but never synced tables get a distinct list indicator."
+//  ],
+//  "keywords": ["WP Tables", "list view", "frappe.listview_settings", "mirrored", "sync status", "indicator"],
+//  "format": 1
+// }
+// code-index:end
 
 frappe.listview_settings["WP Tables"] = {
 	add_fields: ["auto_sync_active", "mirror_status", "last_sync_status"],

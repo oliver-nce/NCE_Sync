@@ -11,6 +11,18 @@ Three cases for any write to a mirrored DocType:
 
 enforce_sync_gate (validate hook) covers all save paths including Submit.
 Desk-specific JS is intentionally absent — frappe.throw renders natively in every client.
+
+code-index:begin
+{
+ "purpose": "Redis sync gate: block user saves during WP to Frappe sync and manage dialog CRUD locks.",
+ "read_when": "Changing enforce_sync_gate validate hook or acquire_crud_lock / release_crud_lock behaviour.",
+ "gotchas": [
+  "Claim-then-recheck on both sides prevents sync and CRUD lock from both winning a start race."
+ ],
+ "keywords": ["sync_gate", "CRUD lock", "mark_doctype_syncing", "enforce_sync_gate", "Redis", "mirrored DocType"],
+ "format": 1
+}
+code-index:end
 """
 
 import frappe

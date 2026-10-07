@@ -1,5 +1,15 @@
 // Copyright (c) 2026, Oliver Reid and contributors
 // For license information, please see license.txt
+//
+// code-index:begin
+// {
+//  "purpose": "Desk client script for WordPress Connection: table discovery dialog and WP Tables add/remove.",
+//  "read_when": "Changing discovery UI, add-table buttons, or WordPress Connection form behaviour.",
+//  "gotchas": [],
+//  "keywords": ["WordPress Connection", "discovery dialog", "wp_tables", "add_table", "remove_table", "frappe.ui.form"],
+//  "format": 1
+// }
+// code-index:end
 
 frappe.ui.form.on("WordPress Connection", {
 	refresh: function (frm) {

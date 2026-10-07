@@ -1,3 +1,16 @@
+"""Pytest tests for validate_and_normalize_script_default across Frappe fieldtypes.
+
+code-index:begin
+{
+ "purpose": "Pytest tests for validate_and_normalize_script_default across Frappe fieldtypes.",
+ "read_when": "Changing script default validation for dates, times, JSON, Check, or Rating fields.",
+ "gotchas": [],
+ "keywords": ["script_default_validation", "pytest", "default value", "fieldtype", "normalize"],
+ "format": 1
+}
+code-index:end
+"""
+
 # Copyright (c) 2026, Oliver Reid and contributors
 
 import pytest

@@ -1,5 +1,15 @@
 // Copyright (c) 2026, Oliver Reid and contributors
 // For license information, please see license.txt
+//
+// code-index:begin
+// {
+//  "purpose": "Table Links desk page: grid of DocType links, Mermaid ERD, and add-link dialog.",
+//  "read_when": "Changing table relationship grid, ERD rendering, or link creation on the Table Links page.",
+//  "gotchas": [],
+//  "keywords": ["Table Links", "mermaid", "ERD", "link dialog", "desk page", "DocType links", "grid"],
+//  "format": 1
+// }
+// code-index:end
 
 frappe.pages["table-links"].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({

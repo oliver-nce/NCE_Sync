@@ -14,6 +14,16 @@ Human-curated fields (``purpose``, ``sections``, ``depends_on``, etc.) are merge
 from ``nce_sync/CODE_INDEX.manual.json``.
 
 Stdlib only — no third-party dependencies.
+
+code-index:begin
+{
+ "purpose": "Build script that generates nce_sync/CODE_INDEX.json deterministically from the source tree.",
+ "read_when": "Regenerating CODE_INDEX.json or changing export/whitelist discovery rules.",
+ "gotchas": [],
+ "keywords": ["build_code_index", "CODE_INDEX.json", "discover_files", "whitelist", "exports", "doctype folders"],
+ "format": 1
+}
+code-index:end
 """
 
 from __future__ import annotations

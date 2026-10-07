@@ -1,6 +1,17 @@
 # Copyright (c) 2026, Oliver Reid and contributors
 
-"""Unit tests for layout-preserving Remap helpers in schema_mirror."""
+"""Unit tests for layout-preserving Remap helpers in schema_mirror.
+
+code-index:begin
+{
+ "purpose": "Unit tests for layout-preserving remap helpers in schema_mirror.",
+ "read_when": "Changing prune stale fields, New fields tab insert index, or layout break preservation.",
+ "gotchas": [],
+ "keywords": ["remap", "layout preservation", "schema_mirror", "prune", "tab break", "New fields tab"],
+ "format": 1
+}
+code-index:end
+"""
 
 from types import SimpleNamespace
 

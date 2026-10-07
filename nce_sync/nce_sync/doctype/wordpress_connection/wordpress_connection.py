@@ -1,3 +1,16 @@
+"""WordPress Connection DocType controller: test DB link, discover tables, mirror all selected WP Tables.
+
+code-index:begin
+{
+ "purpose": "WordPress Connection DocType controller: test DB link, discover tables, mirror all selected WP Tables.",
+ "read_when": "Changing connection testing, table discovery, or bulk mirror from WordPress Connection.",
+ "gotchas": [],
+ "keywords": ["WordPressConnection", "test_connection", "discover_tables", "mirror_all", "PyMySQL", "schema_mirror"],
+ "format": 1
+}
+code-index:end
+"""
+
 # Copyright (c) 2026, Oliver Reid and contributors
 # For license information, please see license.txt
 

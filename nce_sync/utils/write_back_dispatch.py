@@ -7,6 +7,16 @@ Background job target for Frappe → WordPress SQL write-back.
 Single path: when WP Tables has listen_for_changes and write_back_mode == SQL Direct,
 runs push_record_to_wp. Custom API flows use Client Script / Server Script on the
 specific DocType — not configured here.
+
+code-index:begin
+{
+ "purpose": "Background job entry point that delegates Frappe to WordPress SQL write-back to live_sync.",
+ "read_when": "Changing deferred write-back enqueue target or run_write_back_for_doc job wiring.",
+ "gotchas": [],
+ "keywords": ["write_back_dispatch", "run_write_back_for_doc", "background job", "live_sync", "SQL write-back"],
+ "format": 1
+}
+code-index:end
 """
 
 import frappe

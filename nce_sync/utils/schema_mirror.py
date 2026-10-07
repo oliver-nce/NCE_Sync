@@ -4,6 +4,20 @@
 """
 Schema mirroring utilities for NCE_Sync.
 Handles WordPress database introspection and Frappe DocType generation.
+
+code-index:begin
+{
+ "purpose": "Schema mirroring: WP introspection, DocType create/update, column mapping, remap, and layout restore.",
+ "read_when": "Changing mirror_table_schema, forced read-only columns, pick lists, or layout-preserving remap.",
+ "gotchas": [
+  "Multi-column UNIQUE in WordPress must not become per-field unique on Frappe DocFields.",
+  "Virtual and generated columns are always treated as read-only Data fields.",
+  "sync_mirrored_doctype_with_wordpress always fetches fresh schema from WordPress."
+ ],
+ "keywords": ["schema_mirror", "mirror_table_schema", "column mapping", "read-only", "remap", "DocType", "pick list", "layout"],
+ "format": 1
+}
+code-index:end
 """
 
 import frappe

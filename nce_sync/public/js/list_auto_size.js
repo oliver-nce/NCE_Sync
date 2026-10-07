@@ -1,5 +1,15 @@
 // List View Auto-Size Columns
 // Adds "Resize Columns" button to list header. Resizes only visible columns.
+//
+// code-index:begin
+// {
+//  "purpose": "Desk list view hook that auto-sizes visible columns to content width.",
+//  "read_when": "Changing list column auto-resize behaviour or the List View Auto-Size button.",
+//  "gotchas": [],
+//  "keywords": ["list_auto_size", "list view", "column width", "frappe.listview_settings", "auto resize"],
+//  "format": 1
+// }
+// code-index:end
 
 (function () {
 	"use strict";

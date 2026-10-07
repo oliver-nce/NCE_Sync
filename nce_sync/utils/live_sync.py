@@ -24,6 +24,20 @@ Decision logic (two rules only):
 All sync and write-back jobs share the default queue. A single worker executes
 them in order, so write-backs naturally run after any in-flight sync job
 finishes — no deferred queue or sync_in_progress flags needed.
+
+code-index:begin
+{
+ "purpose": "Live Frappe to WordPress write-back via SQL Direct on doc_events insert, update, and trash.",
+ "read_when": "Changing listen_for_changes map, push_record_to_wp, delete_record_from_wp, or write-back guards.",
+ "gotchas": [
+  "Auto-generated WordPress columns such as virtual or computed fields are never written.",
+  "Listen map is Redis-cached and cleared via clear_sql_direct_cache on WP Tables updates.",
+  "Never propagate deletes while the DocType is mid-sync (defense in depth)."
+ ],
+ "keywords": ["live_sync", "write-back", "SQL Direct", "listen_for_changes", "on_record_change", "on_record_delete", "push_record_to_wp"],
+ "format": 1
+}
+code-index:end
 """
 
 import time

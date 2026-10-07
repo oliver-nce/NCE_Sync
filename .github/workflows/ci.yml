@@ -1,3 +1,15 @@
+# GitHub Actions CI workflow running tests and checks for NCE Sync on push and pull request.
+#
+# code-index:begin
+# {
+#  "purpose": "GitHub Actions CI workflow running tests and checks for NCE Sync on push and pull request.",
+#  "read_when": "When changing CI jobs, test commands, or GitHub Actions triggers for this repo.",
+#  "gotchas": [],
+#  "keywords": ["ci", "github actions", "workflow", "tests", "concurrency", "jobs", "pull request"],
+#  "format": 1
+# }
+# code-index:end
+
 name: CI
 
 on:

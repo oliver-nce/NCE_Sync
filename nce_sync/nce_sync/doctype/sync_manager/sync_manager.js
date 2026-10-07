@@ -1,5 +1,15 @@
 // Copyright (c) 2026, Oliver Reid and contributors
 // For license information, please see license.txt
+//
+// code-index:begin
+// {
+//  "purpose": "Desk form script stub for Sync Manager DocType sync control settings.",
+//  "read_when": "When adding Sync Manager form buttons or sync status UI behavior.",
+//  "gotchas": [],
+//  "keywords": ["sync", "manager", "license", "form", "control"],
+//  "format": 1
+// }
+// code-index:end
 
 frappe.ui.form.on("Sync Manager", {
 	refresh(frm) {

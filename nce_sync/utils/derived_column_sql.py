@@ -10,6 +10,16 @@ binding current row values by Frappe fieldname.
 
 The translator mirrors the patterns supported by ``sql_to_python`` (same
 function coverage) but outputs SQL, not ``doc.``-style Python.
+
+code-index:begin
+{
+ "purpose": "Rewrite MySQL GENERATION_EXPRESSION SQL to use Frappe fieldnames for derived columns.",
+ "read_when": "Changing generated-column SQL translation or CONCAT/IFNULL function rewrites.",
+ "gotchas": [],
+ "keywords": ["derived_column_sql", "GENERATION_EXPRESSION", "sql_generation_to_frappe_bare_sql", "MariaDB", "fieldnames"],
+ "format": 1
+}
+code-index:end
 """
 
 import re

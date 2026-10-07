@@ -1,3 +1,16 @@
+"""Frappe hooks registering doc events, scheduler jobs, fixtures, and desk assets for NCE Sync.
+
+code-index:begin
+{
+ "purpose": "Frappe hooks registering doc events, scheduler jobs, fixtures, and desk assets for NCE Sync.",
+ "read_when": "When wiring new doc events, scheduled sync tasks, fixtures, or including JS/CSS on desk.",
+ "gotchas": [],
+ "keywords": ["hooks", "doc events", "scheduler", "fixtures", "desk assets", "frappe", "nce sync", "install"],
+ "format": 1
+}
+code-index:end
+"""
+
 app_name = "nce_sync"
 app_title = "Tables"
 app_publisher = "Oliver Reid"

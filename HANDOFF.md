@@ -1,3 +1,20 @@
+<!--
+Comprehensive NCE Sync handoff covering architecture, API connectors, sync methods, and roadmap.
+
+code-index:begin
+{
+ "purpose": "Comprehensive NCE Sync handoff covering architecture, API connectors, sync methods, and roadmap.",
+ "read_when": "When onboarding to the full sync system, connectors, scheduler, or development workflow.",
+ "gotchas": [
+  "Test Connection tests base_url with configured auth.",
+  "Mirror Schema introspects WP table and creates DocType via preview dialog."
+ ],
+ "keywords": ["handoff", "nce sync", "api connector", "sync", "mirror schema", "scheduler", "roadmap", "frappe"],
+ "format": 1
+}
+code-index:end
+-->
+
 # NCE Sync - Handoff Document
 
 ## Overview

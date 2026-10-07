@@ -1,3 +1,17 @@
+<!--
+Agent handoff summary of NCE Sync repo state, mirror schema follow-ups, and entrypoints.
+
+code-index:begin
+{
+ "purpose": "Agent handoff summary of NCE Sync repo state, mirror schema follow-ups, and entrypoints.",
+ "read_when": "When onboarding a new agent session or resuming work on mirror schema and sync features.",
+ "gotchas": [],
+ "keywords": ["agent handoff", "nce sync", "mirror schema", "write-back", "repo rules", "entrypoints", "frappe"],
+ "format": 1
+}
+code-index:end
+-->
+
 # Agent handoff — NCE_Sync (`nce_sync`)
 
 **For the next agent:** Read `nce_sync/CODE_INDEX.json` first (machine index). For Frappe API behaviour, use `Frappe Context/INDEX.md` at repo root and load only what you need.

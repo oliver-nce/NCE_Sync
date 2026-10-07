@@ -1,3 +1,16 @@
+"""Sync Manager DocType controller: validate config, load WP Tables, enqueue immediate sync.
+
+code-index:begin
+{
+ "purpose": "Sync Manager DocType controller: validate config, load WP Tables, enqueue immediate sync.",
+ "read_when": "Changing scheduled sync settings, run-sync-now, or tables_to_sync child table population.",
+ "gotchas": [],
+ "keywords": ["SyncManager", "run_sync_now", "load_wp_tables", "scheduled sync", "tables_to_sync", "validate"],
+ "format": 1
+}
+code-index:end
+"""
+
 # Copyright (c) 2026, Oliver Reid and contributors
 # For license information, please see license.txt
 

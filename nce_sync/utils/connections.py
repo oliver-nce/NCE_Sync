@@ -17,6 +17,16 @@ Usage::
         cursor.execute("SELECT 1")
         ...
     # conn is automatically closed here
+
+code-index:begin
+{
+ "purpose": "WordPress database connection helpers using PyMySQL and WordPress Connection settings.",
+ "read_when": "Changing WP DB connect timeouts, cursor usage, or the wp_connection context manager.",
+ "gotchas": [],
+ "keywords": ["connections", "get_wp_connection", "wp_connection", "PyMySQL", "WordPress Connection"],
+ "format": 1
+}
+code-index:end
 """
 
 from contextlib import contextmanager

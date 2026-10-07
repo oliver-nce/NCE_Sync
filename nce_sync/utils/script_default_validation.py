@@ -1,7 +1,18 @@
 # Copyright (c) 2026, Oliver Reid and contributors
 # For license information, please see license.txt
 
-"""Validate optional script default values stored in WP Tables ``column_mapping``."""
+"""Validate optional script default values stored in WP Tables ``column_mapping``.
+
+code-index:begin
+{
+ "purpose": "Validate and normalize optional script default values stored in WP Tables column_mapping.",
+ "read_when": "Changing default-value rules for Date, Time, Datetime, JSON, Check, or Rating fieldtypes.",
+ "gotchas": [],
+ "keywords": ["script_default_validation", "validate_and_normalize_script_default", "column_mapping", "default value", "fieldtype"],
+ "format": 1
+}
+code-index:end
+"""
 
 from __future__ import annotations
 

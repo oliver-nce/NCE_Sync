@@ -6,6 +6,20 @@ Data synchronization utilities for NCE_Sync.
 Handles bidirectional sync between WordPress tables and Frappe DocTypes.
 Primary direction: WordPress → Frappe (TS Compare / Truncate & Replace).
 Reverse direction: Frappe → WordPress (INSERT new records, UPDATE existing).
+
+code-index:begin
+{
+ "purpose": "Core WP to Frappe data sync: strategies, upsert, orphan delete, scheduler, and background jobs.",
+ "read_when": "Changing sync_table, matching keys, timestamp compare, truncate-replace, or scheduled sync entry points.",
+ "gotchas": [
+  "Debug instrumentation never raises; a sync must not fail because of tracing.",
+  "Sync stands down when a CRUD-lock holds the table; it retries on the next cycle.",
+  "Frappe name is always varchar — integer WordPress PKs are coerced to str for matching."
+ ],
+ "keywords": ["data_sync", "sync_table", "upsert", "orphan delete", "run_scheduled_syncs", "matching keys", "timestamp sync"],
+ "format": 1
+}
+code-index:end
 """
 
 import json

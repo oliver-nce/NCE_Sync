@@ -1,5 +1,15 @@
 // Copyright (c) 2026, Oliver Reid and contributors
 // For license information, please see license.txt
+//
+// code-index:begin
+// {
+//  "purpose": "List view script for API Connector with AI Discover chat dialog and connector creation flow.",
+//  "read_when": "When changing AI Discover list button, chat UI, or create-connector-from-chat workflow.",
+//  "gotchas": [],
+//  "keywords": ["api connector", "list view", "ai discover", "chat dialog", "create connector", "desk"],
+//  "format": 1
+// }
+// code-index:end
 
 frappe.listview_settings["API Connector"] = {
 	onload(listview) {

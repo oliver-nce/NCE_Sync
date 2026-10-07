@@ -1,3 +1,15 @@
+# Pre-commit hook configuration for formatting, linting, and code-index updates before commits.
+#
+# code-index:begin
+# {
+#  "purpose": "Pre-commit hook configuration for formatting, linting, and code-index updates before commits.",
+#  "read_when": "When adding or changing pre-commit hooks, excluded paths, or commit-stage tooling.",
+#  "gotchas": [],
+#  "keywords": ["pre-commit", "hooks", "lint", "format", "exclude", "repos", "commit", "code index"],
+#  "format": 1
+# }
+# code-index:end
+
 exclude: 'node_modules|.git'
 default_stages: [pre-commit]
 fail_fast: false

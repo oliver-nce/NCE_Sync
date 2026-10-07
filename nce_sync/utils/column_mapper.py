@@ -34,6 +34,19 @@ Downstream: NCE_Events ``get_derived_sql_specs_api`` / ``evaluate_sql_expression
 Optional ``default_value`` on each column entry: non-empty string validated by Frappe
 fieldtype when saving from the Remap dialog; for scripts creating new records only
 (not DocType/DB defaults).
+
+code-index:begin
+{
+ "purpose": "Unified column-mapping helpers: parse mapping JSON, reverse map, and build WP write-back rows.",
+ "read_when": "Changing column_mapping parsing, name column lookup, or build_wp_row write-back skips.",
+ "gotchas": [
+  "load_column_mapping returns a dict that may be empty but never None.",
+  "Callers should use these helpers instead of repeating defensive JSON parsing."
+ ],
+ "keywords": ["column_mapper", "column_mapping", "build_wp_row", "reverse mapping", "is_name", "auto generated"],
+ "format": 1
+}
+code-index:end
 """
 
 import json

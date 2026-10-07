@@ -18,6 +18,18 @@ Mirrored DocTypes (dynamically created):
 - Added only to shortcuts (content JSON)
 - Appear as shortcut cards under "Mirrored Tables" header
 - NOT added to links (keeps them separate from core DocTypes)
+
+code-index:begin
+{
+ "purpose": "Tables workspace helpers: add/remove mirrored shortcuts, sync on load, and orphan cleanup.",
+ "read_when": "Changing workspace shortcut cards, section headers, or sync_tables_workspace_shortcuts.",
+ "gotchas": [
+  "Core workspace items including DocTypes and the Table Links page are never removed."
+ ],
+ "keywords": ["workspace_utils", "Tables workspace", "add_to_workspace", "sync_tables_workspace_shortcuts", "shortcuts", "orphan cleanup"],
+ "format": 1
+}
+code-index:end
 """
 
 import json

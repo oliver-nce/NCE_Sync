@@ -1,3 +1,20 @@
+<!--
+Plan to extract PathFinder from NCE Studio into a standalone Frappe app with virtual fields API.
+
+code-index:begin
+{
+ "purpose": "Plan to extract PathFinder from NCE Studio into a standalone Frappe app with virtual fields API.",
+ "read_when": "When scoping PathFinder extraction, new DocTypes, or severing NCE Studio dependencies.",
+ "gotchas": [
+  "get_whitelisted_methods is referenced by PathFinderDialog but never implemented.",
+  "Virtual field resolution is READ-ONLY — never modify documents through virtual fields."
+ ],
+ "keywords": ["pathfinder", "extraction", "virtual fields", "nce studio", "frappe app", "api endpoints", "desk"],
+ "format": 1
+}
+code-index:end
+-->
+
 # PathFinder Extraction Plan — Standalone Frappe App
 
 **Date:** 2026-04-04

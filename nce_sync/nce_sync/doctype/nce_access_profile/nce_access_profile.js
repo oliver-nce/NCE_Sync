@@ -1,5 +1,17 @@
 // Copyright (c) 2026, Oliver Reid and contributors
 // For license information, please see license.txt
+//
+// code-index:begin
+// {
+//  "purpose": "Desk form script for NCE Access Profile manage-fields and manage-users dialogs on table access grid.",
+//  "read_when": "When changing access profile form UI, field restriction dialogs, or user management buttons.",
+//  "gotchas": [
+//   "Child table DocType never has its own page route so Frappe never auto-loads this script."
+//  ],
+//  "keywords": ["nce access profile", "manage fields", "manage users", "table access", "form script", "desk"],
+//  "format": 1
+// }
+// code-index:end
 
 frappe.ui.form.on("NCE Access Profile", {
 	refresh(frm) {

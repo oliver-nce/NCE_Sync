@@ -1,4 +1,15 @@
-"""Tests for system-forced read-only column resolution during mirror/remap."""
+"""Tests for system-forced read-only column resolution during mirror/remap.
+
+code-index:begin
+{
+ "purpose": "Tests for system-forced read-only column resolution during mirror and remap.",
+ "read_when": "Changing forced read-only rules for virtual, auto-increment, or timestamp columns.",
+ "gotchas": [],
+ "keywords": ["forced read-only", "schema_mirror", "virtual column", "auto increment", "mirror", "remap"],
+ "format": 1
+}
+code-index:end
+"""
 
 from __future__ import annotations
 

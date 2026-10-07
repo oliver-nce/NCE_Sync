@@ -6,6 +6,18 @@ Centralised constants for NCE Sync.
 
 All magic numbers, cache keys, singleton references, and configuration
 defaults live here so every module draws from a single source of truth.
+
+code-index:begin
+{
+ "purpose": "Centralised NCE Sync constants: batch sizes, timeouts, sync frequency map, and system fields.",
+ "read_when": "Tuning sync batch sizes, job runtime caps, Redis TTLs, or FRAPPE_SYSTEM_FIELDS write-back exclusions.",
+ "gotchas": [
+  "FRAPPE_SYSTEM_FIELDS are never written back to WordPress."
+ ],
+ "keywords": ["constants", "UPSERT_BATCH_SIZE", "SYNC_FREQUENCY_MAP", "CRUD_LOCK_TTL", "FRAPPE_SYSTEM_FIELDS", "timeouts"],
+ "format": 1
+}
+code-index:end
 """
 
 # ---------------------------------------------------------------------------
