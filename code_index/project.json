@@ -1,0 +1,8 @@
+{
+ "version": 1,
+ "embeddings": {
+  "endpoint": "http://127.0.0.1:8950/v1/embeddings",
+  "model": "Qwen/Qwen3-Embedding-4B",
+  "dimensions": 1024
+ }
+}

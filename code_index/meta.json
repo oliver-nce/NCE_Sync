@@ -5,6 +5,7 @@
   "find",
   "show",
   "callers",
+  "dependents",
   "notes"
  ],
  "code_extensions": [

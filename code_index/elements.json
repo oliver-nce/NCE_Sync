@@ -1,8 +1,10 @@
 {
 "_meta": {
-"description": "The single authoritative code index of this project: every function, class, method, route, test, Vue component, CSS section and doc section with a label, plus each file's purpose. Query it with the shared code-index tool (find / show / callers); do not read this file whole. Generated: never edit by hand; hand-written notes live in code-index.json.",
+"description": "The single authoritative code index of this project: every function, class, method, route, test, Vue component, CSS section and doc section with a label, plus each file's purpose. Query it with the shared code-index tool (find / show / callers); do not read this file whole. Generated: never edit by hand; hand-written notes live in code_index/project.json.",
 "generator": "_Project support files/code-index/codeindex.py",
-"count": 704
+"count": 754,
+"project_sha256": "4149da0557eced977397fd926c9ce2ebca6a2b3cea453cc77dde71de6d1839c7",
+"headers_sha256": "f6011c74c3180013a4d1022fe7936b1b297d6d1c18b10f40439599b0ae7b3413"
 },
 "files": {
 ".github/workflows/ci.yml": {
@@ -369,6 +371,10 @@
 "sync rows",
 "whitelisted",
 "frappe"
+],
+"depends_on": [
+"nce_sync/utils/column_mapper.py",
+"nce_sync/utils/constants.py"
 ]
 },
 "nce_sync/config/__init__.py": {
@@ -614,6 +620,10 @@
 "enqueue",
 "data_sync",
 "mirrored tables"
+],
+"depends_on": [
+"nce_sync/utils/constants.py",
+"nce_sync/utils/data_sync.py"
 ]
 },
 "nce_sync/nce_sync/doctype/wordpress_connection/__init__.py": {
@@ -646,6 +656,10 @@
 "PyMySQL",
 "schema_mirror",
 "timezone"
+],
+"depends_on": [
+"nce_sync/utils/connections.py",
+"nce_sync/utils/schema_mirror.py"
 ]
 },
 "nce_sync/nce_sync/doctype/wp_tables/__init__.py": {
@@ -689,6 +703,15 @@
 "mirrored DocType",
 "workspace",
 "listen_for_changes"
+],
+"depends_on": [
+"nce_sync/utils/connections.py",
+"nce_sync/utils/constants.py",
+"nce_sync/utils/data_sync.py",
+"nce_sync/utils/live_sync.py",
+"nce_sync/utils/schema_mirror.py",
+"nce_sync/utils/sync_gate.py",
+"nce_sync/utils/workspace_utils.py"
 ]
 },
 "nce_sync/nce_sync/doctype/wp_tables/wp_tables_list.js": {
@@ -752,6 +775,10 @@
 "version label",
 "workspace shortcuts",
 "desk bootstrap"
+],
+"depends_on": [
+"nce_sync/__init__.py",
+"nce_sync/utils/workspace_utils.py"
 ]
 },
 "nce_sync/patches/__init__.py": {
@@ -859,6 +886,10 @@
 "generated column",
 "schema_mirror",
 "unit test"
+],
+"depends_on": [
+"nce_sync/utils/derived_column_sql.py",
+"nce_sync/utils/schema_mirror.py"
 ]
 },
 "nce_sync/tests/test_forced_read_only.py": {
@@ -873,6 +904,9 @@
 "remap",
 "schema_mirror",
 "read only"
+],
+"depends_on": [
+"nce_sync/utils/schema_mirror.py"
 ]
 },
 "nce_sync/tests/test_live_sync_delete.py": {
@@ -901,6 +935,9 @@
 "schema_mirror",
 "Tab Break",
 "unit test"
+],
+"depends_on": [
+"nce_sync/utils/schema_mirror.py"
 ]
 },
 "nce_sync/tests/test_script_default_validation.py": {
@@ -917,6 +954,9 @@
 "Check",
 "Rating",
 "pytest"
+],
+"depends_on": [
+"nce_sync/utils/script_default_validation.py"
 ]
 },
 "nce_sync/utils/__init__.py": {
@@ -944,6 +984,9 @@
 "is_name",
 "auto-generated",
 "write-back"
+],
+"depends_on": [
+"nce_sync/utils/constants.py"
 ]
 },
 "nce_sync/utils/connections.py": {
@@ -957,6 +1000,9 @@
 "wp_connection",
 "database",
 "context manager"
+],
+"depends_on": [
+"nce_sync/utils/constants.py"
 ]
 },
 "nce_sync/utils/constants.py": {
@@ -992,6 +1038,16 @@
 "orphan delete",
 "Sync Log",
 "preview_sync_counts"
+],
+"depends_on": [
+"nce_sync/utils/column_mapper.py",
+"nce_sync/utils/connections.py",
+"nce_sync/utils/constants.py",
+"nce_sync/utils/lock_check.py",
+"nce_sync/utils/reverse_sync.py",
+"nce_sync/utils/stuck_task_guard.py",
+"nce_sync/utils/sync_gate.py",
+"nce_sync/utils/sync_trace.py"
 ]
 },
 "nce_sync/utils/derived_column_sql.py": {
@@ -1005,6 +1061,9 @@
 "MariaDB",
 "Frappe fieldnames",
 "CONCAT"
+],
+"depends_on": [
+"nce_sync/utils/sql_to_python.py"
 ]
 },
 "nce_sync/utils/live_sync.py": {
@@ -1023,6 +1082,14 @@
 "on_record_delete",
 "SQL Direct",
 "push_record_to_wp"
+],
+"depends_on": [
+"nce_sync/utils/column_mapper.py",
+"nce_sync/utils/connections.py",
+"nce_sync/utils/constants.py",
+"nce_sync/utils/data_sync.py",
+"nce_sync/utils/sync_gate.py",
+"nce_sync/utils/write_back_dispatch.py"
 ]
 },
 "nce_sync/utils/lock_check.py": {
@@ -1037,6 +1104,9 @@
 "MySQL locks",
 "sync preflight",
 "has_blockers"
+],
+"depends_on": [
+"nce_sync/utils/connections.py"
 ]
 },
 "nce_sync/utils/reverse_sync.py": {
@@ -1051,6 +1121,11 @@
 "Frappe to WordPress",
 "before_insert",
 "negative name"
+],
+"depends_on": [
+"nce_sync/utils/column_mapper.py",
+"nce_sync/utils/connections.py",
+"nce_sync/utils/constants.py"
 ]
 },
 "nce_sync/utils/schema_mirror.py": {
@@ -1070,6 +1145,13 @@
 "read-only",
 "pick list",
 "layout restore"
+],
+"depends_on": [
+"nce_sync/utils/connections.py",
+"nce_sync/utils/constants.py",
+"nce_sync/utils/derived_column_sql.py",
+"nce_sync/utils/script_default_validation.py",
+"nce_sync/utils/workspace_utils.py"
 ]
 },
 "nce_sync/utils/script_default_validation.py": {
@@ -1099,6 +1181,9 @@
 "CONCAT",
 "IFNULL",
 "generated column"
+],
+"depends_on": [
+"nce_sync/utils/schema_mirror.py"
 ]
 },
 "nce_sync/utils/stuck_task_guard.py": {
@@ -1116,6 +1201,10 @@
 "worker heartbeat",
 "zombie job",
 "sync guard"
+],
+"depends_on": [
+"nce_sync/utils/constants.py",
+"nce_sync/utils/sync_gate.py"
 ]
 },
 "nce_sync/utils/sync_gate.py": {
@@ -1132,6 +1221,9 @@
 "Redis busy flag",
 "mirrored DocType",
 "block saves"
+],
+"depends_on": [
+"nce_sync/utils/constants.py"
 ]
 },
 "nce_sync/utils/sync_trace.py": {
@@ -1173,6 +1265,9 @@
 "background job",
 "live_sync",
 "SQL push"
+],
+"depends_on": [
+"nce_sync/utils/live_sync.py"
 ]
 },
 "scripts/build_code_index.py": {
@@ -5083,6 +5178,10 @@
 "sig": "(doctype, user)",
 "hash": "96f2c3fa8a",
 "calls": [],
+"wired_by": [
+"nce_sync/api.py::export_all_to_excel",
+"nce_sync/utils/stuck_task_guard.py"
+],
 "label": "Generate Excel file for doctype with all records and send download URL",
 "label_source": "generated",
 "label_hash": "96f2c3fa8a"
@@ -5114,6 +5213,45 @@
 "label": "Update credential field label based on authentication type",
 "label_source": "generated",
 "label_hash": "92384bedf7"
+},
+{
+"id": "nce_sync/nce_sync/doctype/api_connector/api_connector.js::form.on API Connector.refresh",
+"file": "nce_sync/nce_sync/doctype/api_connector/api_connector.js",
+"kind": "method",
+"name": "refresh",
+"qualname": "form.on API Connector.refresh",
+"sig": "(frm)",
+"hash": "a0257da182",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/api_connector/api_connector.js::add_copy_buttons",
+"nce_sync/nce_sync/doctype/api_connector/api_connector.js::generate_implementation_guide",
+"nce_sync/nce_sync/doctype/api_connector/api_connector.js::refresh_credential_labels",
+"nce_sync/nce_sync/doctype/api_connector/api_connector.js::show_guide_popup"
+],
+"wired_by": [
+"nce_sync/nce_sync/doctype/api_connector/api_connector.js"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/doctype/api_connector/api_connector.js::form.on API Connector.auth_type",
+"file": "nce_sync/nce_sync/doctype/api_connector/api_connector.js",
+"kind": "method",
+"name": "auth_type",
+"qualname": "form.on API Connector.auth_type",
+"sig": "(frm)",
+"hash": "b11b075445",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/api_connector/api_connector.js::refresh_credential_labels"
+],
+"wired_by": [
+"nce_sync/nce_sync/doctype/api_connector/api_connector.js"
+],
+"label": "",
+"label_source": "none"
 },
 {
 "id": "nce_sync/nce_sync/doctype/api_connector/api_connector.js::add_copy_buttons",
@@ -5180,6 +5318,9 @@
 "qualname": "APIConnector",
 "sig": "(Document)",
 "hash": "7c683048ef",
+"extends": [
+"Document"
+],
 "calls": [],
 "label": "API Connector document class with validation rules",
 "label_source": "generated",
@@ -5370,12 +5511,45 @@
 "calls": [
 "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::append_msg",
 "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::generate_from_chat",
-"nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::hide_typing",
-"nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::show_typing"
+"nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::open_ai_chat.send_message"
 ],
 "label": "Open AI-powered chat dialog for discovering and configuring API connectors",
 "label_source": "generated",
 "label_hash": "600b98034e"
+},
+{
+"id": "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::open_ai_chat.set_busy",
+"file": "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js",
+"kind": "function",
+"name": "set_busy",
+"qualname": "open_ai_chat.set_busy",
+"sig": "(state)",
+"hash": "7883cdcc26",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::open_ai_chat.send_message",
+"file": "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js",
+"kind": "function",
+"name": "send_message",
+"qualname": "open_ai_chat.send_message",
+"sig": "()",
+"hash": "6969272d8c",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::append_msg",
+"nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::hide_typing",
+"nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::open_ai_chat.set_busy",
+"nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::show_typing"
+],
+"wired_by": [
+"nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::open_ai_chat"
+],
+"label": "",
+"label_source": "none"
 },
 {
 "id": "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::append_msg",
@@ -5468,6 +5642,19 @@
 "label_hash": "0368340fb9"
 },
 {
+"id": "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::show_discovery_results.endpoint_rows",
+"file": "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js",
+"kind": "function",
+"name": "endpoint_rows",
+"qualname": "show_discovery_results.endpoint_rows",
+"sig": "(data.endpoints || [])",
+"hash": "d4c56eabd0",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
 "id": "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::create_connector",
 "file": "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js",
 "kind": "function",
@@ -5489,10 +5676,82 @@
 "qualname": "APIConnectorEndpoint",
 "sig": "(Document)",
 "hash": "a7c81bbb83",
+"extends": [
+"Document"
+],
 "calls": [],
 "label": "API Connector Endpoint document type",
 "label_source": "generated",
 "label_hash": "a7c81bbb83"
+},
+{
+"id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::form.on NCE Access Profile.refresh",
+"file": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js",
+"kind": "method",
+"name": "refresh",
+"qualname": "form.on NCE Access Profile.refresh",
+"sig": "(frm)",
+"hash": "cb0b0e6927",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::setup_table_access_manage_fields_buttons",
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::show_manage_users_dialog"
+],
+"wired_by": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::form.on NCE Access Profile Table.write",
+"file": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js",
+"kind": "method",
+"name": "write",
+"qualname": "form.on NCE Access Profile Table.write",
+"sig": "(frm, cdt, cdn)",
+"hash": "9b8a786eaa",
+"exported": false,
+"calls": [],
+"wired_by": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::form.on NCE Access Profile Table.restrict_write",
+"file": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js",
+"kind": "method",
+"name": "restrict_write",
+"qualname": "form.on NCE Access Profile Table.restrict_write",
+"sig": "(frm, cdt, cdn)",
+"hash": "20486fcf16",
+"exported": false,
+"calls": [],
+"wired_by": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::form.on NCE Access Profile Table.manage_fields",
+"file": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js",
+"kind": "method",
+"name": "manage_fields",
+"qualname": "form.on NCE Access Profile Table.manage_fields",
+"sig": "(frm, cdt, cdn)",
+"hash": "e22ae088d8",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::show_manage_fields_dialog"
+],
+"wired_by": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js"
+],
+"label": "",
+"label_source": "none"
 },
 {
 "id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::setup_table_access_manage_fields_buttons",
@@ -5504,11 +5763,26 @@
 "hash": "9a84fadbc5",
 "exported": false,
 "calls": [
-"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::refresh_table_access_manage_fields_cells"
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::setup_table_access_manage_fields_buttons.refreshCells"
 ],
 "label": "Setup buttons for managing restricted fields in access profile table",
 "label_source": "generated",
 "label_hash": "9a84fadbc5"
+},
+{
+"id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::setup_table_access_manage_fields_buttons.refreshCells",
+"file": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js",
+"kind": "function",
+"name": "refreshCells",
+"qualname": "setup_table_access_manage_fields_buttons.refreshCells",
+"sig": "()",
+"hash": "4c9e294a26",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::refresh_table_access_manage_fields_cells"
+],
+"label": "",
+"label_source": "none"
 },
 {
 "id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::refresh_table_access_manage_fields_cells",
@@ -5535,10 +5809,41 @@
 "sig": "(document_type)",
 "hash": "9e7dbbe7d0",
 "exported": false,
-"calls": [],
+"calls": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::show_manage_fields_dialog.bulk_set",
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::show_manage_fields_dialog.render"
+],
 "label": "Display dialog to configure restricted fields for document type",
 "label_source": "generated",
 "label_hash": "9e7dbbe7d0"
+},
+{
+"id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::show_manage_fields_dialog.render",
+"file": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js",
+"kind": "function",
+"name": "render",
+"qualname": "show_manage_fields_dialog.render",
+"sig": "()",
+"hash": "195dee626b",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::show_manage_fields_dialog.bulk_set",
+"file": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js",
+"kind": "function",
+"name": "bulk_set",
+"qualname": "show_manage_fields_dialog.bulk_set",
+"sig": "(restricted)",
+"hash": "5e23a4e96d",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::show_manage_fields_dialog.render"
+],
+"label": "",
+"label_source": "none"
 },
 {
 "id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::show_manage_users_dialog",
@@ -5549,10 +5854,25 @@
 "sig": "(frm)",
 "hash": "e70ca404d7",
 "exported": false,
-"calls": [],
+"calls": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::show_manage_users_dialog.render_users"
+],
 "label": "Display dialog to manage users assigned to access profile role",
 "label_source": "generated",
 "label_hash": "e70ca404d7"
+},
+{
+"id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::show_manage_users_dialog.render_users",
+"file": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js",
+"kind": "function",
+"name": "render_users",
+"qualname": "show_manage_users_dialog.render_users",
+"sig": "()",
+"hash": "b5cb809a61",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
 },
 {
 "id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.py::_title_case_name",
@@ -5603,9 +5923,10 @@
 "qualname": "NCEAccessProfile",
 "sig": "(Document)",
 "hash": "caebc367e5",
-"calls": [
-"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.py::_wp_table_doctypes"
+"extends": [
+"Document"
 ],
+"calls": [],
 "label": "Access profile document with role and permission management",
 "label_source": "generated",
 "label_hash": "caebc367e5"
@@ -5618,7 +5939,11 @@
 "qualname": "NCEAccessProfile.validate",
 "sig": "(self)",
 "hash": "d71d5e9af6",
-"calls": [],
+"calls": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.py::NCEAccessProfile._ensure_role",
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.py::NCEAccessProfile._sync_wp_table_rows",
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.py::NCEAccessProfile._validate_table_access_rows"
+],
 "label": "Validate profile, sync table rows, and ensure role exists",
 "label_source": "generated",
 "label_hash": "d71d5e9af6"
@@ -5631,7 +5956,9 @@
 "qualname": "NCEAccessProfile.on_update",
 "sig": "(self)",
 "hash": "5d8fc415eb",
-"calls": [],
+"calls": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.py::NCEAccessProfile.apply_table_access"
+],
 "label": "Apply table access permissions when profile is updated",
 "label_source": "generated",
 "label_hash": "5d8fc415eb"
@@ -5644,7 +5971,10 @@
 "qualname": "NCEAccessProfile._ensure_role",
 "sig": "(self)",
 "hash": "76c51d61b9",
-"calls": [],
+"calls": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.py::NCEAccessProfile._pull_role_fields",
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.py::NCEAccessProfile._push_role_fields"
+],
 "label": "Create or link the role for this access profile and sync its settings",
 "label_source": "generated",
 "label_hash": "76c51d61b9"
@@ -5738,6 +6068,9 @@
 "sig": "(doc, method=None)",
 "hash": "38af17486a",
 "calls": [],
+"wired_by": [
+"nce_sync/hooks.py"
+],
 "label": "Add new WP table to table access rows on all existing profiles",
 "label_source": "generated",
 "label_hash": "38af17486a"
@@ -5876,6 +6209,9 @@
 "qualname": "NCEAccessProfileTable",
 "sig": "(Document)",
 "hash": "8e9941975d",
+"extends": [
+"Document"
+],
 "calls": [],
 "label": "Access profile table row document for storing profile child records",
 "label_source": "generated",
@@ -5889,6 +6225,9 @@
 "qualname": "SyncLog",
 "sig": "(Document)",
 "hash": "eb544bad45",
+"extends": [
+"Document"
+],
 "calls": [],
 "label": "Document class for storing sync operation logs and results",
 "label_source": "generated",
@@ -5902,10 +6241,29 @@
 "qualname": "SyncLogRowError",
 "sig": "(Document)",
 "hash": "c23a2a6f22",
+"extends": [
+"Document"
+],
 "calls": [],
 "label": "Document class for storing individual sync row errors in logs",
 "label_source": "generated",
 "label_hash": "c23a2a6f22"
+},
+{
+"id": "nce_sync/nce_sync/doctype/sync_manager/sync_manager.js::form.on Sync Manager.refresh",
+"file": "nce_sync/nce_sync/doctype/sync_manager/sync_manager.js",
+"kind": "method",
+"name": "refresh",
+"qualname": "form.on Sync Manager.refresh",
+"sig": "(frm)",
+"hash": "be2c34e142",
+"exported": false,
+"calls": [],
+"wired_by": [
+"nce_sync/nce_sync/doctype/sync_manager/sync_manager.js"
+],
+"label": "",
+"label_source": "none"
 },
 {
 "id": "nce_sync/nce_sync/doctype/sync_manager/sync_manager.py::SyncManager",
@@ -5915,6 +6273,9 @@
 "qualname": "SyncManager",
 "sig": "(Document)",
 "hash": "5ddac0af41",
+"extends": [
+"Document"
+],
 "calls": [],
 "label": "Manager for coordinating data sync operations across multiple tables",
 "label_source": "generated",
@@ -5960,6 +6321,24 @@
 "label_hash": "8948f59435"
 },
 {
+"id": "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::form.on WordPress Connection.refresh",
+"file": "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js",
+"kind": "method",
+"name": "refresh",
+"qualname": "form.on WordPress Connection.refresh",
+"sig": "(frm)",
+"hash": "d553213289",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::show_discovery_dialog"
+],
+"wired_by": [
+"nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js"
+],
+"label": "",
+"label_source": "none"
+},
+{
 "id": "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::show_discovery_dialog",
 "file": "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js",
 "kind": "function",
@@ -5970,11 +6349,27 @@
 "exported": false,
 "calls": [
 "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::add_table_to_wp_tables",
-"nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::remove_table_from_wp_tables"
+"nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::show_discovery_dialog.render_selected_tables"
 ],
 "label": "Show dialog to discover and select WordPress tables for mirroring",
 "label_source": "generated",
 "label_hash": "7a363ba930"
+},
+{
+"id": "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::show_discovery_dialog.render_selected_tables",
+"file": "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js",
+"kind": "function",
+"name": "render_selected_tables",
+"qualname": "show_discovery_dialog.render_selected_tables",
+"sig": "()",
+"hash": "f9cdc8d5fe",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::add_table_to_wp_tables",
+"nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::remove_table_from_wp_tables"
+],
+"label": "Render selected tables",
+"label_source": "docstring"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::add_table_to_wp_tables",
@@ -6012,11 +6407,10 @@
 "qualname": "WordPressConnection",
 "sig": "(Document)",
 "hash": "c768505e26",
-"calls": [
-"nce_sync/utils/connections.py::get_wp_connection",
-"nce_sync/utils/schema_mirror.py::discover_tables_and_views",
-"nce_sync/utils/schema_mirror.py::mirror_table_schema"
+"extends": [
+"Document"
 ],
+"calls": [],
 "label": "Manage WordPress database connection and configuration",
 "label_source": "generated",
 "label_hash": "c768505e26"
@@ -6156,6 +6550,43 @@
 "label_hash": "84a375b55c"
 },
 {
+"id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::form.on WP Tables.after_save",
+"file": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js",
+"kind": "method",
+"name": "after_save",
+"qualname": "form.on WP Tables.after_save",
+"sig": "(frm)",
+"hash": "232696fd5c",
+"exported": false,
+"calls": [],
+"wired_by": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::form.on WP Tables.refresh",
+"file": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js",
+"kind": "method",
+"name": "refresh",
+"qualname": "form.on WP Tables.refresh",
+"sig": "(frm)",
+"hash": "dce56eb943",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::render_field_reference_tab",
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog",
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_sync_counts_dialog",
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_sync_progress_dialog"
+],
+"wired_by": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js"
+],
+"label": "",
+"label_source": "none"
+},
+{
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog",
 "file": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js",
 "kind": "function",
@@ -6165,12 +6596,113 @@
 "hash": "73bc2cb5fb",
 "exported": false,
 "calls": [
-"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::_desk_exhibit_table_markup",
-"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::_scrub_fieldname"
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::_scrub_fieldname",
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._forced_read_only_columns",
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._refresh_frappe_id_state",
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._refresh_read_only_state",
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._render_desk_exhibit"
 ],
 "label": "Display dialog to preview and map WordPress table fields to Frappe DocType schema",
 "label_source": "generated",
 "label_hash": "73bc2cb5fb"
+},
+{
+"id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._refresh_frappe_id_state",
+"file": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js",
+"kind": "function",
+"name": "_refresh_frappe_id_state",
+"qualname": "show_preview_dialog._refresh_frappe_id_state",
+"sig": "()",
+"hash": "72e1dc5e7b",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._refresh_read_only_state"
+],
+"wired_by": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog"
+],
+"label": "When \"Frappe ID\" radio is selected: • Grey out the Frappe Type dropdown for that row (type is irrelevant — no field created) • If the same column is selected a…",
+"label_source": "docstring"
+},
+{
+"id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._forced_read_only_columns",
+"file": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js",
+"kind": "function",
+"name": "_forced_read_only_columns",
+"qualname": "show_preview_dialog._forced_read_only_columns",
+"sig": "()",
+"hash": "510ec9a9d1",
+"exported": false,
+"calls": [],
+"label": "Refresh Read Only checkboxes: auto-check for virtual, auto-enter, Frappe ID, Auto, TS columns Forced items are disabled so they cannot be unchecked in the dial…",
+"label_source": "docstring"
+},
+{
+"id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._refresh_read_only_state",
+"file": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js",
+"kind": "function",
+"name": "_refresh_read_only_state",
+"qualname": "show_preview_dialog._refresh_read_only_state",
+"sig": "()",
+"hash": "71aa20df5f",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._forced_read_only_columns",
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._render_desk_exhibit"
+],
+"wired_by": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._exhibit_frappe_fieldname",
+"file": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js",
+"kind": "function",
+"name": "_exhibit_frappe_fieldname",
+"qualname": "show_preview_dialog._exhibit_frappe_fieldname",
+"sig": "(f)",
+"hash": "12d1d7c711",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::_scrub_fieldname"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._write_back_exclusion",
+"file": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js",
+"kind": "function",
+"name": "_write_back_exclusion",
+"qualname": "show_preview_dialog._write_back_exclusion",
+"sig": "(f, id_col)",
+"hash": "efcc76bdfe",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._render_desk_exhibit",
+"file": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js",
+"kind": "function",
+"name": "_render_desk_exhibit",
+"qualname": "show_preview_dialog._render_desk_exhibit",
+"sig": "()",
+"hash": "e77f046bdf",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::_desk_exhibit_table_markup",
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._exhibit_frappe_fieldname",
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._write_back_exclusion"
+],
+"wired_by": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog"
+],
+"label": "",
+"label_source": "none"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_sync_progress_dialog",
@@ -6181,10 +6713,57 @@
 "sig": "(frm)",
 "hash": "232dbbe4ed",
 "exported": false,
-"calls": [],
+"calls": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_sync_progress_dialog._stop_poll"
+],
 "label": "Show real-time sync progress log with live updates from background worker",
 "label_source": "generated",
 "label_hash": "232dbbe4ed"
+},
+{
+"id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_sync_progress_dialog._append",
+"file": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js",
+"kind": "function",
+"name": "_append",
+"qualname": "show_sync_progress_dialog._append",
+"sig": "(text, color)",
+"hash": "bbe34ad924",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_sync_progress_dialog._stop_poll",
+"file": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js",
+"kind": "function",
+"name": "_stop_poll",
+"qualname": "show_sync_progress_dialog._stop_poll",
+"sig": "()",
+"hash": "9bee5ceda6",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_sync_progress_dialog._poll",
+"file": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js",
+"kind": "function",
+"name": "_poll",
+"qualname": "show_sync_progress_dialog._poll",
+"sig": "()",
+"hash": "aebdfcd972",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_sync_progress_dialog._append",
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_sync_progress_dialog._stop_poll"
+],
+"wired_by": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_sync_progress_dialog"
+],
+"label": "",
+"label_source": "none"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_sync_counts_dialog",
@@ -6294,22 +6873,10 @@
 "qualname": "WPTables",
 "sig": "(Document)",
 "hash": "5d1f994b06",
-"calls": [
-"nce_sync/nce_sync/doctype/wp_tables/wp_tables.py::_build_field_exhibit_row",
-"nce_sync/nce_sync/doctype/wp_tables/wp_tables.py::_delete_mirrored_doctype",
-"nce_sync/utils/connections.py::get_wp_connection",
-"nce_sync/utils/connections.py::wp_connection",
-"nce_sync/utils/data_sync.py::preview_sync_counts",
-"nce_sync/utils/live_sync.py::clear_sql_direct_cache",
-"nce_sync/utils/schema_mirror.py::_build_column_mapping",
-"nce_sync/utils/schema_mirror.py::_fetch_pick_list_options",
-"nce_sync/utils/schema_mirror.py::_merge_column_mapping_for_mirror",
-"nce_sync/utils/schema_mirror.py::_parse_comma_columns",
-"nce_sync/utils/schema_mirror.py::_resolve_read_only_fieldnames",
-"nce_sync/utils/schema_mirror.py::apply_field_settings",
-"nce_sync/utils/schema_mirror.py::get_table_schema",
-"nce_sync/utils/schema_mirror.py::mirror_table_schema"
+"extends": [
+"Document"
 ],
+"calls": [],
 "label": "WPTables class for managing WordPress table mirroring configuration",
 "label_source": "generated",
 "label_hash": "5d1f994b06"
@@ -6373,7 +6940,9 @@
 "qualname": "WPTables.validate",
 "sig": "(self)",
 "hash": "d577e770f8",
-"calls": [],
+"calls": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.py::WPTables._validate_doctype_name"
+],
 "label": "Validate source-of-truth hierarchy and DocType name conflicts",
 "label_source": "generated",
 "label_hash": "d577e770f8"
@@ -6456,6 +7025,7 @@
 "sig": "(self, field_overrides=None, label_overrides=None, matching_fields=None, name_field_column=None, title_field_column=None, auto_generated_columns=None, modified_ts_field=None, created_ts_field=None, read_only_columns=None, pick_list_columns=None, bold_columns=None, column_defaults=None)",
 "hash": "50f885532b",
 "calls": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.py::WPTables._validate_doctype_name",
 "nce_sync/utils/schema_mirror.py::mirror_table_schema"
 ],
 "label": "Mirror WordPress table schema to create new Frappe DocType with field customization",
@@ -6800,11 +7370,70 @@
 "hash": "414e9edcff",
 "exported": false,
 "calls": [
-"nce_sync/nce_sync/page/table_links/table_links.js::load_and_render_grid"
+"nce_sync/nce_sync/page/table_links/table_links.js::show_link_dialog.apply_changes",
+"nce_sync/nce_sync/page/table_links/table_links.js::show_link_dialog.render_body"
 ],
 "label": "Display dialog for defining relationships between two tables",
 "label_source": "generated",
 "label_hash": "414e9edcff"
+},
+{
+"id": "nce_sync/nce_sync/page/table_links/table_links.js::show_link_dialog.render_body",
+"file": "nce_sync/nce_sync/page/table_links/table_links.js",
+"kind": "function",
+"name": "render_body",
+"qualname": "show_link_dialog.render_body",
+"sig": "()",
+"hash": "85bd19eea6",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/page/table_links/table_links.js::show_link_dialog.populate_field_list"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/page/table_links/table_links.js::show_link_dialog.populate_field_list",
+"file": "nce_sync/nce_sync/page/table_links/table_links.js",
+"kind": "function",
+"name": "populate_field_list",
+"qualname": "show_link_dialog.populate_field_list",
+"sig": "()",
+"hash": "62d22a04b1",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/page/table_links/table_links.js::show_link_dialog.render_field_list"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/page/table_links/table_links.js::show_link_dialog.render_field_list",
+"file": "nce_sync/nce_sync/page/table_links/table_links.js",
+"kind": "function",
+"name": "render_field_list",
+"qualname": "show_link_dialog.render_field_list",
+"sig": "(fields, manyDt)",
+"hash": "3d0b69fffa",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/nce_sync/page/table_links/table_links.js::show_link_dialog.apply_changes",
+"file": "nce_sync/nce_sync/page/table_links/table_links.js",
+"kind": "function",
+"name": "apply_changes",
+"qualname": "show_link_dialog.apply_changes",
+"sig": "()",
+"hash": "e86d944e4e",
+"exported": false,
+"calls": [
+"nce_sync/nce_sync/page/table_links/table_links.js::load_and_render_grid"
+],
+"label": "",
+"label_source": "none"
 },
 {
 "id": "nce_sync/overrides.py::get_desktop_page",
@@ -6817,6 +7446,9 @@
 "calls": [
 "nce_sync/overrides.py::_inject_version",
 "nce_sync/utils/workspace_utils.py::sync_tables_workspace_shortcuts"
+],
+"wired_by": [
+"nce_sync/hooks.py"
 ],
 "label": "Sync workspace shortcuts when Tables page loads",
 "label_source": "generated",
@@ -6872,6 +7504,292 @@
 "calls": [],
 "label": "nce_sync.css (the whole file)",
 "label_source": "title"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::calculateAvgCharWidth",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "calculateAvgCharWidth",
+"qualname": "calculateAvgCharWidth",
+"sig": "()",
+"hash": "ceff075310",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::fetchSampleRows",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "fetchSampleRows",
+"qualname": "fetchSampleRows",
+"sig": "(doctype, fields)",
+"hash": "2c1ff59363",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::calculateMaxLengths",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "calculateMaxLengths",
+"qualname": "calculateMaxLengths",
+"sig": "(rows, fields)",
+"hash": "469c5c449d",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::getButtonColumnWidth",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "getButtonColumnWidth",
+"qualname": "getButtonColumnWidth",
+"sig": "(listview)",
+"hash": "00aa963cbe",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::lengthsToWidths",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "lengthsToWidths",
+"qualname": "lengthsToWidths",
+"sig": "(maxLengths, listview)",
+"hash": "a687e9be5b",
+"exported": false,
+"calls": [
+"nce_sync/public/js/list_auto_size.js::calculateAvgCharWidth",
+"nce_sync/public/js/list_auto_size.js::getButtonColumnWidth"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::applyWidths",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "applyWidths",
+"qualname": "applyWidths",
+"sig": "(listview, widths)",
+"hash": "714ad0ff46",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::autoSizeColumns",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "autoSizeColumns",
+"qualname": "autoSizeColumns",
+"sig": "(listview, silent)",
+"hash": "567107363f",
+"exported": false,
+"calls": [
+"nce_sync/public/js/list_auto_size.js::applyWidths",
+"nce_sync/public/js/list_auto_size.js::calculateMaxLengths",
+"nce_sync/public/js/list_auto_size.js::fetchSampleRows",
+"nce_sync/public/js/list_auto_size.js::lengthsToWidths"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::manualResize",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "manualResize",
+"qualname": "manualResize",
+"sig": "(listview)",
+"hash": "d0b7012b1b",
+"exported": false,
+"calls": [
+"nce_sync/public/js/list_auto_size.js::autoSizeColumns"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::sendAllToExcel",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "sendAllToExcel",
+"qualname": "sendAllToExcel",
+"sig": "(listview)",
+"hash": "c52c5973ee",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::addResizeButton",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "addResizeButton",
+"qualname": "addResizeButton",
+"sig": "(listview)",
+"hash": "8bc0890925",
+"exported": false,
+"calls": [
+"nce_sync/public/js/list_auto_size.js::autoSizeColumns"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::addResizeButton.resizeHandler",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "resizeHandler",
+"qualname": "addResizeButton.resizeHandler",
+"sig": "()",
+"hash": "b18b4db9dc",
+"exported": false,
+"calls": [
+"nce_sync/public/js/list_auto_size.js::manualResize"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::addResizeButton.excelHandler",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "excelHandler",
+"qualname": "addResizeButton.excelHandler",
+"sig": "()",
+"hash": "c628542f04",
+"exported": false,
+"calls": [
+"nce_sync/public/js/list_auto_size.js::sendAllToExcel"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::tryAddButton",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "tryAddButton",
+"qualname": "tryAddButton",
+"sig": "()",
+"hash": "f011765097",
+"exported": false,
+"calls": [
+"nce_sync/public/js/list_auto_size.js::addResizeButton"
+],
+"wired_by": [
+"nce_sync/public/js/list_auto_size.js::init"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::init",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "init",
+"qualname": "init",
+"sig": "()",
+"hash": "9cbf18265b",
+"exported": false,
+"calls": [
+"nce_sync/public/js/list_auto_size.js::addResizeButton"
+],
+"wired_by": [
+"nce_sync/public/js/list_auto_size.js"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/table_links_self_link_fix.js::isTableLinksPage",
+"file": "nce_sync/public/js/table_links_self_link_fix.js",
+"kind": "function",
+"name": "isTableLinksPage",
+"qualname": "isTableLinksPage",
+"sig": "()",
+"hash": "47d361e1ea",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/table_links_self_link_fix.js::makeButton",
+"file": "nce_sync/public/js/table_links_self_link_fix.js",
+"kind": "function",
+"name": "makeButton",
+"qualname": "makeButton",
+"sig": "(dt, label, cellLinks)",
+"hash": "241991b2ed",
+"exported": false,
+"calls": [],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/table_links_self_link_fix.js::paint",
+"file": "nce_sync/public/js/table_links_self_link_fix.js",
+"kind": "function",
+"name": "paint",
+"qualname": "paint",
+"sig": "(data)",
+"hash": "d93b7a9b6f",
+"exported": false,
+"calls": [
+"nce_sync/public/js/table_links_self_link_fix.js::makeButton"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/table_links_self_link_fix.js::run",
+"file": "nce_sync/public/js/table_links_self_link_fix.js",
+"kind": "function",
+"name": "run",
+"qualname": "run",
+"sig": "()",
+"hash": "6690912620",
+"exported": false,
+"calls": [
+"nce_sync/public/js/table_links_self_link_fix.js::isTableLinksPage",
+"nce_sync/public/js/table_links_self_link_fix.js::paint"
+],
+"wired_by": [
+"nce_sync/public/js/table_links_self_link_fix.js::schedule"
+],
+"label": "",
+"label_source": "none"
+},
+{
+"id": "nce_sync/public/js/table_links_self_link_fix.js::schedule",
+"file": "nce_sync/public/js/table_links_self_link_fix.js",
+"kind": "function",
+"name": "schedule",
+"qualname": "schedule",
+"sig": "()",
+"hash": "d8e690780e",
+"exported": false,
+"calls": [
+"nce_sync/public/js/table_links_self_link_fix.js::isTableLinksPage"
+],
+"wired_by": [
+"nce_sync/public/js/table_links_self_link_fix.js"
+],
+"label": "",
+"label_source": "none"
 },
 {
 "id": "nce_sync/tests/test_derived_column_sql.py::TestSqlGenerationFrappeSql.test_concat_rewrites_to_frappe_fieldnames",
@@ -7735,12 +8653,10 @@
 "calls": [
 "nce_sync/utils/data_sync.py::_batch_process_rows",
 "nce_sync/utils/data_sync.py::_collect_rows_to_sync",
-"nce_sync/utils/data_sync.py::_convert_row",
 "nce_sync/utils/data_sync.py::_delete_orphans",
 "nce_sync/utils/data_sync.py::_get_frappe_key_set_in_wp",
 "nce_sync/utils/data_sync.py::_get_wp_key_set",
-"nce_sync/utils/data_sync.py::_register_sync_strategy",
-"nce_sync/utils/data_sync.py::_upsert_record"
+"nce_sync/utils/data_sync.py::_register_sync_strategy"
 ],
 "label": "Sync WordPress to Frappe using timestamp comparison and orphan deletion",
 "label_source": "generated",
@@ -7757,6 +8673,9 @@
 "calls": [
 "nce_sync/utils/data_sync.py::_convert_row",
 "nce_sync/utils/data_sync.py::_upsert_record"
+],
+"wired_by": [
+"nce_sync/utils/data_sync.py::_sync_ts_compare"
 ],
 "label": "Convert and upsert single WordPress row into Frappe DocType",
 "label_source": "generated",
@@ -7819,8 +8738,6 @@
 "hash": "9a2da35507",
 "calls": [
 "nce_sync/utils/data_sync.py::_batch_process_rows",
-"nce_sync/utils/data_sync.py::_convert_row",
-"nce_sync/utils/data_sync.py::_insert_record",
 "nce_sync/utils/data_sync.py::_register_sync_strategy"
 ],
 "label": "Delete all Frappe records in chunks and re-insert all WordPress rows",
@@ -7838,6 +8755,9 @@
 "calls": [
 "nce_sync/utils/data_sync.py::_convert_row",
 "nce_sync/utils/data_sync.py::_insert_record"
+],
+"wired_by": [
+"nce_sync/utils/data_sync.py::_sync_truncate_replace"
 ],
 "label": "Convert single WordPress row and insert as new Frappe record",
 "label_source": "generated",
@@ -7981,6 +8901,10 @@
 "nce_sync/utils/sync_gate.py::is_crud_locked",
 "nce_sync/utils/sync_gate.py::is_doctype_syncing"
 ],
+"wired_by": [
+"nce_sync/hooks.py",
+"nce_sync/utils/stuck_task_guard.py"
+],
 "label": "Scheduled sync entry point to sync all eligible tables due for update",
 "label_source": "generated",
 "label_hash": "485db51ebd"
@@ -8023,6 +8947,10 @@
 "nce_sync/utils/data_sync.py::_run_sync_with_status",
 "nce_sync/utils/stuck_task_guard.py::guard_preflight"
 ],
+"wired_by": [
+"nce_sync/nce_sync/doctype/sync_manager/sync_manager.py::SyncManager.run_sync_now",
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.py::WPTables.sync_now"
+],
 "label": "Background job to sync WP table and notify user of completion",
 "label_source": "generated",
 "label_hash": "5bb56434e3"
@@ -8051,6 +8979,9 @@
 "nce_sync/utils/sync_gate.py::mark_doctype_syncing",
 "nce_sync/utils/sync_trace.py::SyncTrace"
 ],
+"wired_by": [
+"nce_sync/api.py::sync_doctype_rows"
+],
 "label": "Background job to pull and upsert named rows from WordPress",
 "label_source": "generated",
 "label_hash": "a8d600fc08"
@@ -8077,6 +9008,9 @@
 "nce_sync/utils/sync_gate.py::mark_doctype_syncing",
 "nce_sync/utils/sync_trace.py::SyncTrace",
 "nce_sync/utils/sync_trace.py::truthy_debug"
+],
+"wired_by": [
+"nce_sync/api.py::sync_linked_doctype_rows"
 ],
 "label": "Sync linked doctype rows by removing and re-pulling from WordPress",
 "label_source": "generated",
@@ -8156,6 +9090,9 @@
 "nce_sync/utils/stuck_task_guard.py::guard_preflight",
 "nce_sync/utils/sync_gate.py::is_crud_locked",
 "nce_sync/utils/sync_gate.py::is_doctype_syncing"
+],
+"wired_by": [
+"nce_sync/nce_sync/doctype/wp_tables/wp_tables.py::WPTables.test_sync"
 ],
 "label": "Run limited test sync against first N rows without updating last_synced timestamp",
 "label_source": "generated",
@@ -8472,6 +9409,9 @@
 "calls": [
 "nce_sync/utils/live_sync.py::_get_listen_map"
 ],
+"wired_by": [
+"nce_sync/hooks.py"
+],
 "label": "Queue write-back job when Frappe document is created or updated",
 "label_source": "generated",
 "label_hash": "03b9b170e4"
@@ -8488,6 +9428,9 @@
 "nce_sync/utils/live_sync.py::_get_listen_map",
 "nce_sync/utils/live_sync.py::delete_record_from_wp",
 "nce_sync/utils/sync_gate.py::is_doctype_syncing"
+],
+"wired_by": [
+"nce_sync/hooks.py"
 ],
 "tested_by": [
 "nce_sync/tests/test_live_sync_delete.py::TestOnRecordDelete.test_calls_delete_when_in_listen_map",
@@ -8693,6 +9636,9 @@
 "nce_sync/utils/reverse_sync.py::_is_mirrored_doctype",
 "nce_sync/utils/reverse_sync.py::_looks_like_temp_or_hash",
 "nce_sync/utils/reverse_sync.py::_next_temp_name"
+],
+"wired_by": [
+"nce_sync/hooks.py"
 ],
 "label": "Assign temporary negative integer name to new mirrored doctype documents before WordPress sync",
 "label_source": "generated",
@@ -9713,7 +10659,6 @@
 "sig": "(generation_expression, label_overrides=None)",
 "hash": "423c62dcd7",
 "calls": [
-"nce_sync/utils/schema_mirror.py::resolve_fieldname",
 "nce_sync/utils/sql_to_python.py::_translate_expr"
 ],
 "label": "Convert MySQL GENERATION_EXPRESSION to Python virtual field expression",
@@ -9730,6 +10675,9 @@
 "hash": "de7e16394b",
 "calls": [
 "nce_sync/utils/schema_mirror.py::resolve_fieldname"
+],
+"wired_by": [
+"nce_sync/utils/sql_to_python.py::sql_generation_to_python"
 ],
 "label": "Resolve column name to Frappe-safe fieldname with optional label overrides",
 "label_source": "generated",
@@ -9981,6 +10929,9 @@
 "calls": [
 "nce_sync/utils/sync_gate.py::is_doctype_syncing"
 ],
+"wired_by": [
+"nce_sync/hooks.py"
+],
 "label": "Prevent document writes while DocType sync is in progress",
 "label_source": "generated",
 "label_hash": "8ae0c1fa0a"
@@ -10153,6 +11104,9 @@
 "sig": "(doc, method)",
 "hash": "902388f075",
 "calls": [],
+"wired_by": [
+"nce_sync/hooks.py"
+],
 "label": "Clear workspace cache when NCE Sync module DocTypes are created or deleted",
 "label_source": "generated",
 "label_hash": "902388f075"
@@ -10251,6 +11205,9 @@
 "hash": "2f6ca6dbc6",
 "calls": [
 "nce_sync/utils/live_sync.py::push_record_to_wp"
+],
+"wired_by": [
+"nce_sync/utils/live_sync.py::on_record_change"
 ],
 "label": "Enqueue write-back of document to WordPress table via SQL",
 "label_source": "generated",
