@@ -39,6 +39,28 @@ frappe.ui.form.on("NCE Access Profile", {
 
 		frm.add_custom_button(__("Manage Users"), () => show_manage_users_dialog(frm));
 	},
+
+	table_access_on_form_rendered(frm) {
+		const grid_row = frm.cur_grid;
+		const $form = grid_row && grid_row.grid_form && grid_row.grid_form.wrapper;
+		if (!$form || !$form.length) {
+			return;
+		}
+		$form.find(".nce-editing-row-delete-bar").remove();
+
+		const $btn = $(
+			`<button type="button" class="btn btn-danger btn-sm nce-editing-row-delete">${__(
+				"Delete",
+			)}</button>`,
+		).on("click", (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			grid_row.remove();
+		});
+		$('<div class="nce-editing-row-delete-bar" style="margin: 0 0 12px;"></div>')
+			.append($btn)
+			.prependTo($form.find(".form-area"));
+	},
 });
 
 // Table Access row button. NCE Access Profile Table is a child (istable=1)

@@ -2,7 +2,7 @@
 "_meta": {
 "description": "The single authoritative code index of this project: every function, class, method, route, test, Vue component, CSS section and doc section with a label, plus each file's purpose. Query it with the shared code-index tool (find / show / callers); do not read this file whole. Generated: never edit by hand; hand-written notes live in code_index/project.json.",
 "generator": "_Project support files/code-index/codeindex.py",
-"count": 754,
+"count": 756,
 "project_sha256": "4149da0557eced977397fd926c9ce2ebca6a2b3cea453cc77dde71de6d1839c7",
 "headers_sha256": "f6011c74c3180013a4d1022fe7936b1b297d6d1c18b10f40439599b0ae7b3413"
 },
@@ -5232,8 +5232,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/api_connector/api_connector.js"
 ],
-"label": "",
-"label_source": "none"
+"label": "Refresh API Connector form with credential labels and connection test button",
+"label_source": "generated",
+"label_hash": "a0257da182"
 },
 {
 "id": "nce_sync/nce_sync/doctype/api_connector/api_connector.js::form.on API Connector.auth_type",
@@ -5250,8 +5251,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/api_connector/api_connector.js"
 ],
-"label": "",
-"label_source": "none"
+"label": "Update credential field labels when authentication type changes",
+"label_source": "generated",
+"label_hash": "b11b075445"
 },
 {
 "id": "nce_sync/nce_sync/doctype/api_connector/api_connector.js::add_copy_buttons",
@@ -5527,8 +5529,9 @@
 "hash": "7883cdcc26",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Toggle busy state to disable chat input during message processing",
+"label_source": "generated",
+"label_hash": "7883cdcc26"
 },
 {
 "id": "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::open_ai_chat.send_message",
@@ -5548,8 +5551,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::open_ai_chat"
 ],
-"label": "",
-"label_source": "none"
+"label": "Send message to AI Discover chat and append assistant reply to conversation",
+"label_source": "generated",
+"label_hash": "6969272d8c"
 },
 {
 "id": "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::append_msg",
@@ -5651,8 +5655,9 @@
 "hash": "d4c56eabd0",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Format API endpoints table rows with name, method, path, and description",
+"label_source": "generated",
+"label_hash": "d4c56eabd0"
 },
 {
 "id": "nce_sync/nce_sync/doctype/api_connector/api_connector_list.js::create_connector",
@@ -5700,8 +5705,26 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js"
 ],
-"label": "",
-"label_source": "none"
+"label": "Refresh Access Profile form with apply access and manage users buttons",
+"label_source": "generated",
+"label_hash": "cb0b0e6927"
+},
+{
+"id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::form.on NCE Access Profile.table_access_on_form_rendered",
+"file": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js",
+"kind": "method",
+"name": "table_access_on_form_rendered",
+"qualname": "form.on NCE Access Profile.table_access_on_form_rendered",
+"sig": "(frm)",
+"hash": "92ef104931",
+"exported": false,
+"calls": [],
+"wired_by": [
+"nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js"
+],
+"label": "Customize table row delete button styling for access profile table editing",
+"label_source": "generated",
+"label_hash": "92ef104931"
 },
 {
 "id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::form.on NCE Access Profile Table.write",
@@ -5716,8 +5739,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js"
 ],
-"label": "",
-"label_source": "none"
+"label": "Clear restrict write when write permission is enabled on table row",
+"label_source": "generated",
+"label_hash": "9b8a786eaa"
 },
 {
 "id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::form.on NCE Access Profile Table.restrict_write",
@@ -5732,8 +5756,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js"
 ],
-"label": "",
-"label_source": "none"
+"label": "Clear write and ensure read when restrict write is enabled on row",
+"label_source": "generated",
+"label_hash": "20486fcf16"
 },
 {
 "id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::form.on NCE Access Profile Table.manage_fields",
@@ -5750,8 +5775,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js"
 ],
-"label": "",
-"label_source": "none"
+"label": "Open manage fields dialog for configuring restricted fields per document type",
+"label_source": "generated",
+"label_hash": "e22ae088d8"
 },
 {
 "id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::setup_table_access_manage_fields_buttons",
@@ -5781,8 +5807,9 @@
 "calls": [
 "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::refresh_table_access_manage_fields_cells"
 ],
-"label": "",
-"label_source": "none"
+"label": "Refresh manage fields button cells in access profile table",
+"label_source": "generated",
+"label_hash": "4c9e294a26"
 },
 {
 "id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::refresh_table_access_manage_fields_cells",
@@ -5827,8 +5854,9 @@
 "hash": "195dee626b",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Render dialog with doctype fields and restriction checkboxes for management",
+"label_source": "generated",
+"label_hash": "195dee626b"
 },
 {
 "id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::show_manage_fields_dialog.bulk_set",
@@ -5842,8 +5870,9 @@
 "calls": [
 "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::show_manage_fields_dialog.render"
 ],
-"label": "",
-"label_source": "none"
+"label": "Apply restricted or unrestricted status to all fields on a document type",
+"label_source": "generated",
+"label_hash": "5e23a4e96d"
 },
 {
 "id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.js::show_manage_users_dialog",
@@ -5871,8 +5900,9 @@
 "hash": "b5cb809a61",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Render and display list of users assigned to access profile with remove option",
+"label_source": "generated",
+"label_hash": "b5cb809a61"
 },
 {
 "id": "nce_sync/nce_sync/doctype/nce_access_profile/nce_access_profile.py::_title_case_name",
@@ -6262,8 +6292,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/sync_manager/sync_manager.js"
 ],
-"label": "",
-"label_source": "none"
+"label": "Load WordPress tables and run manual sync of all enabled tables",
+"label_source": "generated",
+"label_hash": "be2c34e142"
 },
 {
 "id": "nce_sync/nce_sync/doctype/sync_manager/sync_manager.py::SyncManager",
@@ -6335,8 +6366,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js"
 ],
-"label": "",
-"label_source": "none"
+"label": "Test WordPress connection, discover tables, and mirror schemas to DocTypes",
+"label_source": "generated",
+"label_hash": "d553213289"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::show_discovery_dialog",
@@ -6368,8 +6400,9 @@
 "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::add_table_to_wp_tables",
 "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::remove_table_from_wp_tables"
 ],
-"label": "Render selected tables",
-"label_source": "docstring"
+"label": "Render selected WordPress tables with badges and remove buttons",
+"label_source": "generated",
+"label_hash": "f9cdc8d5fe"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wordpress_connection/wordpress_connection.js::add_table_to_wp_tables",
@@ -6562,8 +6595,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js"
 ],
-"label": "",
-"label_source": "none"
+"label": "Auto-rename WP Tables document after save based on nce_name or doctype",
+"label_source": "generated",
+"label_hash": "232696fd5c"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::form.on WP Tables.refresh",
@@ -6583,8 +6617,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js"
 ],
-"label": "",
-"label_source": "none"
+"label": "Display sync and mirror status indicators and mirror schema button for tables",
+"label_source": "generated",
+"label_hash": "dce56eb943"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog",
@@ -6621,8 +6656,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog"
 ],
-"label": "When \"Frappe ID\" radio is selected: • Grey out the Frappe Type dropdown for that row (type is irrelevant — no field created) • If the same column is selected a…",
-"label_source": "docstring"
+"label": "Update Frappe ID field and title radio button states when name field changes",
+"label_source": "generated",
+"label_hash": "72e1dc5e7b"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._forced_read_only_columns",
@@ -6634,8 +6670,9 @@
 "hash": "510ec9a9d1",
 "exported": false,
 "calls": [],
-"label": "Refresh Read Only checkboxes: auto-check for virtual, auto-enter, Frappe ID, Auto, TS columns Forced items are disabled so they cannot be unchecked in the dial…",
-"label_source": "docstring"
+"label": "Identify columns that must remain read-only in preview dialog",
+"label_source": "generated",
+"label_hash": "510ec9a9d1"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._refresh_read_only_state",
@@ -6653,8 +6690,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog"
 ],
-"label": "",
-"label_source": "none"
+"label": "Update read-only state and appearance of mapping checkboxes",
+"label_source": "generated",
+"label_hash": "71aa20df5f"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._exhibit_frappe_fieldname",
@@ -6668,8 +6706,9 @@
 "calls": [
 "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::_scrub_fieldname"
 ],
-"label": "",
-"label_source": "none"
+"label": "Generate Frappe field name for WordPress column avoiding reserved names",
+"label_source": "generated",
+"label_hash": "12d1d7c711"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._write_back_exclusion",
@@ -6681,8 +6720,9 @@
 "hash": "efcc76bdfe",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Determine if column excluded from write-back with explanation reason",
+"label_source": "generated",
+"label_hash": "efcc76bdfe"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog._render_desk_exhibit",
@@ -6701,8 +6741,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_dialog"
 ],
-"label": "",
-"label_source": "none"
+"label": "Render schema mapping table showing WordPress to Frappe field details",
+"label_source": "generated",
+"label_hash": "e77f046bdf"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_sync_progress_dialog",
@@ -6730,8 +6771,9 @@
 "hash": "bbe34ad924",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Append timestamped log message to sync progress display box",
+"label_source": "generated",
+"label_hash": "bbe34ad924"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_sync_progress_dialog._stop_poll",
@@ -6743,8 +6785,9 @@
 "hash": "9bee5ceda6",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Stop polling for sync status updates and clear timer",
+"label_source": "generated",
+"label_hash": "9bee5ceda6"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_sync_progress_dialog._poll",
@@ -6762,8 +6805,9 @@
 "wired_by": [
 "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_sync_progress_dialog"
 ],
-"label": "",
-"label_source": "none"
+"label": "Poll database for sync progress log and status updates continuously",
+"label_source": "generated",
+"label_hash": "aebdfcd972"
 },
 {
 "id": "nce_sync/nce_sync/doctype/wp_tables/wp_tables.js::show_preview_sync_counts_dialog",
@@ -7389,8 +7433,9 @@
 "calls": [
 "nce_sync/nce_sync/page/table_links/table_links.js::show_link_dialog.populate_field_list"
 ],
-"label": "",
-"label_source": "none"
+"label": "Render dialog body displaying existing and pending table relationship links",
+"label_source": "generated",
+"label_hash": "85bd19eea6"
 },
 {
 "id": "nce_sync/nce_sync/page/table_links/table_links.js::show_link_dialog.populate_field_list",
@@ -7404,8 +7449,9 @@
 "calls": [
 "nce_sync/nce_sync/page/table_links/table_links.js::show_link_dialog.render_field_list"
 ],
-"label": "",
-"label_source": "none"
+"label": "Load and display available fields for selected DocType in link dialog",
+"label_source": "generated",
+"label_hash": "62d22a04b1"
 },
 {
 "id": "nce_sync/nce_sync/page/table_links/table_links.js::show_link_dialog.render_field_list",
@@ -7417,8 +7463,9 @@
 "hash": "3d0b69fffa",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Render field selection table in link dialog with clickable rows for non-Link fields",
+"label_source": "generated",
+"label_hash": "3d0b69fffa"
 },
 {
 "id": "nce_sync/nce_sync/page/table_links/table_links.js::show_link_dialog.apply_changes",
@@ -7432,8 +7479,9 @@
 "calls": [
 "nce_sync/nce_sync/page/table_links/table_links.js::load_and_render_grid"
 ],
-"label": "",
-"label_source": "none"
+"label": "Save table link relationship changes and clear affected DocType metadata cache",
+"label_source": "generated",
+"label_hash": "e86d944e4e"
 },
 {
 "id": "nce_sync/overrides.py::get_desktop_page",
@@ -7515,8 +7563,9 @@
 "hash": "ceff075310",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Calculate average character width for accurate column size estimation",
+"label_source": "generated",
+"label_hash": "ceff075310"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::fetchSampleRows",
@@ -7528,8 +7577,9 @@
 "hash": "2c1ff59363",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Fetch sample rows from DocType for analyzing field value lengths",
+"label_source": "generated",
+"label_hash": "2c1ff59363"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::calculateMaxLengths",
@@ -7541,8 +7591,9 @@
 "hash": "469c5c449d",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Calculate maximum string length for each field across sample rows",
+"label_source": "generated",
+"label_hash": "469c5c449d"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::getButtonColumnWidth",
@@ -7554,8 +7605,9 @@
 "hash": "00aa963cbe",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Measure button column width based on listview action button labels",
+"label_source": "generated",
+"label_hash": "00aa963cbe"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::lengthsToWidths",
@@ -7570,8 +7622,9 @@
 "nce_sync/public/js/list_auto_size.js::calculateAvgCharWidth",
 "nce_sync/public/js/list_auto_size.js::getButtonColumnWidth"
 ],
-"label": "",
-"label_source": "none"
+"label": "Convert field character lengths to pixel widths with responsive scaling",
+"label_source": "generated",
+"label_hash": "a687e9be5b"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::applyWidths",
@@ -7583,8 +7636,9 @@
 "hash": "714ad0ff46",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Apply calculated CSS widths to list view columns with horizontal scroll support",
+"label_source": "generated",
+"label_hash": "714ad0ff46"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::autoSizeColumns",
@@ -7601,8 +7655,9 @@
 "nce_sync/public/js/list_auto_size.js::fetchSampleRows",
 "nce_sync/public/js/list_auto_size.js::lengthsToWidths"
 ],
-"label": "",
-"label_source": "none"
+"label": "Auto-size list view columns based on sample row data with caching",
+"label_source": "generated",
+"label_hash": "567107363f"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::manualResize",
@@ -7616,8 +7671,9 @@
 "calls": [
 "nce_sync/public/js/list_auto_size.js::autoSizeColumns"
 ],
-"label": "",
-"label_source": "none"
+"label": "Manually recalculate and resize list view columns, clearing cache",
+"label_source": "generated",
+"label_hash": "d0b7012b1b"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::sendAllToExcel",
@@ -7629,8 +7685,9 @@
 "hash": "c52c5973ee",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Export all list records to Excel file with progress alert",
+"label_source": "generated",
+"label_hash": "c52c5973ee"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::addResizeButton",
@@ -7644,8 +7701,9 @@
 "calls": [
 "nce_sync/public/js/list_auto_size.js::autoSizeColumns"
 ],
-"label": "",
-"label_source": "none"
+"label": "Add Resize Columns and Send All to Excel buttons to list view toolbar",
+"label_source": "generated",
+"label_hash": "8bc0890925"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::addResizeButton.resizeHandler",
@@ -7659,8 +7717,9 @@
 "calls": [
 "nce_sync/public/js/list_auto_size.js::manualResize"
 ],
-"label": "",
-"label_source": "none"
+"label": "Handler for Resize Columns button click event",
+"label_source": "generated",
+"label_hash": "b18b4db9dc"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::addResizeButton.excelHandler",
@@ -7674,8 +7733,9 @@
 "calls": [
 "nce_sync/public/js/list_auto_size.js::sendAllToExcel"
 ],
-"label": "",
-"label_source": "none"
+"label": "Handler for Send All to Excel button click event",
+"label_source": "generated",
+"label_hash": "c628542f04"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::tryAddButton",
@@ -7692,8 +7752,9 @@
 "wired_by": [
 "nce_sync/public/js/list_auto_size.js::init"
 ],
-"label": "",
-"label_source": "none"
+"label": "Attempt to add resize button to current list view",
+"label_source": "generated",
+"label_hash": "f011765097"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::init",
@@ -7710,8 +7771,9 @@
 "wired_by": [
 "nce_sync/public/js/list_auto_size.js"
 ],
-"label": "",
-"label_source": "none"
+"label": "Initialize list view auto-size feature with multiple router and prototype hooks",
+"label_source": "generated",
+"label_hash": "9cbf18265b"
 },
 {
 "id": "nce_sync/public/js/table_links_self_link_fix.js::isTableLinksPage",
@@ -7723,8 +7785,9 @@
 "hash": "47d361e1ea",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Detect whether current page is Table Links page",
+"label_source": "generated",
+"label_hash": "47d361e1ea"
 },
 {
 "id": "nce_sync/public/js/table_links_self_link_fix.js::makeButton",
@@ -7736,8 +7799,9 @@
 "hash": "241991b2ed",
 "exported": false,
 "calls": [],
-"label": "",
-"label_source": "none"
+"label": "Create button to manage links between table doctype records",
+"label_source": "generated",
+"label_hash": "241991b2ed"
 },
 {
 "id": "nce_sync/public/js/table_links_self_link_fix.js::paint",
@@ -7751,8 +7815,9 @@
 "calls": [
 "nce_sync/public/js/table_links_self_link_fix.js::makeButton"
 ],
-"label": "",
-"label_source": "none"
+"label": "Paint self-link buttons into Table Links grid for each doctype",
+"label_source": "generated",
+"label_hash": "d93b7a9b6f"
 },
 {
 "id": "nce_sync/public/js/table_links_self_link_fix.js::run",
@@ -7770,8 +7835,9 @@
 "wired_by": [
 "nce_sync/public/js/table_links_self_link_fix.js::schedule"
 ],
-"label": "",
-"label_source": "none"
+"label": "Fetch and paint self-link data into Table Links grid",
+"label_source": "generated",
+"label_hash": "6690912620"
 },
 {
 "id": "nce_sync/public/js/table_links_self_link_fix.js::schedule",
@@ -7788,8 +7854,9 @@
 "wired_by": [
 "nce_sync/public/js/table_links_self_link_fix.js"
 ],
-"label": "",
-"label_source": "none"
+"label": "Schedule debounced execution of Table Links self-link painting",
+"label_source": "generated",
+"label_hash": "d8e690780e"
 },
 {
 "id": "nce_sync/tests/test_derived_column_sql.py::TestSqlGenerationFrappeSql.test_concat_rewrites_to_frappe_fieldnames",
@@ -8729,20 +8796,37 @@
 "label_hash": "e5d0579d3c"
 },
 {
+"id": "nce_sync/utils/data_sync.py::_truncate_replace_insert_slice",
+"file": "nce_sync/utils/data_sync.py",
+"kind": "function",
+"name": "_truncate_replace_insert_slice",
+"qualname": "_truncate_replace_insert_slice",
+"sig": "(rows_slice, ctx, insert_one, total_to_sync, rows_processed, rows_skipped, skip_errors)",
+"hash": "da55fc2409",
+"calls": [
+"nce_sync/utils/data_sync.py::_batch_process_rows",
+"nce_sync/utils/data_sync.py::_convert_row"
+],
+"label": "Bulk-insert fetched data slice with fallback to row-by-row insertion on failure",
+"label_source": "generated",
+"label_hash": "da55fc2409"
+},
+{
 "id": "nce_sync/utils/data_sync.py::_sync_truncate_replace",
 "file": "nce_sync/utils/data_sync.py",
 "kind": "function",
 "name": "_sync_truncate_replace",
 "qualname": "_sync_truncate_replace",
 "sig": "(ctx)",
-"hash": "9a2da35507",
+"hash": "1760ed5185",
 "calls": [
-"nce_sync/utils/data_sync.py::_batch_process_rows",
-"nce_sync/utils/data_sync.py::_register_sync_strategy"
+"nce_sync/utils/data_sync.py::_publish_sync_progress",
+"nce_sync/utils/data_sync.py::_register_sync_strategy",
+"nce_sync/utils/data_sync.py::_truncate_replace_insert_slice"
 ],
-"label": "Delete all Frappe records in chunks and re-insert all WordPress rows",
+"label": "Sync WordPress data to Frappe using truncate and replace strategy",
 "label_source": "generated",
-"label_hash": "9a2da35507"
+"label_hash": "1760ed5185"
 },
 {
 "id": "nce_sync/utils/data_sync.py::_sync_truncate_replace.insert_one",
