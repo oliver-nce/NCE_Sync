@@ -31,6 +31,7 @@ from typing import Any, Dict, List, Optional
 import frappe
 import pytz
 from frappe import _
+from frappe.model.document import bulk_insert
 from frappe.utils import cint, cstr, now_datetime
 
 from nce_sync.utils.column_mapper import (
@@ -934,6 +935,47 @@ def preview_sync_counts(wp_table_doc):
 		}
 
 
+def _truncate_replace_insert_slice(rows_slice, ctx, insert_one, total_to_sync, rows_processed, rows_skipped, skip_errors):
+	"""Bulk-insert one fetched slice for Truncate & Replace; fall back to row-by-row on failure."""
+	try:
+		valid_fields = {df.fieldname for df in frappe.get_meta(ctx.frappe_doctype).fields}
+		valid_fields.add("name")
+
+		docs = []
+		for row in rows_slice:
+			converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping, ctx.literal_datetimes)
+			doc = frappe.new_doc(ctx.frappe_doctype)
+			for key, value in converted.items():
+				if key in valid_fields:
+					if key == "name" and value is not None:
+						value = str(value)
+					doc.set(key, value)
+			if not doc.name:
+				doc.set_new_name(set_child_names=False)
+			docs.append(doc)
+
+		bulk_insert(ctx.frappe_doctype, docs, chunk_size=UPSERT_BATCH_SIZE)
+		frappe.db.commit()
+		rows_processed += len(rows_slice)
+	except Exception:
+		# Roll back before any other write. A log insert can commit, and that
+		# would keep a partial chunk the fallback is about to write again.
+		trace = frappe.get_traceback()
+		frappe.db.rollback()
+		frappe.log_error(
+			title=f"Truncate replace bulk chunk failed: {ctx.table_name}",
+			message=trace,
+		)
+		result = _batch_process_rows(rows_slice, insert_one, ctx, total_to_sync)
+		rows_processed += result["rows_processed"]
+		rows_skipped += result.get("rows_skipped", 0)
+		for err in result.get("skip_errors") or []:
+			if len(skip_errors) < MAX_ROW_ERROR_MESSAGES:
+				skip_errors.append(err)
+
+	return rows_processed, rows_skipped, skip_errors
+
+
 @_register_sync_strategy("Truncate & Replace")
 def _sync_truncate_replace(ctx):
 	"""
@@ -970,25 +1012,41 @@ def _sync_truncate_replace(ctx):
 	cursor.close()
 	total_to_sync = len(all_rows)
 
-	# Step 3: Insert all rows via shared batch processor (with in_sync flag)
+	# Step 3: Bulk-insert in slices; fall back to row-by-row per slice on failure
 	def insert_one(row):
 		converted = _convert_row(row, ctx.wp_tz, ctx.column_mapping, ctx.literal_datetimes)
 		_insert_record(ctx.frappe_doctype, converted)
 		return True  # Always a new insert
 
+	rows_processed = 0
+	rows_skipped = 0
+	skip_errors = []
+
 	frappe.flags.in_sync = True
 	try:
-		result = _batch_process_rows(all_rows, insert_one, ctx, total_to_sync)
+		for i in range(0, len(all_rows), UPSERT_BATCH_SIZE):
+			batch = all_rows[i : i + UPSERT_BATCH_SIZE]
+			rows_processed, rows_skipped, skip_errors = _truncate_replace_insert_slice(
+				batch, ctx, insert_one, total_to_sync, rows_processed, rows_skipped, skip_errors
+			)
+			_publish_sync_progress(
+				ctx.wp_table_doc.name, rows_processed, total_to_sync, user=ctx.sync_user,
+			)
 	finally:
 		frappe.flags.in_sync = False
 
+	if not all_rows:
+		_publish_sync_progress(
+			ctx.wp_table_doc.name, rows_processed, total_to_sync, user=ctx.sync_user,
+		)
+
 	return {
 		"method": "Truncate & Replace",
-		"rows_inserted": result["rows_processed"],
+		"rows_inserted": rows_processed,
 		"rows_deleted": "all",
 		"total_wp_rows": total_to_sync,
-		"rows_skipped": result.get("rows_skipped", 0),
-		"skip_errors": result.get("skip_errors") or [],
+		"rows_skipped": rows_skipped,
+		"skip_errors": skip_errors,
 	}
 
 
