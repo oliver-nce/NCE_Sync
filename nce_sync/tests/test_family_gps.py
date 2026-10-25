@@ -350,13 +350,13 @@ class TestPopulateFamilyGpsRun(unittest.TestCase):
 		frappe.db.set_value.assert_called_once_with(
 			"Family GPS",
 			"GPS-88",
-			{"latitude": 38.0, "longitude": -77.0},
+			{"latitude": 38.0, "longitude": -77.0, "error_message": ""},
 			update_modified=True,
 		)
 		insert_doc.insert.assert_not_called()
 
 	@patch.object(family_gps.requests, "get")
-	def test_geocode_failure_does_not_insert(self, mock_get):
+	def test_geocode_failure_inserts_error_message(self, mock_get):
 		resp = MagicMock()
 		resp.raise_for_status = MagicMock()
 		resp.json.return_value = {"status": "ZERO_RESULTS", "results": []}
@@ -389,8 +389,145 @@ class TestPopulateFamilyGpsRun(unittest.TestCase):
 
 		self.assertEqual(out["geocode_failed"], 1)
 		self.assertEqual(out["created"], 0)
-		insert_doc.insert.assert_not_called()
+		self.assertEqual(out["updated"], 0)
+		gps_calls = [
+			c
+			for c in frappe.get_doc.call_args_list
+			if c[0] and isinstance(c[0][0], dict) and c[0][0].get("doctype") == "Family GPS"
+		]
+		self.assertEqual(len(gps_calls), 1)
+		payload = gps_calls[0][0][0]
+		self.assertEqual(payload["family_id"], "F77")
+		self.assertEqual(payload["error_message"], "ZERO_RESULTS")
+		self.assertNotIn("latitude", payload)
+		self.assertNotIn("longitude", payload)
+		insert_doc.insert.assert_called_once_with(ignore_permissions=True)
 		frappe.db.set_value.assert_not_called()
+
+	@patch.object(family_gps.requests, "get")
+	def test_geocode_failure_updates_existing_row(self, mock_get):
+		resp = MagicMock()
+		resp.raise_for_status = MagicMock()
+		resp.json.return_value = {"status": "ZERO_RESULTS", "results": []}
+		mock_get.return_value = resp
+		rows = [
+			{
+				"name": "F77",
+				"address_1": "77 Pine",
+				"address_2": "",
+				"city": "City",
+				"state": "PA",
+				"postcode": "19002",
+				"gps_name": "GPS-77",
+			},
+		]
+		frappe.db.sql = MagicMock(return_value=rows)
+		insert_doc = MagicMock()
+		connector = MagicMock(get_password=MagicMock(return_value="test-key"))
+
+		def _get_doc(*args, **kwargs):
+			if args and args[0] == "API Connector":
+				return connector
+			if isinstance(args[0], dict) and args[0].get("doctype") == "Family GPS":
+				return insert_doc
+			return MagicMock()
+
+		frappe.get_doc = MagicMock(side_effect=_get_doc)
+
+		out = family_gps._populate_family_gps(limit=50)
+
+		self.assertEqual(out["geocode_failed"], 1)
+		self.assertEqual(out["created"], 0)
+		self.assertEqual(out["updated"], 0)
+		frappe.db.set_value.assert_called_once_with(
+			"Family GPS",
+			"GPS-77",
+			{"error_message": "ZERO_RESULTS"},
+			update_modified=True,
+		)
+		insert_doc.insert.assert_not_called()
+
+	@patch.object(
+		family_gps.requests,
+		"get",
+		side_effect=RuntimeError(
+			"https://maps.googleapis.com/maps/api/geocode/json?key=SECRET-KEY"
+		),
+	)
+	def test_geocode_exception_does_not_store_request_url(self, _mock_get):
+		rows = [
+			{
+				"name": "F77",
+				"address_1": "77 Pine",
+				"address_2": "",
+				"city": "City",
+				"state": "PA",
+				"postcode": "19002",
+				"gps_name": None,
+			},
+		]
+		frappe.db.sql = MagicMock(return_value=rows)
+		insert_doc = MagicMock()
+		connector = MagicMock(get_password=MagicMock(return_value="test-key"))
+		captured_payload = {}
+
+		def _get_doc(*args, **kwargs):
+			if args and args[0] == "API Connector":
+				return connector
+			if isinstance(args[0], dict) and args[0].get("doctype") == "Family GPS":
+				captured_payload.update(args[0])
+				return insert_doc
+			return MagicMock()
+
+		frappe.get_doc = MagicMock(side_effect=_get_doc)
+
+		family_gps._populate_family_gps(limit=50)
+
+		self.assertEqual(captured_payload.get("error_message"), "Geocode request failed")
+		self.assertNotIn("SECRET-KEY", captured_payload.get("error_message", ""))
+
+	@patch.object(family_gps.requests, "get")
+	def test_google_error_message_is_stored(self, mock_get):
+		resp = MagicMock()
+		resp.raise_for_status = MagicMock()
+		resp.json.return_value = {
+			"status": "OVER_QUERY_LIMIT",
+			"error_message": "daily quota exceeded",
+			"results": [],
+		}
+		mock_get.return_value = resp
+		rows = [
+			{
+				"name": "F77",
+				"address_1": "77 Pine",
+				"address_2": "",
+				"city": "City",
+				"state": "PA",
+				"postcode": "19002",
+				"gps_name": None,
+			},
+		]
+		frappe.db.sql = MagicMock(return_value=rows)
+		insert_doc = MagicMock()
+		connector = MagicMock(get_password=MagicMock(return_value="test-key"))
+		captured_payload = {}
+
+		def _get_doc(*args, **kwargs):
+			if args and args[0] == "API Connector":
+				return connector
+			if isinstance(args[0], dict) and args[0].get("doctype") == "Family GPS":
+				captured_payload.update(args[0])
+				return insert_doc
+			return MagicMock()
+
+		frappe.get_doc = MagicMock(side_effect=_get_doc)
+
+		family_gps._populate_family_gps(limit=50)
+
+		self.assertEqual(
+			captured_payload.get("error_message"),
+			"OVER_QUERY_LIMIT: daily quota exceeded",
+		)
 
 	def test_blank_api_key_raises_validation_error_without_secret(self):
 		connector = MagicMock()

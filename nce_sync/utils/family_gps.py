@@ -8,7 +8,7 @@ code-index:begin
  "purpose": "Whitelisted populate_family_gps: ensure Family GPS family_id link, geocode family addresses, insert or update GPS rows.",
  "read_when": "Changing family GPS population, Family GPS DocType family_id field, or background geocode jobs.",
  "gotchas": [
-  "Geocode failures skip individual families; the batch still completes.",
+  "Geocode failures still write a Family GPS row with error_message and no coordinates; the batch still completes.",
   "API key comes only from API Connector Google Maps api_key; never api_secret."
  ],
  "keywords": ["family_gps", "populate_family_gps", "geocode", "Google Maps", "Families", "Family GPS"],
@@ -103,7 +103,7 @@ def _family_address(row: dict[str, Any]) -> str:
 	return ", ".join(p for p in parts if p)
 
 
-def _geocode_address(address: str, api_key: str) -> tuple[float, float] | None:
+def _geocode_address(address: str, api_key: str) -> tuple[float, float] | str:
 	try:
 		resp = requests.get(
 			_GEOCODE_URL,
@@ -113,28 +113,33 @@ def _geocode_address(address: str, api_key: str) -> tuple[float, float] | None:
 		resp.raise_for_status()
 		data = resp.json()
 	except Exception:
-		return None
-	if data.get("status") != "OK":
-		return None
+		return "Geocode request failed"
+	status = data.get("status")
+	if status != "OK":
+		error_message = (data.get("error_message") or "").strip()
+		if error_message:
+			msg = f"{status}: {error_message}"
+			return msg[:500]
+		return status if status else "Geocode failed"
 	results = data.get("results") or []
 	if not results:
-		return None
+		return "No coordinates returned"
 	loc = (results[0].get("geometry") or {}).get("location") or {}
 	lat, lng = loc.get("lat"), loc.get("lng")
 	if lat is None or lng is None:
-		return None
+		return "No coordinates returned"
 	try:
 		return float(lat), float(lng)
 	except (TypeError, ValueError):
-		return None
+		return "No coordinates returned"
 
 
-def _geocode_addresses(addresses: list[str], api_key: str) -> dict[str, tuple[float, float] | None]:
+def _geocode_addresses(addresses: list[str], api_key: str) -> dict[str, tuple[float, float] | str]:
 	unique = list(dict.fromkeys(a for a in addresses if a))
 	if not unique:
 		return {}
 	workers = min(32, len(unique))
-	found: dict[str, tuple[float, float] | None] = {}
+	found: dict[str, tuple[float, float] | str] = {}
 	with ThreadPoolExecutor(max_workers=workers) as pool:
 		futures = {pool.submit(_geocode_address, address, api_key): address for address in unique}
 		for future, address in futures.items():
@@ -178,30 +183,61 @@ def _populate_family_gps(limit: int | None = 50) -> dict[str, Any]:
 
 	for row, address in zip(rows, addresses, strict=True):
 		coords = coord_by_address.get(address)
-		if not coords:
-			geocode_failed += 1
-			continue
-		latitude, longitude = coords
 		gps_name = row.get("gps_name")
-		if gps_name:
-			frappe.db.set_value(
-				"Family GPS",
-				gps_name,
-				{"latitude": latitude, "longitude": longitude},
-				update_modified=True,
-			)
-			updated += 1
+		if isinstance(coords, tuple):
+			latitude, longitude = coords
+			if gps_name:
+				frappe.db.set_value(
+					"Family GPS",
+					gps_name,
+					{
+						"latitude": latitude,
+						"longitude": longitude,
+						"error_message": "",
+					},
+					update_modified=True,
+				)
+				updated += 1
+			else:
+				doc = frappe.get_doc(
+					{
+						"doctype": "Family GPS",
+						"family_id": row["name"],
+						"latitude": latitude,
+						"longitude": longitude,
+						"error_message": "",
+					}
+				)
+				try:
+					doc.insert(ignore_permissions=True)
+					created += 1
+				except frappe.DuplicateEntryError:
+					continue
 		else:
-			doc = frappe.get_doc(
-				{
-					"doctype": "Family GPS",
-					"family_id": row["name"],
-					"latitude": latitude,
-					"longitude": longitude,
-				}
-			)
-			doc.insert(ignore_permissions=True)
-			created += 1
+			if isinstance(coords, str):
+				message = coords.strip() or "Geocode request failed"
+			else:
+				message = "Geocode request failed"
+			geocode_failed += 1
+			if gps_name:
+				frappe.db.set_value(
+					"Family GPS",
+					gps_name,
+					{"error_message": message},
+					update_modified=True,
+				)
+			else:
+				doc = frappe.get_doc(
+					{
+						"doctype": "Family GPS",
+						"family_id": row["name"],
+						"error_message": message,
+					}
+				)
+				try:
+					doc.insert(ignore_permissions=True)
+				except frappe.DuplicateEntryError:
+					continue
 
 	frappe.db.commit()
 	processed = created + updated + geocode_failed

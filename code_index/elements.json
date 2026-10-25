@@ -2,7 +2,7 @@
 "_meta": {
 "description": "The single authoritative code index of this project: every function, class, method, route, test, Vue component, CSS section and doc section with a label, plus each file's purpose. Query it with the shared code-index tool (find / show / callers); do not read this file whole. Generated: never edit by hand; hand-written notes live in code_index/project.json.",
 "generator": "_Project support files/code-index/codeindex.py",
-"count": 779,
+"count": 782,
 "project_sha256": "4149da0557eced977397fd926c9ce2ebca6a2b3cea453cc77dde71de6d1839c7",
 "headers_sha256": "f6011c74c3180013a4d1022fe7936b1b297d6d1c18b10f40439599b0ae7b3413"
 },
@@ -1082,7 +1082,7 @@
 "purpose": "Whitelisted populate_family_gps: ensure Family GPS family_id link, geocode family addresses, insert or update GPS rows.",
 "read_when": "Changing family GPS population, Family GPS DocType family_id field, or background geocode jobs.",
 "gotchas": [
-"Geocode failures skip individual families; the batch still completes.",
+"Geocode failures still write a Family GPS row with error_message and no coordinates; the batch still completes.",
 "API key comes only from API Connector Google Maps api_key; never api_secret."
 ],
 "keywords": [
@@ -8100,21 +8100,57 @@
 "name": "test_successful_geocode_with_gps_name_updates_no_insert",
 "qualname": "TestPopulateFamilyGpsRun.test_successful_geocode_with_gps_name_updates_no_insert",
 "sig": "(self, _mock_get)",
-"hash": "27d3b9ea95",
+"hash": "5a81f2dc80",
 "calls": [],
 "label": "successful geocode with gps name updates no insert",
 "label_source": "name"
 },
 {
-"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_geocode_failure_does_not_insert",
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_geocode_failure_inserts_error_message",
 "file": "nce_sync/tests/test_family_gps.py",
 "kind": "test",
-"name": "test_geocode_failure_does_not_insert",
-"qualname": "TestPopulateFamilyGpsRun.test_geocode_failure_does_not_insert",
+"name": "test_geocode_failure_inserts_error_message",
+"qualname": "TestPopulateFamilyGpsRun.test_geocode_failure_inserts_error_message",
 "sig": "(self, mock_get)",
-"hash": "261d046602",
+"hash": "97c9a56c69",
 "calls": [],
-"label": "geocode failure does not insert",
+"label": "geocode failure inserts error message",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_geocode_failure_updates_existing_row",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_geocode_failure_updates_existing_row",
+"qualname": "TestPopulateFamilyGpsRun.test_geocode_failure_updates_existing_row",
+"sig": "(self, mock_get)",
+"hash": "35dfa4db35",
+"calls": [],
+"label": "geocode failure updates existing row",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_geocode_exception_does_not_store_request_url",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_geocode_exception_does_not_store_request_url",
+"qualname": "TestPopulateFamilyGpsRun.test_geocode_exception_does_not_store_request_url",
+"sig": "(self, _mock_get)",
+"hash": "a61313ff1e",
+"calls": [],
+"label": "geocode exception does not store request url",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_google_error_message_is_stored",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_google_error_message_is_stored",
+"qualname": "TestPopulateFamilyGpsRun.test_google_error_message_is_stored",
+"sig": "(self, mock_get)",
+"hash": "ef5585aaa5",
+"calls": [],
+"label": "google error message is stored",
 "label_source": "name"
 },
 {
@@ -9701,15 +9737,15 @@
 "kind": "function",
 "name": "_geocode_address",
 "qualname": "_geocode_address",
-"sig": "(address: str, api_key: str) -> tuple[float, float] | None",
-"hash": "52ddefefb9",
+"sig": "(address: str, api_key: str) -> tuple[float, float] | str",
+"hash": "a3051840b7",
 "calls": [],
 "wired_by": [
 "nce_sync/utils/family_gps.py::_geocode_addresses"
 ],
-"label": "Call Google Maps API to geocode single address into latitude and longitude coordinates",
+"label": "Call Google Maps API to geocode a single address into latitude and longitude coordinates",
 "label_source": "generated",
-"label_hash": "52ddefefb9"
+"label_hash": "a3051840b7"
 },
 {
 "id": "nce_sync/utils/family_gps.py::_geocode_addresses",
@@ -9717,15 +9753,15 @@
 "kind": "function",
 "name": "_geocode_addresses",
 "qualname": "_geocode_addresses",
-"sig": "(addresses: list[str], api_key: str) -> dict[str, tuple[float, float] | None]",
-"hash": "1870a07031",
+"sig": "(addresses: list[str], api_key: str) -> dict[str, tuple[float, float] | str]",
+"hash": "0f52b25408",
 "calls": [],
 "tested_by": [
 "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_populate_limit_50_is_passed_to_sql"
 ],
-"label": "Geocode multiple addresses in parallel using thread pool for performance",
+"label": "Geocode multiple addresses in parallel using thread pool for faster batch processing",
 "label_source": "generated",
-"label_hash": "1870a07031"
+"label_hash": "0f52b25408"
 },
 {
 "id": "nce_sync/utils/family_gps.py::_google_maps_api_key",
@@ -9747,7 +9783,7 @@
 "name": "_populate_family_gps",
 "qualname": "_populate_family_gps",
 "sig": "(limit: int | None=50) -> dict[str, Any]",
-"hash": "90e4b0e9cc",
+"hash": "012693699a",
 "calls": [
 "nce_sync/utils/family_gps.py::_family_address",
 "nce_sync/utils/family_gps.py::_geocode_addresses",
@@ -9755,15 +9791,15 @@
 "nce_sync/utils/family_gps.py::ensure_family_gps_link"
 ],
 "tested_by": [
-"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_geocode_failure_does_not_insert",
-"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_populate_limit_50_is_passed_to_sql",
-"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_same_address_geocoded_once_two_families_share_coords",
-"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_successful_geocode_with_gps_name_updates_no_insert",
-"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_successful_geocode_without_gps_name_inserts"
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_geocode_exception_does_not_store_request_url",
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_geocode_failure_inserts_error_message",
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_geocode_failure_updates_existing_row",
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_google_error_message_is_stored",
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_populate_limit_50_is_passed_to_sql"
 ],
-"label": "Populate Family GPS records by geocoding addresses for families needing GPS coordinates",
+"label": "Populate Family GPS records by geocoding family addresses and creating or updating GPS documents",
 "label_source": "generated",
-"label_hash": "90e4b0e9cc"
+"label_hash": "012693699a"
 },
 {
 "id": "nce_sync/utils/family_gps.py::family_gps_populate_job",
