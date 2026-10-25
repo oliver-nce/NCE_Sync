@@ -2,7 +2,7 @@
 "_meta": {
 "description": "The single authoritative code index of this project: every function, class, method, route, test, Vue component, CSS section and doc section with a label, plus each file's purpose. Query it with the shared code-index tool (find / show / callers); do not read this file whole. Generated: never edit by hand; hand-written notes live in code_index/project.json.",
 "generator": "_Project support files/code-index/codeindex.py",
-"count": 756,
+"count": 779,
 "project_sha256": "4149da0557eced977397fd926c9ce2ebca6a2b3cea453cc77dde71de6d1839c7",
 "headers_sha256": "f6011c74c3180013a4d1022fe7936b1b297d6d1c18b10f40439599b0ae7b3413"
 },
@@ -892,6 +892,18 @@
 "nce_sync/utils/schema_mirror.py"
 ]
 },
+"nce_sync/tests/test_family_gps.py": {
+"purpose": "Unit tests for populate_family_gps permissions, family_id link ensure, geocode batching, and enqueue path.",
+"read_when": "Changing family_gps population, geocode behaviour, or Family GPS DocType family_id field.",
+"gotchas": [],
+"keywords": [
+"family_gps",
+"populate_family_gps",
+"geocode",
+"unittest",
+"Family GPS"
+]
+},
 "nce_sync/tests/test_forced_read_only.py": {
 "purpose": "Unit tests for system-forced read-only column resolution during mirror and remap operations.",
 "read_when": "Changing forced read-only rules for virtual, auto-increment, name, or timestamp columns.",
@@ -1064,6 +1076,22 @@
 ],
 "depends_on": [
 "nce_sync/utils/sql_to_python.py"
+]
+},
+"nce_sync/utils/family_gps.py": {
+"purpose": "Whitelisted populate_family_gps: ensure Family GPS family_id link, geocode family addresses, insert or update GPS rows.",
+"read_when": "Changing family GPS population, Family GPS DocType family_id field, or background geocode jobs.",
+"gotchas": [
+"Geocode failures skip individual families; the batch still completes.",
+"API key comes only from API Connector Google Maps api_key; never api_secret."
+],
+"keywords": [
+"family_gps",
+"populate_family_gps",
+"geocode",
+"Google Maps",
+"Families",
+"Family GPS"
 ]
 },
 "nce_sync/utils/live_sync.py": {
@@ -7690,20 +7718,51 @@
 "label_hash": "c52c5973ee"
 },
 {
+"id": "nce_sync/public/js/list_auto_size.js::showFamilyGpsResultAlert",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "showFamilyGpsResultAlert",
+"qualname": "showFamilyGpsResultAlert",
+"sig": "(result)",
+"hash": "340a29e2fd",
+"exported": false,
+"calls": [],
+"label": "Display alert showing GPS population results and any geocoding failures",
+"label_source": "generated",
+"label_hash": "340a29e2fd"
+},
+{
+"id": "nce_sync/public/js/list_auto_size.js::populateFamilyGps",
+"file": "nce_sync/public/js/list_auto_size.js",
+"kind": "function",
+"name": "populateFamilyGps",
+"qualname": "populateFamilyGps",
+"sig": "(allRows)",
+"hash": "7b15c838b7",
+"exported": false,
+"calls": [
+"nce_sync/public/js/list_auto_size.js::showFamilyGpsResultAlert"
+],
+"label": "Initiate batch GPS population for families and monitor realtime completion",
+"label_source": "generated",
+"label_hash": "7b15c838b7"
+},
+{
 "id": "nce_sync/public/js/list_auto_size.js::addResizeButton",
 "file": "nce_sync/public/js/list_auto_size.js",
 "kind": "function",
 "name": "addResizeButton",
 "qualname": "addResizeButton",
 "sig": "(listview)",
-"hash": "8bc0890925",
+"hash": "273a3aabeb",
 "exported": false,
 "calls": [
-"nce_sync/public/js/list_auto_size.js::autoSizeColumns"
+"nce_sync/public/js/list_auto_size.js::autoSizeColumns",
+"nce_sync/public/js/list_auto_size.js::populateFamilyGps"
 ],
-"label": "Add Resize Columns and Send All to Excel buttons to list view toolbar",
+"label": "Add toolbar buttons for column resizing, Excel export, and GPS population to list views",
 "label_source": "generated",
-"label_hash": "8bc0890925"
+"label_hash": "273a3aabeb"
 },
 {
 "id": "nce_sync/public/js/list_auto_size.js::addResizeButton.resizeHandler",
@@ -7912,6 +7971,162 @@
 "nce_sync/utils/schema_mirror.py::_build_column_mapping"
 ],
 "label": "emits is derived and sql expression",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsPermissions.test_guest_is_rejected",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_guest_is_rejected",
+"qualname": "TestPopulateFamilyGpsPermissions.test_guest_is_rejected",
+"sig": "(self)",
+"hash": "25f3d5fd27",
+"calls": [],
+"label": "guest is rejected",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsPermissions.test_missing_families_read_permission_is_rejected",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_missing_families_read_permission_is_rejected",
+"qualname": "TestPopulateFamilyGpsPermissions.test_missing_families_read_permission_is_rejected",
+"sig": "(self)",
+"hash": "af91476ed5",
+"calls": [],
+"label": "missing families read permission is rejected",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestEnsureFamilyGpsLink.test_family_id_already_link_doctype_save_not_called",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_family_id_already_link_doctype_save_not_called",
+"qualname": "TestEnsureFamilyGpsLink.test_family_id_already_link_doctype_save_not_called",
+"sig": "(self)",
+"hash": "9d961b05d2",
+"calls": [],
+"label": "family id already link doctype save not called",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestEnsureFamilyGpsLink.test_family_id_data_converted_to_link_and_saved",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_family_id_data_converted_to_link_and_saved",
+"qualname": "TestEnsureFamilyGpsLink.test_family_id_data_converted_to_link_and_saved",
+"sig": "(self)",
+"hash": "a4cf14bb38",
+"calls": [],
+"label": "family id data converted to link and saved",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestEnsureFamilyGpsLink.test_family_id_missing_field_appended_as_link",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_family_id_missing_field_appended_as_link",
+"qualname": "TestEnsureFamilyGpsLink.test_family_id_missing_field_appended_as_link",
+"sig": "(self)",
+"hash": "0c6be7b559",
+"calls": [],
+"label": "family id missing field appended as link",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_populate_limit_50_is_passed_to_sql",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_populate_limit_50_is_passed_to_sql",
+"qualname": "TestPopulateFamilyGpsRun.test_populate_limit_50_is_passed_to_sql",
+"sig": "(self)",
+"hash": "574c310476",
+"calls": [],
+"label": "populate limit 50 is passed to sql",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_normal_populate_enqueues_limit_50",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_normal_populate_enqueues_limit_50",
+"qualname": "TestPopulateFamilyGpsRun.test_normal_populate_enqueues_limit_50",
+"sig": "(self)",
+"hash": "486b3ed714",
+"calls": [],
+"label": "normal populate enqueues limit 50",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_all_rows_enqueues_without_limit",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_all_rows_enqueues_without_limit",
+"qualname": "TestPopulateFamilyGpsRun.test_all_rows_enqueues_without_limit",
+"sig": "(self)",
+"hash": "b4d2d6d730",
+"calls": [],
+"label": "all rows enqueues without limit",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_same_address_geocoded_once_two_families_share_coords",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_same_address_geocoded_once_two_families_share_coords",
+"qualname": "TestPopulateFamilyGpsRun.test_same_address_geocoded_once_two_families_share_coords",
+"sig": "(self, mock_get)",
+"hash": "c1db01ad64",
+"calls": [],
+"label": "same address geocoded once two families share coords",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_successful_geocode_without_gps_name_inserts",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_successful_geocode_without_gps_name_inserts",
+"qualname": "TestPopulateFamilyGpsRun.test_successful_geocode_without_gps_name_inserts",
+"sig": "(self, _mock_get)",
+"hash": "39a20c2ed1",
+"calls": [],
+"label": "successful geocode without gps name inserts",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_successful_geocode_with_gps_name_updates_no_insert",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_successful_geocode_with_gps_name_updates_no_insert",
+"qualname": "TestPopulateFamilyGpsRun.test_successful_geocode_with_gps_name_updates_no_insert",
+"sig": "(self, _mock_get)",
+"hash": "27d3b9ea95",
+"calls": [],
+"label": "successful geocode with gps name updates no insert",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_geocode_failure_does_not_insert",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_geocode_failure_does_not_insert",
+"qualname": "TestPopulateFamilyGpsRun.test_geocode_failure_does_not_insert",
+"sig": "(self, mock_get)",
+"hash": "261d046602",
+"calls": [],
+"label": "geocode failure does not insert",
+"label_source": "name"
+},
+{
+"id": "nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_blank_api_key_raises_validation_error_without_secret",
+"file": "nce_sync/tests/test_family_gps.py",
+"kind": "test",
+"name": "test_blank_api_key_raises_validation_error_without_secret",
+"qualname": "TestPopulateFamilyGpsRun.test_blank_api_key_raises_validation_error_without_secret",
+"sig": "(self)",
+"hash": "5653928a48",
+"calls": [],
+"label": "blank api key raises validation error without secret",
 "label_source": "name"
 },
 {
@@ -9448,6 +9663,152 @@
 "label": "Convert MariaDB generated column expressions to Frappe bare SQL with fieldnames",
 "label_source": "generated",
 "label_hash": "e38e552b56"
+},
+{
+"id": "nce_sync/utils/family_gps.py::ensure_family_gps_link",
+"file": "nce_sync/utils/family_gps.py",
+"kind": "function",
+"name": "ensure_family_gps_link",
+"qualname": "ensure_family_gps_link",
+"sig": "() -> bool",
+"hash": "9c44fbcbc8",
+"calls": [],
+"tested_by": [
+"nce_sync/tests/test_family_gps.py::TestEnsureFamilyGpsLink.test_family_id_already_link_doctype_save_not_called",
+"nce_sync/tests/test_family_gps.py::TestEnsureFamilyGpsLink.test_family_id_data_converted_to_link_and_saved",
+"nce_sync/tests/test_family_gps.py::TestEnsureFamilyGpsLink.test_family_id_missing_field_appended_as_link"
+],
+"label": "Ensure Family GPS doctype has proper family_id link field structure",
+"label_source": "generated",
+"label_hash": "9c44fbcbc8"
+},
+{
+"id": "nce_sync/utils/family_gps.py::_family_address",
+"file": "nce_sync/utils/family_gps.py",
+"kind": "function",
+"name": "_family_address",
+"qualname": "_family_address",
+"sig": "(row: dict[str, Any]) -> str",
+"hash": "7357fe6155",
+"calls": [],
+"label": "Construct full address string from family address components",
+"label_source": "generated",
+"label_hash": "7357fe6155"
+},
+{
+"id": "nce_sync/utils/family_gps.py::_geocode_address",
+"file": "nce_sync/utils/family_gps.py",
+"kind": "function",
+"name": "_geocode_address",
+"qualname": "_geocode_address",
+"sig": "(address: str, api_key: str) -> tuple[float, float] | None",
+"hash": "52ddefefb9",
+"calls": [],
+"wired_by": [
+"nce_sync/utils/family_gps.py::_geocode_addresses"
+],
+"label": "Call Google Maps API to geocode single address into latitude and longitude coordinates",
+"label_source": "generated",
+"label_hash": "52ddefefb9"
+},
+{
+"id": "nce_sync/utils/family_gps.py::_geocode_addresses",
+"file": "nce_sync/utils/family_gps.py",
+"kind": "function",
+"name": "_geocode_addresses",
+"qualname": "_geocode_addresses",
+"sig": "(addresses: list[str], api_key: str) -> dict[str, tuple[float, float] | None]",
+"hash": "1870a07031",
+"calls": [],
+"tested_by": [
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_populate_limit_50_is_passed_to_sql"
+],
+"label": "Geocode multiple addresses in parallel using thread pool for performance",
+"label_source": "generated",
+"label_hash": "1870a07031"
+},
+{
+"id": "nce_sync/utils/family_gps.py::_google_maps_api_key",
+"file": "nce_sync/utils/family_gps.py",
+"kind": "function",
+"name": "_google_maps_api_key",
+"qualname": "_google_maps_api_key",
+"sig": "() -> str",
+"hash": "cc14c18106",
+"calls": [],
+"label": "Retrieve and validate Google Maps API key from API Connector configuration",
+"label_source": "generated",
+"label_hash": "cc14c18106"
+},
+{
+"id": "nce_sync/utils/family_gps.py::_populate_family_gps",
+"file": "nce_sync/utils/family_gps.py",
+"kind": "function",
+"name": "_populate_family_gps",
+"qualname": "_populate_family_gps",
+"sig": "(limit: int | None=50) -> dict[str, Any]",
+"hash": "90e4b0e9cc",
+"calls": [
+"nce_sync/utils/family_gps.py::_family_address",
+"nce_sync/utils/family_gps.py::_geocode_addresses",
+"nce_sync/utils/family_gps.py::_google_maps_api_key",
+"nce_sync/utils/family_gps.py::ensure_family_gps_link"
+],
+"tested_by": [
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_geocode_failure_does_not_insert",
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_populate_limit_50_is_passed_to_sql",
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_same_address_geocoded_once_two_families_share_coords",
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_successful_geocode_with_gps_name_updates_no_insert",
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_successful_geocode_without_gps_name_inserts"
+],
+"label": "Populate Family GPS records by geocoding addresses for families needing GPS coordinates",
+"label_source": "generated",
+"label_hash": "90e4b0e9cc"
+},
+{
+"id": "nce_sync/utils/family_gps.py::family_gps_populate_job",
+"file": "nce_sync/utils/family_gps.py",
+"kind": "function",
+"name": "family_gps_populate_job",
+"qualname": "family_gps_populate_job",
+"sig": "(user: str, limit: int | None=None, batch_id: str | None=None) -> None",
+"hash": "5c3103fa30",
+"calls": [
+"nce_sync/utils/family_gps.py::_populate_family_gps"
+],
+"wired_by": [
+"nce_sync/utils/family_gps.py::populate_family_gps"
+],
+"tested_by": [
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_all_rows_enqueues_without_limit",
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_normal_populate_enqueues_limit_50"
+],
+"label": "Queue background job to populate family GPS data and notify user upon completion",
+"label_source": "generated",
+"label_hash": "5c3103fa30"
+},
+{
+"id": "nce_sync/utils/family_gps.py::populate_family_gps",
+"file": "nce_sync/utils/family_gps.py",
+"kind": "function",
+"name": "populate_family_gps",
+"qualname": "populate_family_gps",
+"sig": "(all_rows=0, batch_id=None)",
+"hash": "8e9153e5f5",
+"calls": [
+"nce_sync/utils/family_gps.py::_google_maps_api_key",
+"nce_sync/utils/family_gps.py::ensure_family_gps_link"
+],
+"tested_by": [
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsPermissions.test_guest_is_rejected",
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsPermissions.test_missing_families_read_permission_is_rejected",
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_all_rows_enqueues_without_limit",
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_blank_api_key_raises_validation_error_without_secret",
+"nce_sync/tests/test_family_gps.py::TestPopulateFamilyGpsRun.test_normal_populate_enqueues_limit_50"
+],
+"label": "Queue GPS coordinates for families with missing geocoded locations",
+"label_source": "generated",
+"label_hash": "8e9153e5f5"
 },
 {
 "id": "nce_sync/utils/live_sync.py::_get_listen_map",

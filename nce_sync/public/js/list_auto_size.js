@@ -304,6 +304,81 @@
 		});
 	}
 
+	function showFamilyGpsResultAlert(result) {
+		var processed = result && result.processed;
+		if (!processed) {
+			frappe.show_alert(
+				{
+					message: __("No families still need GPS."),
+					indicator: "green",
+				},
+				8
+			);
+			return;
+		}
+		var filled = (result.created || 0) + (result.updated || 0);
+		var failed = result.geocode_failed || 0;
+		if (failed > 0) {
+			frappe.show_alert(
+				{
+					message: __(
+						"GPS filled for {0} families. {1} could not be geocoded.",
+						[filled, failed]
+					),
+					indicator: "orange",
+				},
+				8
+			);
+		} else {
+			frappe.show_alert(
+				{
+					message: __("GPS filled for {0} families.", [filled]),
+					indicator: "green",
+				},
+				8
+			);
+		}
+	}
+
+	function populateFamilyGps(allRows) {
+		var batchId = Math.random().toString(36).slice(2) + Date.now().toString(36);
+		var alertEl = null;
+		var handler = function (data) {
+			if (!data || data.batch_id !== batchId) {
+				return;
+			}
+			frappe.realtime.off("family_gps_populate_done", handler);
+			if (alertEl) {
+				alertEl.remove();
+				alertEl = null;
+			}
+			showFamilyGpsResultAlert(data);
+		};
+		frappe.realtime.on("family_gps_populate_done", handler);
+
+		alertEl = frappe.show_alert(
+			{
+				message: allRows
+					? __("Populating GPS for every family that still needs it…")
+					: __("Populating GPS for up to 50 families…"),
+				indicator: "blue",
+			},
+			3600
+		);
+
+		frappe.call({
+			method: "nce_sync.utils.family_gps.populate_family_gps",
+			args: { all_rows: allRows ? 1 : 0, batch_id: batchId },
+			error: function () {
+				frappe.realtime.off("family_gps_populate_done", handler);
+				if (alertEl) {
+					alertEl.remove();
+					alertEl = null;
+				}
+			},
+		});
+	}
+
 	function addResizeButton(listview) {
 		if (!listview || listview._resizeBtnAdded) return;
 		if (!listview.page) return;
@@ -322,6 +397,18 @@
 		if (page.add_inner_button) {
 			page.add_inner_button(__("Resize Columns"), resizeHandler);
 			page.add_inner_button(__("Send All to Excel"), excelHandler);
+			if (listview.doctype === "Families") {
+				var gpsNormalHandler = function () {
+					populateFamilyGps(false);
+				};
+				var $gpsBtn = page.add_inner_button(__("Populate GPS"), gpsNormalHandler);
+				if ($gpsBtn && $gpsBtn.length) {
+					$gpsBtn.off("click").on("click", function (e) {
+						e.preventDefault();
+						populateFamilyGps(!!e.shiftKey);
+					});
+				}
+			}
 		} else {
 			page.add_action_item(__("Resize Columns"), resizeHandler);
 			page.add_action_item(__("Send All to Excel"), excelHandler);
