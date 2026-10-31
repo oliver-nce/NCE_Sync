@@ -1502,20 +1502,25 @@ def _cleanup_old_sync_logs(keep_count=20):
 	Args:
 		keep_count: Number of recent records to keep (default 20)
 	"""
-	# Get all Sync Log names ordered by creation (newest first)
+	# Retention is per WP Table, so a table that logs every run cannot evict
+	# the latest log of the others.
 	all_logs = frappe.get_all(
 		"Sync Log",
-		fields=["name"],
+		fields=["name", "wp_table"],
 		order_by="creation desc",
 		limit_page_length=0,
 	)
 
-	# Delete records beyond keep_count
-	if len(all_logs) > keep_count:
-		logs_to_delete = all_logs[keep_count:]
-		for log in logs_to_delete:
+	seen: dict = {}
+	deleted = False
+	for log in all_logs:
+		key = log.wp_table
+		seen[key] = seen.get(key, 0) + 1
+		if seen[key] > keep_count:
 			frappe.delete_doc("Sync Log", log.name, force=True, ignore_permissions=True)
+			deleted = True
 
+	if deleted:
 		frappe.db.commit()
 
 
@@ -2231,7 +2236,9 @@ def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 				wp_table_doc.save()
 				frappe.db.commit()
 
-				if summary["has_changes"]:
+				# Always log a clean run (even with 0 changes) so the WP Tables
+				# panel shows the latest status and Elapsed for every table.
+				if not getattr(wp_table_doc, "_sync_is_test", False) or summary["has_changes"]:
 					_create_sync_log(
 						wp_table_doc.name, sync_method, sync_started,
 						status="Success",
@@ -2241,9 +2248,12 @@ def _run_sync_with_status(wp_table_doc, suppress_notifications=False):
 						records_deleted=summary["rows_deleted"],
 					)
 			else:
-				# B3: not a clean success — do NOT advance last_synced (next run
-				# retries), and always leave an auditable trail.
+				# B3: not a clean success — always leave an auditable trail.
 				problem_msg = "; ".join(problems)
+				# Warning (e.g. bad source rows skipped) is a completed run; only
+				# a failed WordPress exchange (Error) leaves last_synced alone.
+				if status == "Warning" and not getattr(wp_table_doc, "_sync_is_test", False):
+					wp_table_doc.last_synced = now_datetime()
 				wp_table_doc.last_sync_status = status
 				wp_table_doc.last_sync_log = f"{status}: {problem_msg} | {audit}"[:500]
 				wp_table_doc.save()
